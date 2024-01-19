@@ -1,0 +1,14 @@
+[project]
+name = "multiagent-bmi-fastapi"
+version = "0.1.0"
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[[tool.mypy.overrides]]
+module = [".*", "pupil_labs.*"]
+ignore_missing_imports = true

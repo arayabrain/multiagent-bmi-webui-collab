@@ -1,0 +1,46 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Streamlit",
+            "type": "python",
+            "request": "launch",
+            "program": "C:\\Users\\yoshi\\.venvs\\multiagent-bmi\\Scripts\\streamlit.exe",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "run",
+                "--server.runOnSave",
+                "false",
+                // "${workspaceFolder}/streamlit_mp.py"
+                // "${workspaceFolder}/streamlit_cc.py"
+                // "${workspaceFolder}/streamlit_cc2.py"
+                // "${workspaceFolder}/streamlit_mp_shm.py"
+                "${workspaceFolder}/streamlit_mp_shm_mouse.py"
+            ]
+        },
+        {
+            "name": "FastAPI",
+            "type": "python",
+            "request": "launch",
+            "program": "C:\\Users\\yoshi\\.venvs\\multiagent-bmi\\Scripts\\uvicorn.exe",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "app.main:app",
+                "--reload"
+            ]
+        }
+    ]
+}

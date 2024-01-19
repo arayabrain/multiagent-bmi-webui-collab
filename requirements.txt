@@ -1,0 +1,4 @@
+fastapi
+uvicorn
+
+# install robohive and its dependencies
