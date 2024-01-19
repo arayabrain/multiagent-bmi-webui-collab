@@ -1,4 +1,4 @@
-# multienv-bmi
+# multiagent-bmi-fastapi
 
 ## Installation
 First create a virtual environment. Tested with Python 3.10.
