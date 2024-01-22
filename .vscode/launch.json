@@ -13,24 +13,6 @@
             "justMyCode": false
         },
         {
-            "name": "Streamlit",
-            "type": "python",
-            "request": "launch",
-            "program": "C:\\Users\\yoshi\\.venvs\\multiagent-bmi\\Scripts\\streamlit.exe",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "args": [
-                "run",
-                "--server.runOnSave",
-                "false",
-                // "${workspaceFolder}/streamlit_mp.py"
-                // "${workspaceFolder}/streamlit_cc.py"
-                // "${workspaceFolder}/streamlit_cc2.py"
-                // "${workspaceFolder}/streamlit_mp_shm.py"
-                "${workspaceFolder}/streamlit_mp_shm_mouse.py"
-            ]
-        },
-        {
             "name": "FastAPI",
             "type": "python",
             "request": "launch",
@@ -41,6 +23,18 @@
                 "app.main:app",
                 "--reload"
             ]
-        }
+        },
+        // pupil_client.py
+        {
+            "name": "Pupil Client",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/client/pupil_client.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONASYNCIODEBUG": "1"
+            },
+        },
     ]
 }
