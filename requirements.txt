@@ -2,3 +2,7 @@ fastapi
 uvicorn
 
 # install robohive and its dependencies
+
+# client
+websockets
+pupil-core-network-client
