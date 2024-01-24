@@ -20,50 +20,68 @@ env = gym.make("FrankaReachFixedMulti-v0")
 command = [0] * num_agents
 a_dim_per_agent = env.action_space.shape[0] // num_agents
 
+ws_clients = {}
+
 
 @app.get("/")
 async def get(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "num_agents": num_agents})
 
 
-@app.websocket("/ws/image")
+@app.websocket("/browser")
 async def websocket_endpoint_image(websocket: WebSocket):
     await websocket.accept()
+    ws_clients["browser"] = websocket
+
+    # run environment
     task = asyncio.create_task(env_process(websocket))
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        print("/ws/image: Client disconnected")
-        task.cancel()
 
-
-@app.websocket("/ws/input")
-async def websocket_endpoint_input(websocket: WebSocket):
-    await websocket.accept()
     try:
         while True:
             txt = await websocket.receive_text()
-            print(f"/ws/input: received {txt}")
-            update_command_ws(txt)
+            print(f"/browser: received {txt}")
+
+            data = json.loads(txt)
+            if data["type"] in ["keyup", "keydown"]:
+                update_command_ws(data)
+
     except WebSocketDisconnect:
-        print("/ws/input: Client disconnected")
+        print("/browser: Client disconnected")
+        task.cancel()  # env state is preserved since it's a global variable
+
+
+@app.websocket("/pupil")
+async def websocket_endpoint_input(websocket: WebSocket):
+    await websocket.accept()
+    ws_clients["pupil"] = websocket
+
+    try:
+        while True:
+            txt = await websocket.receive_text()
+            print(f"/pupil: received {txt}")
+
+            data = json.loads(txt)
+            assert data["type"] == "gaze"
+            await ws_clients["browser"].send_text(txt)  # send to browser
+
+    except WebSocketDisconnect:
+        print("/pupil: Client disconnected")
 
 
 # TODO: also receive signals from BMI server through zmq
 
 
-def update_command_ws(txt: str):
+def update_command_ws(data):
     global command
 
-    data = json.loads(txt)
     if data["type"] == "keydown":
         if data["key"] == "0":
-            command[data["focus_id"]] = 0
+            command[data["focusId"]] = 0
         elif data["key"] in ("1", "2", "3"):
-            command[data["focus_id"]] = 1
+            command[data["focusId"]] = 1
 
 
+# TODO: separate thread?
 async def env_process(websocket: WebSocket):
     print("env_process started")
 
@@ -85,7 +103,7 @@ async def env_process(websocket: WebSocket):
 
             # send to client
             await websocket.send_text(
-                json.dumps({"image_data": img_str, "image_id": f"camera_{i}"})
+                json.dumps({"type": "image", "data": img_str, "id": f"camera_{i}"})
             )
 
         if done:

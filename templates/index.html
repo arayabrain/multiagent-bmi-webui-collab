@@ -7,18 +7,25 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/apriltag.css">
 
     <script src="/static/app.js"></script>
 </head>
 
 <body>
     <div class="container">
+        <!-- apriltag images -->
+        <img src="/static/img/tag36_11_00000.svg" class="apriltag top-left" />
+        <img src="/static/img/tag36_11_00001.svg" class="apriltag top-right" />
+        <img src="/static/img/tag36_11_00002.svg" class="apriltag bottom-left" />
+        <img src="/static/img/tag36_11_00003.svg" class="apriltag bottom-right" />
+
+        <!-- camera images -->
         <div>
-            <!-- <h1 class="text-center mt-4 mb-4">FastAPI with WebSockets</h1> -->
             <div class="row">
                 {% for i in range(num_agents) %}
                 <div class="col-lg-6 col-md-6 col-sm-12 grid-item">
-                    <img id="camera_{{i}}" class="img-thumbnail" />
+                    <img id="camera_{{i}}" class="camera img-thumbnail" />
                 </div>
                 {% endfor %}
             </div>

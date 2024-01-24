@@ -1,55 +1,55 @@
-let wsImage;
-let wsInput;
+let ws;
+let retryCnt = 0;
+const maxRetry = 3;
 
 function connect() {
-    wsImage = new WebSocket("ws://localhost:8000/ws/image");
-    wsImage.onopen = function () {
-        console.log("/ws/image connected.");
+    ws = new WebSocket("ws://localhost:8000/browser");
+    ws.onopen = function () {
+        console.log("Websocket connected.");
+        retryCnt = 0;  // reset retry counter on successful connection
     };
-    wsImage.onmessage = function (event) {
+    ws.onmessage = function (event) {
         const data = JSON.parse(event.data);
-        if (data.image_data && data.image_id) {
-            document.getElementById(data.image_id).src = "data:image/jpeg;base64," + data.image_data;
+        if (data.type == "image") {
+            document.getElementById(data.id).src = "data:image/jpeg;base64," + data.data;
         }
-    };
-    wsImage.onclose = function (e) {
-        console.log('/ws/image disconnected. Reconnecting...');
-        setTimeout(function () {
-            connect();
-        }, 1000); // try reconnecting in 1 second
-    };
-    wsImage.onerror = function (e) {
-        console.error('/ws/image encountered error: ', e.message, 'Closing WebSocket');
-        wsImage.close();
-    };
-
-    wsInput = new WebSocket("ws://localhost:8000/ws/input");
-    wsInput.onopen = function () {
-        console.log("/ws/input connected.");
-    };
-    wsInput.onmessage = function (event) {
-        const data = JSON.parse(event.data);
         if (data.type == "gaze") {
-            updateFocus(data.focus_id);
+            console.log("Websocket received: ", event.data);
+            updateFocus(data.focusId);
         }
     };
-    wsInput.onclose = function (e) {
-        console.log('/ws/input disconnected. Reconnecting...');
-        setTimeout(function () {
-            connect();
-        }, 1000); // try reconnecting in 1 second
+    ws.onclose = function (e) {
+        if (retryCnt < maxRetry) {
+            console.log('Websocket disconnected. Reconnecting in 3 seconds...');
+            setTimeout(function () {
+                retryCnt++;
+                connect();
+            }, 3000); // try reconnecting in 3 second
+        } else {
+            console.error('Websocket disconnected. Maximum number of retries reached.');
+        }
     };
-    wsInput.onerror = function (e) {
-        console.error('/ws/input encountered error: ', e.message, 'Closing WebSocket');
-        wsInput.close();
+    ws.onerror = function (e) {
+        if (e.message != undefined) {
+            console.error(`Websocket error:\n${e.message}`);
+        }
+        ws.close();
     };
 }
 
-let focus_id = 0;
+let focusId = 0;
 const updateFocus = (newId) => {
-    imgs[focus_id].style.border = "2px solid transparent";
-    focus_id = newId;
-    imgs[focus_id].style.border = "2px solid red";
+    if (newId == focusId) return;
+    // remove border of the previous focused image
+    if (focusId != null) {
+        imgs[focusId].style.border = "2px solid transparent";
+    }
+    // update focusId
+    focusId = newId;
+    // set border to the new focused image
+    if (focusId != null) {
+        imgs[focusId].style.border = "2px solid red";
+    }
 }
 
 connect();
@@ -57,7 +57,7 @@ connect();
 // Focus the image when hovering the mouse cursor over it
 let imgs;
 document.addEventListener("DOMContentLoaded", function () {
-    imgs = document.querySelectorAll('img');
+    imgs = document.querySelectorAll('img.camera');
 });
 document.addEventListener('mousemove', function (event) {
     for (const [i, img] of imgs.entries()) {
@@ -73,10 +73,10 @@ document.addEventListener('mousemove', function (event) {
 
 // Send pressed/released keys to the server
 document.addEventListener('keydown', function (event) {
-    if (wsInput.readyState != WebSocket.OPEN) return;
-    wsInput.send(JSON.stringify({ type: "keydown", key: event.key, focus_id: focus_id }));
+    if (ws.readyState != WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "keydown", key: event.key, focusId: focusId }));
 });
 document.addEventListener('keyup', function (event) {
-    if (wsInput.readyState != WebSocket.OPEN) return;
-    wsInput.send(JSON.stringify({ type: "keyup", key: event.key, focus_id: focus_id }));
+    if (ws.readyState != WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "keyup", key: event.key, focusId: focusId }));
 });

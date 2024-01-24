@@ -1,28 +1,30 @@
 import asyncio
 import json
-import logging
 import threading
+import time
 
 import pupil_labs.pupil_core_network_client as pcnc
 import websockets
 
-logging.basicConfig(level=logging.DEBUG)
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
 
 is_running = True
-focus = None
+focus: int | None = None
 lock = threading.Lock()
 
 
 def compute_focus_area(x, y):
+    # (0, 0) is the bottom-left corner
     if 0 <= x < 0.5:
-        if 0 <= y < 0.5:
+        if 0.5 <= y <= 1:
             return 0
-        elif 0.5 <= y < 1:
+        elif 0 <= y < 0.5:
             return 2
-    elif 0.5 <= x < 1:
-        if 0 <= y < 0.5:
+    elif 0.5 <= x <= 1:
+        if 0.5 <= y <= 1:
             return 1
-        elif 0.5 <= y < 1:
+        elif 0 <= y < 0.5:
             return 3
 
     return None
@@ -31,38 +33,52 @@ def compute_focus_area(x, y):
 def receive_gaze_and_update_focus(pupil):
     global is_running, focus
 
-    with pupil.subscribe_in_background("fixation", buffer_size=1) as sub:
+    with pupil.subscribe_in_background("surface", buffer_size=1) as sub:
         while is_running:
             message = sub.recv_new_message(timeout_ms=1000)
             if message is None:
                 continue
-            x, y = message.payload["norm_pos"]
+            assert message.payload["name"] == "Surface 1"
+            x, y = message.payload["gaze_on_surfaces"][-1]["norm_pos"]  # use latest gaze
+            # print(f"({x}, {y})")
             new_focus = compute_focus_area(x, y)
-            print(f"({x:.2f}, {y:2f}): {new_focus}", flush=True)
-            if new_focus is not None:
-                with lock:
-                    focus = new_focus
+            with lock:
+                focus = new_focus
+
+            time.sleep(0.1)
 
 
 async def send_focus():
-    print("000", flush=True)
     global is_running, focus
-    uri = "ws://localhost:8000/ws/input"
+    uri = "ws://localhost:8000/pupil"
+    max_retry = 3
+    retry_cnt = 0
 
-    async with websockets.connect(uri) as websocket:
+    while is_running and max_retry >= 0:
         try:
-            prev_focus = None
-            _focus = None
-            while is_running:
-                with lock:
-                    _focus = focus
-                if _focus != prev_focus:
-                    data = {"type": "gaze", "focus_id": _focus}
-                    await websocket.send(json.dumps(data))
-                    prev_focus = _focus
-                await asyncio.sleep(0.1)  # TODO
+            async with websockets.connect(uri) as websocket:
+                print("Websocket Connected.")
+                retry_cnt = 0  # reset retry counter on successful connection
+                prev_focus = None
+                _focus = None
+                while is_running:
+                    with lock:
+                        _focus = focus
+                    if _focus != prev_focus:
+                        data = {"type": "gaze", "focusId": _focus}
+                        await websocket.send(json.dumps(data))
+                        prev_focus = _focus
+                    await asyncio.sleep(0.1)
         except websockets.exceptions.ConnectionClosedError:
-            print("Connection closed.")
+            if retry_cnt < max_retry:
+                print("Connection closed. Reconnecting in 3 seconds...")
+                await asyncio.sleep(3)
+                retry_cnt += 1
+            else:
+                print("Maximum number of retries reached. Exiting...")
+                is_running = False
+        except ConnectionRefusedError:
+            print("Connection refused. Exiting...")
             is_running = False
 
 
@@ -73,7 +89,7 @@ async def main():
     print("Connecting to Pupil Core...")
     pupil = pcnc.Device(address, port)
     pupil.send_notification({"subject": "frame_publishing.set_format", "format": "bgr"})
-    print("Connected.")
+    print("Pupil Core Connected.")
 
     gaze_thread = threading.Thread(target=receive_gaze_and_update_focus, args=(pupil,))
     gaze_thread.start()
