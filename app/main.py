@@ -2,9 +2,10 @@ import asyncio
 import base64
 import json
 from io import BytesIO
+from typing import Dict, List
 
 import gym
-import robohive.envs.arms  # noqa: F401
+import robohive.envs.arms  # noqa: F401 # type: ignore
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -16,11 +17,10 @@ templates = Jinja2Templates(directory="templates")
 
 num_agents = 4
 env = gym.make("FrankaReachFixedMulti-v0")
-
-command = [0] * num_agents
 a_dim_per_agent = env.action_space.shape[0] // num_agents
+command: List[int] = [0] * num_agents
 
-ws_clients = {}
+ws_clients: Dict[str, WebSocket] = {}
 
 
 @app.get("/")
