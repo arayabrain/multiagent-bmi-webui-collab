@@ -44,7 +44,6 @@ async def websocket_endpoint_image(websocket: WebSocket):
             data = json.loads(txt)
             if data["type"] in ["keyup", "keydown"]:
                 update_command_ws(data)
-
     except WebSocketDisconnect:
         print("/browser: Client disconnected")
         task.cancel()  # env state is preserved since it's a global variable
@@ -54,16 +53,11 @@ async def websocket_endpoint_image(websocket: WebSocket):
 async def websocket_endpoint_input(websocket: WebSocket):
     await websocket.accept()
     ws_clients["pupil"] = websocket
-
     try:
         while True:
             txt = await websocket.receive_text()
             print(f"/pupil: received {txt}")
-
-            data = json.loads(txt)
-            assert data["type"] == "gaze"
             await ws_clients["browser"].send_text(txt)  # send to browser
-
     except WebSocketDisconnect:
         print("/pupil: Client disconnected")
 
