@@ -6,8 +6,12 @@ import time
 import pupil_labs.pupil_core_network_client as pcnc
 import websockets
 
-# import logging
-# logging.basicConfig(level=logging.DEBUG)
+debug = False
+if debug:
+    import logging
+
+    logging.basicConfig(level=logging.DEBUG)
+
 
 is_running = True
 focus: int | None = None
@@ -98,4 +102,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main(), debug=True)
+    asyncio.run(main(), debug=debug)

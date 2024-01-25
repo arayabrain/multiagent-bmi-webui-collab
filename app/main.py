@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import json
 from io import BytesIO
 from typing import Dict, List
 
@@ -21,6 +20,7 @@ a_dim_per_agent = env.action_space.shape[0] // num_agents
 command: List[int] = [0] * num_agents
 
 ws_clients: Dict[str, WebSocket] = {}
+focus: int | None = None  # updated only by websocket_endpoint_browser
 
 
 @app.get("/")
@@ -29,7 +29,9 @@ async def get(request: Request):
 
 
 @app.websocket("/browser")
-async def websocket_endpoint_image(websocket: WebSocket):
+async def websocket_endpoint_browser(websocket: WebSocket):
+    global focus
+
     await websocket.accept()
     ws_clients["browser"] = websocket
 
@@ -38,41 +40,57 @@ async def websocket_endpoint_image(websocket: WebSocket):
 
     try:
         while True:
-            txt = await websocket.receive_text()
-            print(f"/browser: received {txt}")
+            data = await websocket.receive_json()
+            print(f"/browser: received {data}")
 
-            data = json.loads(txt)
-            if data["type"] in ["keyup", "keydown"]:
-                update_command_ws(data)
+            if data["type"] in ("keyup", "keydown"):
+                update_command(data)
+            elif data["type"] == "focus":
+                focus = data["focusId"]
     except WebSocketDisconnect:
         print("/browser: Client disconnected")
         task.cancel()  # env state is preserved since it's a global variable
 
 
 @app.websocket("/pupil")
-async def websocket_endpoint_input(websocket: WebSocket):
+async def websocket_endpoint_pupil(websocket: WebSocket):
     await websocket.accept()
     ws_clients["pupil"] = websocket
     try:
         while True:
-            txt = await websocket.receive_text()
-            print(f"/pupil: received {txt}")
-            await ws_clients["browser"].send_text(txt)  # send to browser
+            data = await websocket.receive_json()
+            print(f"/pupil: received {data}")
+            await ws_clients["browser"].send_json(data)
     except WebSocketDisconnect:
         print("/pupil: Client disconnected")
 
 
-# TODO: also receive signals from BMI server through zmq
+@app.websocket("/eeg")
+async def websocket_endpoint_eeg(websocket: WebSocket):
+    await websocket.accept()
+    ws_clients["eeg"] = websocket
+    try:
+        while True:
+            data = await websocket.receive_json()
+            print(f"/eeg: received {data}")
+            update_command(data)
+    except WebSocketDisconnect:
+        print("/eeg: Client disconnected")
 
 
-def update_command_ws(data):
-    global command
+def update_command(data):
+    global command, focus
 
-    if data["type"] == "keydown":
+    if focus is None:
+        return
+
+    if data["type"] == "eeg":
+        command[focus] = data["command"]
+    elif data["type"] == "keydown":
         if data["key"] == "0":
-            command[data["focusId"]] = 0
+            command[focus] = 0
         elif data["key"] in ("1", "2", "3"):
-            command[data["focusId"]] = 1
+            command[focus] = 1
 
 
 # TODO: separate thread?
@@ -96,9 +114,7 @@ async def env_process(websocket: WebSocket):
             img_str = base64.b64encode(buffered.getvalue()).decode()
 
             # send to client
-            await websocket.send_text(
-                json.dumps({"type": "image", "data": img_str, "id": f"camera_{i}"})
-            )
+            await websocket.send_json({"type": "image", "data": img_str, "id": f"camera_{i}"})
 
         if done:
             env.reset()

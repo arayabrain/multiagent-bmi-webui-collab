@@ -50,6 +50,10 @@ const updateFocus = (newId) => {
     if (focusId != null) {
         imgs[focusId].style.border = "2px solid red";
     }
+    // notify focusId to the server
+    if (ws.readyState == WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "focus", focusId: focusId }));
+    }
 }
 
 connect();
@@ -74,9 +78,9 @@ document.addEventListener('mousemove', function (event) {
 // Send pressed/released keys to the server
 document.addEventListener('keydown', function (event) {
     if (ws.readyState != WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "keydown", key: event.key, focusId: focusId }));
+    ws.send(JSON.stringify({ type: "keydown", key: event.key }));
 });
 document.addEventListener('keyup', function (event) {
     if (ws.readyState != WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "keyup", key: event.key, focusId: focusId }));
+    ws.send(JSON.stringify({ type: "keyup", key: event.key }));
 });
