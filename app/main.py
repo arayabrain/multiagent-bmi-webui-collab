@@ -1,10 +1,13 @@
 import asyncio
 import base64
+import json
 from io import BytesIO
 from typing import Dict, List
 
 import gym
+import numpy as np
 import robohive.envs.arms  # noqa: F401 # type: ignore
+from aiortc import RTCPeerConnection, RTCSessionDescription
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -22,6 +25,10 @@ command: List[int] = [0] * num_agents
 ws_clients: Dict[str, WebSocket] = {}
 focus: int | None = None  # updated only by websocket_endpoint_browser
 
+# WebRTC
+peer_connections: Dict[str, RTCPeerConnection] = {}
+data_channels: Dict[str, RTCPeerConnection] = {}
+
 
 @app.get("/")
 async def get(request: Request):
@@ -34,6 +41,7 @@ async def websocket_endpoint_browser(websocket: WebSocket):
 
     await websocket.accept()
     ws_clients["browser"] = websocket
+    print("/browser: Client connected")
 
     # run environment
     task = asyncio.create_task(env_process(websocket))
@@ -56,6 +64,7 @@ async def websocket_endpoint_browser(websocket: WebSocket):
 async def websocket_endpoint_pupil(websocket: WebSocket):
     await websocket.accept()
     ws_clients["pupil"] = websocket
+    print("/pupil: Client connected")
     try:
         while True:
             data = await websocket.receive_json()
@@ -65,17 +74,53 @@ async def websocket_endpoint_pupil(websocket: WebSocket):
         print("/pupil: Client disconnected")
 
 
-@app.websocket("/eeg")
+@app.websocket("/webrtc-eeg")
 async def websocket_endpoint_eeg(websocket: WebSocket):
     await websocket.accept()
-    ws_clients["eeg"] = websocket
+    print("/webrtc-eeg: Client connected")
     try:
-        while True:
-            data = await websocket.receive_json()
-            print(f"/eeg: received {data}")
-            update_command(data)
+        # setup WebRTC connection
+        print("/webrtc-eeg: Setting up WebRTC connection...")
+        # receive offer
+        offer = json.loads(await websocket.receive_text())
+        # setup peer connection
+        pc = RTCPeerConnection()
+        await pc.setRemoteDescription(RTCSessionDescription(sdp=offer["sdp"], type="offer"))
+        # send answer
+        answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "answer",
+                    "sdp": pc.localDescription.sdp,
+                }
+            )
+        )
+
+        # set the event handlers for data channel
+        @pc.on("datachannel")
+        def on_datachannel(channel):
+            data_channels["eeg"] = channel
+
+            @channel.on("message")
+            def on_message(message):
+                assert isinstance(message, bytes)
+                eeg_data = np.frombuffer(message, dtype=np.float32)
+                print(f"/webrtc-eeg: received eeg {eeg_data.shape}")
+                # decode to command
+                command = np.random.randint(0, 4)
+                # update command
+                update_command({"type": "eeg", "command": command})  # TODO
+
+        peer_connections["eeg"] = pc
+
     except WebSocketDisconnect:
-        print("/eeg: Client disconnected")
+        print("/webrtc-eeg: Client disconnected")
+        pc = peer_connections.pop("eeg", None)
+        if pc is not None:
+            await pc.close()
+        data_channels.pop("eeg", None)
 
 
 def update_command(data):

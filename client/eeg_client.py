@@ -1,10 +1,9 @@
 import asyncio
 import json
-import random
-import threading
-import time
 
 import websockets
+from aiortc import RTCPeerConnection, RTCSessionDescription
+from mock_eeg import MockEEG
 
 debug = False
 if debug:
@@ -14,44 +13,39 @@ if debug:
 
 
 is_running = True
-command: int = 0
-lock = threading.Lock()
+
+mock = MockEEG(max_length=5000)
+get_eeg = mock.pop
 
 
-def receive_eeg_and_update_command():
-    global is_running, command
-
-    while is_running:
-        # receive eeg data
-
-        # decode and compute command
-        # TODO: サーバー側でやる
-        _command = random.randint(0, 3)
-
-        # update command
-        with lock:
-            command = _command
-
-        time.sleep(5)
-
-
-async def send_command():
-    global is_running, command
-    uri = "ws://localhost:8000/eeg"
+async def transfer_eeg():
+    global is_running
+    uri = "ws://localhost:8000/webrtc-eeg"
     max_retry = 3
     retry_cnt = 0
+    buffer_full_thr = 1024 * 1024  # 1 MB
 
     while is_running and max_retry >= 0:
         try:
             async with websockets.connect(uri) as websocket:
                 print("Websocket Connected.")
                 retry_cnt = 0  # reset retry counter on successful connection
-                while is_running:
-                    with lock:
-                        _command = command
-                    data = {"type": "eeg", "command": _command}
-                    await websocket.send(json.dumps(data))
-                    await asyncio.sleep(0.1)
+
+                _, dc = await setup_webrtc(websocket)
+
+                # send eeg data
+                while dc.readyState == "open":
+                    eeg_data = get_eeg()
+                    if eeg_data is not None:
+                        eeg_bytes = eeg_data.tobytes()
+                        if dc.bufferedAmount < buffer_full_thr:
+                            dc.send(eeg_bytes)
+                        else:
+                            print("Buffer is full, skipping")
+                    await asyncio.sleep(0.1)  # TODO
+
+                # TODO: cannot detect connection closed
+
         except websockets.exceptions.ConnectionClosedError:
             if retry_cnt < max_retry:
                 print("Connection closed. Reconnecting in 3 seconds...")
@@ -65,11 +59,37 @@ async def send_command():
             is_running = False
 
 
+async def setup_webrtc(websocket: websockets.WebSocketClientProtocol):
+    pc = RTCPeerConnection()
+    dc = pc.createDataChannel("eeg")
+
+    # setup WebRTC connection
+    offer = await pc.createOffer()
+    await pc.setLocalDescription(offer)
+    await websocket.send(
+        json.dumps(
+            {
+                "type": "offer",
+                "sdp": pc.localDescription.sdp,
+            }
+        )
+    )
+    answer = json.loads(await websocket.recv())
+    await pc.setRemoteDescription(RTCSessionDescription(sdp=answer["sdp"], type="answer"))
+    print("WebRTC Connected.")
+
+    # wait for data channel to open
+    while dc.readyState != "open":
+        await asyncio.sleep(0.1)
+    print("DataChannel Opened.")
+
+    return pc, dc
+
+
 async def main():
-    eeg_thread = threading.Thread(target=receive_eeg_and_update_command)
-    eeg_thread.start()
-    await send_command()
-    eeg_thread.join()
+    mock.start()
+    await transfer_eeg()
+    mock.stop()
 
 
 if __name__ == "__main__":
