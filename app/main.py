@@ -29,6 +29,8 @@ focus: int | None = None  # updated only by websocket_endpoint_browser
 peer_connections: Dict[str, RTCPeerConnection] = {}
 data_channels: Dict[str, RTCPeerConnection] = {}
 
+n_chs = 128
+
 
 @app.get("/")
 async def get(request: Request):
@@ -69,6 +71,7 @@ async def websocket_endpoint_pupil(websocket: WebSocket):
         while True:
             data = await websocket.receive_json()
             print(f"/pupil: received {data}")
+            # transfer the focus info to browser
             await ws_clients["browser"].send_json(data)
     except WebSocketDisconnect:
         print("/pupil: Client disconnected")
@@ -106,8 +109,10 @@ async def websocket_endpoint_eeg(websocket: WebSocket):
             @channel.on("message")
             def on_message(message):
                 assert isinstance(message, bytes)
-                eeg_data = np.frombuffer(message, dtype=np.float32)
+                eeg_data = np.frombuffer(message, dtype=np.float32).reshape(n_chs, -1)
                 print(f"/webrtc-eeg: received eeg {eeg_data.shape}")
+
+                # TODO
                 # decode to command
                 command = np.random.randint(0, 4)
                 # update command
