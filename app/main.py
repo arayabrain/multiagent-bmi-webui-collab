@@ -1,35 +1,37 @@
 import asyncio
-import base64
 import json
-from io import BytesIO
 from typing import Dict, List
 
 import gym
 import numpy as np
 import robohive.envs.arms  # noqa: F401 # type: ignore
-from aiortc import RTCPeerConnection, RTCSessionDescription
+from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
+from aiortc.contrib.media import MediaRelay
+from aiortc.sdp import candidate_from_sdp
+from av import VideoFrame
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from PIL import Image
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
+n_chs = 128
 num_agents = 4
+
 env = gym.make("FrankaReachFixedMulti-v0")
 a_dim_per_agent = env.action_space.shape[0] // num_agents
+
 command: List[int] = [0] * num_agents
+focus: int | None = None  # updated only by websocket_endpoint_browser
+frames: List[np.ndarray | None] = [None] * num_agents
+frame_update_cond = asyncio.Condition()
+relay = MediaRelay()  # keep using the same instance for all connections
 
 ws_clients: Dict[str, WebSocket] = {}
-focus: int | None = None  # updated only by websocket_endpoint_browser
-
-# WebRTC
 peer_connections: Dict[str, RTCPeerConnection] = {}
 data_channels: Dict[str, RTCPeerConnection] = {}
-
-n_chs = 128
 
 
 @app.get("/")
@@ -37,8 +39,65 @@ async def get(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "num_agents": num_agents})
 
 
+def createPeerConnection(websocket: WebSocket):
+    # WebRTC connection
+    pc = RTCPeerConnection()
+    peer_connections["camera"] = pc
+    track_ids: List[str] = []
+
+    @pc.on("icecandidate")
+    async def on_icecandidate(candidate):
+        print("/browser: sending ice candidate info")
+        data = {
+            "type": "webrtc-ice",
+            "candidate": None,
+        }
+        if candidate:
+            data["candidate"] = {
+                "candidate": candidate.to_sdp(),
+                "sdpMid": candidate.sdpMid,
+                "sdpMLineIndex": candidate.sdpMLineIndex,
+            }
+        await websocket.send_json(data)
+
+    @pc.on("connectionstatechange")
+    def on_connectionstatechange():
+        print(f"/browser: connection state: {pc.connectionState}")
+
+    @pc.on("iceconnectionstatechange")
+    def on_iceconnectionstatechange():
+        print(f"/browser: ice connection state: {pc.iceConnectionState}")
+
+    # initialize tracks
+    for i in range(num_agents):
+        track = relay.subscribe(ImageStreamTrack(i))
+        pc.addTrack(track)
+        print(f"Track {track.id} added to peer connection")
+        track_ids.append(track.id)
+
+    return pc, track_ids
+
+
+async def handle_candidate(pc, data):
+    print("/browser: received ice candidate info")
+    if data["candidate"] is None:
+        # candidate is None when all candidates have been received
+        print("/browser: all candidates received")
+        # await pc.addIceCandidate(None)  # error
+    else:
+        candidate = candidate_from_sdp(data["candidate"])
+        candidate.sdpMid = data["sdpMid"]
+        candidate.sdpMLineIndex = data["sdpMLineIndex"]
+        await pc.addIceCandidate(candidate)
+
+
 @app.websocket("/browser")
-async def websocket_endpoint_browser(websocket: WebSocket):
+async def ws_browser(websocket: WebSocket):
+    """Websocket endpoint for browser client
+
+    Args:
+        websocket (WebSocket): websocket connection from browser
+    """
     global focus
 
     await websocket.accept()
@@ -46,24 +105,48 @@ async def websocket_endpoint_browser(websocket: WebSocket):
     print("/browser: Client connected")
 
     # run environment
-    task = asyncio.create_task(env_process(websocket))
+    task = asyncio.create_task(env_process())
 
     try:
         while True:
             data = await websocket.receive_json()
-            print(f"/browser: received {data}")
 
             if data["type"] in ("keyup", "keydown"):
+                print(f"/browser: received {data}")
                 update_command(data)
             elif data["type"] == "focus":
+                print(f"/browser: received {data}")
                 focus = data["focusId"]
+
+            elif data["type"] == "webrtc-offer-request":
+                print(f"/browser: received {data}")
+                pc, track_ids = createPeerConnection(websocket)
+
+                offer = await pc.createOffer()
+                await websocket.send_json(
+                    {
+                        "type": "webrtc-offer",
+                        "sdp": offer.sdp,
+                        "trackIds": track_ids,
+                    }
+                )
+                print("/browser: sent webrtc-offer")
+                await pc.setLocalDescription(offer)  # slow; takes 5s
+                print("/browser: set local description")
+            elif data["type"] == "webrtc-answer":
+                print("/browser: received webrtc-answer")
+                await pc.setRemoteDescription(RTCSessionDescription(type="answer", sdp=data["sdp"]))
+            elif data["type"] == "webrtc-ice":
+                await handle_candidate(pc, data)
+
     except WebSocketDisconnect:
         print("/browser: Client disconnected")
         task.cancel()  # env state is preserved since it's a global variable
 
 
+# TODO: zeromq
 @app.websocket("/pupil")
-async def websocket_endpoint_pupil(websocket: WebSocket):
+async def ws_pupil(websocket: WebSocket):
     await websocket.accept()
     ws_clients["pupil"] = websocket
     print("/pupil: Client connected")
@@ -77,8 +160,9 @@ async def websocket_endpoint_pupil(websocket: WebSocket):
         print("/pupil: Client disconnected")
 
 
+# TODO: zeromq
 @app.websocket("/webrtc-eeg")
-async def websocket_endpoint_eeg(websocket: WebSocket):
+async def ws_eeg_webrtc(websocket: WebSocket):
     await websocket.accept()
     print("/webrtc-eeg: Client connected")
     try:
@@ -143,9 +227,32 @@ def update_command(data):
             command[focus] = 1
 
 
+class ImageStreamTrack(VideoStreamTrack):
+    def __init__(self, camera_idx: int):
+        super().__init__()
+        self.camera_idx = camera_idx
+
+    async def recv(self):
+        global frames
+
+        async with frame_update_cond:
+            await frame_update_cond.wait()
+            frame = frames[self.camera_idx]
+
+        # img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img = frame
+        frame = VideoFrame.from_ndarray(img, format="rgb24")
+        pts, time_base = await self.next_timestamp()
+        frame.pts = pts
+        frame.time_base = time_base
+
+        return frame
+
+
 # TODO: separate thread?
-async def env_process(websocket: WebSocket):
+async def env_process():
     print("env_process started")
+    global frames
 
     # init
     obs = env.reset()
@@ -155,16 +262,10 @@ async def env_process(websocket: WebSocket):
         obs, _, done, _ = env.step(action)
         visuals = env.get_visuals()
 
-        for i in range(num_agents):
-            img = visuals[f"rgb:franka{i}_front_cam:256x256:1d"].reshape((256, 256, 3))
-            # encode
-            buffered = BytesIO()
-            img = Image.fromarray(img)
-            img.save(buffered, format="JPEG")
-            img_str = base64.b64encode(buffered.getvalue()).decode()
-
-            # send to client
-            await websocket.send_json({"type": "image", "data": img_str, "id": f"camera_{i}"})
+        async with frame_update_cond:
+            for i in range(num_agents):
+                frames[i] = visuals[f"rgb:franka{i}_front_cam:256x256:1d"].reshape((256, 256, 3))
+            frame_update_cond.notify_all()
 
         if done:
             env.reset()

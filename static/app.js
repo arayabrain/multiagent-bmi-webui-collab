@@ -1,27 +1,112 @@
 let ws;
+let pc;
 let retryCnt = 0;
 const maxRetry = 3;
+let focusId = 0;
+let videos;
 
-function connect() {
+document.addEventListener("DOMContentLoaded", () => {
+    videos = document.querySelectorAll('video');
+
+    // Focus the image when hovering the mouse cursor over it
+    document.addEventListener('mousemove', (event) => {
+        for (const [i, video] of videos.entries()) {
+            const rect = video.getBoundingClientRect();
+            const isHover = rect.left <= event.pageX && event.pageX <= rect.right &&
+                rect.top <= event.pageY && event.pageY <= rect.bottom;
+            if (isHover) {
+                updateFocus(i);
+                break;
+            }
+        }
+    });
+    // Send pressed/released keys to the server
+    document.addEventListener('keydown', (event) => {
+        if (ws.readyState != WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: "keydown", key: event.key }));
+    });
+    document.addEventListener('keyup', (event) => {
+        if (ws.readyState != WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: "keyup", key: event.key }));
+    });
+
+    connect();
+});
+
+connect = () => {
     ws = new WebSocket("ws://localhost:8000/browser");
-    ws.onopen = function () {
+    let onTrackCnt = 0;
+
+    ws.onopen = async () => {
         console.log("Websocket connected.");
         retryCnt = 0;  // reset retry counter on successful connection
+
+        // request WebRTC offer to the server
+        ws.send(JSON.stringify({ type: "webrtc-offer-request" }));
     };
-    ws.onmessage = function (event) {
+    ws.onmessage = async (event) => {
         const data = JSON.parse(event.data);
-        if (data.type == "image") {
-            document.getElementById(data.id).src = "data:image/jpeg;base64," + data.data;
-        }
         if (data.type == "gaze") {
             console.log("Websocket received: ", event.data);
             updateFocus(data.focusId);
+        } else if (data.type == "webrtc-offer") {
+            console.log("WebRTC offer received");
+
+            // setup peer connection
+            pc = new RTCPeerConnection();
+
+            pc.onicecandidate = ({ candidate }) => {
+                const data = {
+                    type: 'webrtc-ice',
+                    candidate: null,
+                }
+                if (candidate) {
+                    data.candidate = candidate.candidate;
+                    data.sdpMid = candidate.sdpMid;
+                    data.sdpMLineIndex = candidate.sdpMLineIndex;
+                }
+                ws.send(JSON.stringify(data));
+            }
+            pc.ontrack = (event) => {
+                // called when remote stream added to peer connection
+                // set source of corresponding video element
+                const track = event.track;
+                console.log(`Track ${onTrackCnt} - readyState: ${track.readyState}, muted: ${track.muted}, id: ${track.id}`);
+                videos[onTrackCnt].srcObject = new MediaStream([track]);
+                onTrackCnt++;
+            }
+            pc.connectionstatechange = (event) => {
+                console.log(`Connection state: ${pc.connectionState}`);
+            }
+            pc.iceconnectionstatechange = (event) => {
+                console.log(`ICE connection state: ${pc.iceConnectionState}`);
+            }
+
+            await pc.setRemoteDescription({ type: "offer", sdp: data.sdp });
+
+            // answer
+            const answer = await pc.createAnswer();
+            ws.send(JSON.stringify({ type: "webrtc-answer", sdp: answer.sdp }));
+            console.log("WebRTC answer sent.");
+            await pc.setLocalDescription(answer);
+        } else if (data.type == "webrtc-ice") {
+            console.log("WebRTC ICE candidate received");
+            if (!pc) {
+                console.error('no peerconnection');
+                return;
+            }
+            if (!data.candidate) {
+                // ice gathering completed
+                await pc.addIceCandidate(null);
+            } else {
+                await pc.addIceCandidate({ type: 'candidate', candidate: data.candidate });
+            }
         }
     };
-    ws.onclose = function (e) {
+    ws.onclose = (e) => {
         if (retryCnt < maxRetry) {
             console.log('Websocket disconnected. Reconnecting in 3 seconds...');
-            setTimeout(function () {
+            setTimeout(() => {
                 retryCnt++;
                 connect();
             }, 3000); // try reconnecting in 3 second
@@ -29,7 +114,7 @@ function connect() {
             console.error('Websocket disconnected. Maximum number of retries reached.');
         }
     };
-    ws.onerror = function (e) {
+    ws.onerror = (e) => {
         if (e.message != undefined) {
             console.error(`Websocket error:\n${e.message}`);
         }
@@ -37,18 +122,17 @@ function connect() {
     };
 }
 
-let focusId = 0;
 const updateFocus = (newId) => {
     if (newId == focusId) return;
     // remove border of the previous focused image
     if (focusId != null) {
-        imgs[focusId].style.border = "2px solid transparent";
+        videos[focusId].style.border = "2px solid transparent";
     }
     // update focusId
     focusId = newId;
     // set border to the new focused image
     if (focusId != null) {
-        imgs[focusId].style.border = "2px solid red";
+        videos[focusId].style.border = "2px solid red";
     }
     // notify focusId to the server
     if (ws.readyState == WebSocket.OPEN) {
@@ -56,31 +140,3 @@ const updateFocus = (newId) => {
     }
 }
 
-connect();
-
-// Focus the image when hovering the mouse cursor over it
-let imgs;
-document.addEventListener("DOMContentLoaded", function () {
-    imgs = document.querySelectorAll('img.camera');
-});
-document.addEventListener('mousemove', function (event) {
-    for (const [i, img] of imgs.entries()) {
-        const rect = img.getBoundingClientRect();
-        const isHover = rect.left <= event.pageX && event.pageX <= rect.right &&
-            rect.top <= event.pageY && event.pageY <= rect.bottom;
-        if (isHover) {
-            updateFocus(i);
-            break;
-        }
-    }
-});
-
-// Send pressed/released keys to the server
-document.addEventListener('keydown', function (event) {
-    if (ws.readyState != WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "keydown", key: event.key }));
-});
-document.addEventListener('keyup', function (event) {
-    if (ws.readyState != WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "keyup", key: event.key }));
-});
