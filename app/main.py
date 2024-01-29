@@ -43,7 +43,6 @@ def createPeerConnection(websocket: WebSocket):
     # WebRTC connection
     pc = RTCPeerConnection()
     peer_connections["camera"] = pc
-    track_ids: List[str] = []
 
     @pc.on("icecandidate")
     async def on_icecandidate(candidate):
@@ -73,22 +72,8 @@ def createPeerConnection(websocket: WebSocket):
         track = relay.subscribe(ImageStreamTrack(i))
         pc.addTrack(track)
         print(f"Track {track.id} added to peer connection")
-        track_ids.append(track.id)
 
-    return pc, track_ids
-
-
-async def handle_candidate(pc, data):
-    print("/browser: received ice candidate info")
-    if data["candidate"] is None:
-        # candidate is None when all candidates have been received
-        print("/browser: all candidates received")
-        # await pc.addIceCandidate(None)  # error
-    else:
-        candidate = candidate_from_sdp(data["candidate"])
-        candidate.sdpMid = data["sdpMid"]
-        candidate.sdpMLineIndex = data["sdpMLineIndex"]
-        await pc.addIceCandidate(candidate)
+    return pc
 
 
 @app.websocket("/browser")
@@ -119,29 +104,48 @@ async def ws_browser(websocket: WebSocket):
                 focus = data["focusId"]
 
             elif data["type"] == "webrtc-offer-request":
-                print(f"/browser: received {data}")
-                pc, track_ids = createPeerConnection(websocket)
-
-                offer = await pc.createOffer()
-                await websocket.send_json(
-                    {
-                        "type": "webrtc-offer",
-                        "sdp": offer.sdp,
-                        "trackIds": track_ids,
-                    }
-                )
-                print("/browser: sent webrtc-offer")
-                await pc.setLocalDescription(offer)  # slow; takes 5s
-                print("/browser: set local description")
+                pc = createPeerConnection(websocket)
+                await handle_offer_request(pc, websocket)
             elif data["type"] == "webrtc-answer":
-                print("/browser: received webrtc-answer")
-                await pc.setRemoteDescription(RTCSessionDescription(type="answer", sdp=data["sdp"]))
+                await handle_answer(pc, data)
             elif data["type"] == "webrtc-ice":
                 await handle_candidate(pc, data)
 
     except WebSocketDisconnect:
         print("/browser: Client disconnected")
         task.cancel()  # env state is preserved since it's a global variable
+
+
+async def handle_offer_request(pc: RTCPeerConnection, websocket: WebSocket):
+    print("/browser: Received offer request")
+    offer = await pc.createOffer()
+    await websocket.send_json(
+        {
+            "type": "webrtc-offer",
+            "sdp": offer.sdp,
+        }
+    )
+    print("/browser: Sent WebRTC offer")
+    await pc.setLocalDescription(offer)  # slow; takes 5s
+    print("Set local description")
+
+
+async def handle_answer(pc: RTCPeerConnection, data):
+    print("/browser: received webrtc-answer")
+    await pc.setRemoteDescription(RTCSessionDescription(type="answer", sdp=data["sdp"]))
+
+
+async def handle_candidate(pc, data):
+    print("/browser: received ice candidate info")
+    if data["candidate"] is None:
+        # candidate is None when all candidates have been received
+        print("/browser: all candidates received")
+        # await pc.addIceCandidate(None)  # error
+    else:
+        candidate = candidate_from_sdp(data["candidate"])
+        candidate.sdpMid = data["sdpMid"]
+        candidate.sdpMLineIndex = data["sdpMLineIndex"]
+        await pc.addIceCandidate(candidate)
 
 
 # TODO: zeromq

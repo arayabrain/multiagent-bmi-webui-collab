@@ -1,12 +1,15 @@
 let ws;
 let pc;
 let retryCnt = 0;
+let onTrackCnt = 0;
 const maxRetry = 3;
 let focusId = 0;
 let videos;
 
 document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
+
+    connect();
 
     // Focus the image when hovering the mouse cursor over it
     document.addEventListener('mousemove', (event) => {
@@ -29,13 +32,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (ws.readyState != WebSocket.OPEN) return;
         ws.send(JSON.stringify({ type: "keyup", key: event.key }));
     });
-
-    connect();
 });
 
-connect = () => {
+const connect = () => {
     ws = new WebSocket("ws://localhost:8000/browser");
-    let onTrackCnt = 0;
 
     ws.onopen = async () => {
         console.log("Websocket connected.");
@@ -51,56 +51,10 @@ connect = () => {
             updateFocus(data.focusId);
         } else if (data.type == "webrtc-offer") {
             console.log("WebRTC offer received");
-
-            // setup peer connection
-            pc = new RTCPeerConnection();
-
-            pc.onicecandidate = ({ candidate }) => {
-                const data = {
-                    type: 'webrtc-ice',
-                    candidate: null,
-                }
-                if (candidate) {
-                    data.candidate = candidate.candidate;
-                    data.sdpMid = candidate.sdpMid;
-                    data.sdpMLineIndex = candidate.sdpMLineIndex;
-                }
-                ws.send(JSON.stringify(data));
-            }
-            pc.ontrack = (event) => {
-                // called when remote stream added to peer connection
-                // set source of corresponding video element
-                const track = event.track;
-                console.log(`Track ${onTrackCnt} - readyState: ${track.readyState}, muted: ${track.muted}, id: ${track.id}`);
-                videos[onTrackCnt].srcObject = new MediaStream([track]);
-                onTrackCnt++;
-            }
-            pc.connectionstatechange = (event) => {
-                console.log(`Connection state: ${pc.connectionState}`);
-            }
-            pc.iceconnectionstatechange = (event) => {
-                console.log(`ICE connection state: ${pc.iceConnectionState}`);
-            }
-
-            await pc.setRemoteDescription({ type: "offer", sdp: data.sdp });
-
-            // answer
-            const answer = await pc.createAnswer();
-            ws.send(JSON.stringify({ type: "webrtc-answer", sdp: answer.sdp }));
-            console.log("WebRTC answer sent.");
-            await pc.setLocalDescription(answer);
+            pc = setupPeerConnection();
+            await handleOffer(data);
         } else if (data.type == "webrtc-ice") {
-            console.log("WebRTC ICE candidate received");
-            if (!pc) {
-                console.error('no peerconnection');
-                return;
-            }
-            if (!data.candidate) {
-                // ice gathering completed
-                await pc.addIceCandidate(null);
-            } else {
-                await pc.addIceCandidate({ type: 'candidate', candidate: data.candidate });
-            }
+            await handleRemoteIce(data);
         }
     };
     ws.onclose = (e) => {
@@ -120,6 +74,67 @@ connect = () => {
         }
         ws.close();
     };
+}
+
+const setupPeerConnection = () => {
+    pc = new RTCPeerConnection();
+    onTrackCnt = 0;
+
+    pc.onicecandidate = ({ candidate }) => {
+        const data = {
+            type: 'webrtc-ice',
+            candidate: null,
+        }
+        if (candidate) {
+            data.candidate = candidate.candidate;
+            data.sdpMid = candidate.sdpMid;
+            data.sdpMLineIndex = candidate.sdpMLineIndex;
+        }
+        ws.send(JSON.stringify(data));
+    }
+    pc.ontrack = (event) => {
+        // called when remote stream added to peer connection
+        // set source of corresponding video element
+        const track = event.track;
+        console.log(`Track ${onTrackCnt} - readyState: ${track.readyState}, muted: ${track.muted}, id: ${track.id}`);
+        videos[onTrackCnt].srcObject = new MediaStream([track]);
+        onTrackCnt++;
+    }
+    pc.connectionstatechange = (event) => {
+        console.log(`Connection state: ${pc.connectionState}`);
+    }
+    pc.iceconnectionstatechange = (event) => {
+        console.log(`ICE connection state: ${pc.iceConnectionState}`);
+    }
+
+    return pc;
+}
+
+const handleOffer = async (data) => {
+    if (!pc) {
+        console.error('no peerconnection');
+        return;
+    }
+    await pc.setRemoteDescription({ type: "offer", sdp: data.sdp });
+    const answer = await pc.createAnswer();
+    ws.send(JSON.stringify({ type: "webrtc-answer", sdp: answer.sdp }));
+    console.log("WebRTC answer sent.");
+    await pc.setLocalDescription(answer);
+}
+
+const handleRemoteIce = async (data) => {
+    if (!pc) {
+        console.error('no peerconnection');
+        return;
+    }
+    if (!data.candidate) {
+        // ice gathering completed
+        await pc.addIceCandidate(null);
+        console.log("All ICE candidate received");
+    } else {
+        await pc.addIceCandidate({ type: 'candidate', candidate: data.candidate });
+        console.log("ICE candidate received");
+    }
 }
 
 const updateFocus = (newId) => {
