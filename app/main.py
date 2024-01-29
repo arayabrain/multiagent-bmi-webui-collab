@@ -46,7 +46,6 @@ def createPeerConnection(websocket: WebSocket):
 
     @pc.on("icecandidate")
     async def on_icecandidate(candidate):
-        print("/browser: sending ice candidate info")
         data = {
             "type": "webrtc-ice",
             "candidate": None,
@@ -58,19 +57,20 @@ def createPeerConnection(websocket: WebSocket):
                 "sdpMLineIndex": candidate.sdpMLineIndex,
             }
         await websocket.send_json(data)
+        print("/browser: Sent ICE candidate info")
 
     @pc.on("connectionstatechange")
     def on_connectionstatechange():
-        print(f"/browser: connection state: {pc.connectionState}")
+        print(f"/browser: Connection state: {pc.connectionState}")
 
     @pc.on("iceconnectionstatechange")
     def on_iceconnectionstatechange():
-        print(f"/browser: ice connection state: {pc.iceConnectionState}")
+        print(f"/browser: ICE connection state: {pc.iceConnectionState}")
 
     # initialize tracks
     for i in range(num_agents):
         track = relay.subscribe(ImageStreamTrack(i))
-        pc.addTrack(track)
+        pc.addTransceiver(track, direction="sendonly")
         print(f"Track {track.id} added to peer connection")
 
     return pc
@@ -125,21 +125,21 @@ async def handle_offer_request(pc: RTCPeerConnection, websocket: WebSocket):
             "sdp": offer.sdp,
         }
     )
-    print("/browser: Sent WebRTC offer")
+    print("/browser: Sent WebRTC offer. Setting local description...")
     await pc.setLocalDescription(offer)  # slow; takes 5s
-    print("Set local description")
+    print("Local description set.")
 
 
 async def handle_answer(pc: RTCPeerConnection, data):
-    print("/browser: received webrtc-answer")
+    print("/browser: Received WebRTC answer")
     await pc.setRemoteDescription(RTCSessionDescription(type="answer", sdp=data["sdp"]))
 
 
 async def handle_candidate(pc, data):
-    print("/browser: received ice candidate info")
+    print("/browser: Received ICE candidate info")
     if data["candidate"] is None:
         # candidate is None when all candidates have been received
-        print("/browser: all candidates received")
+        print("/browser: All candidates received")
         # await pc.addIceCandidate(None)  # error
     else:
         candidate = candidate_from_sdp(data["candidate"])
