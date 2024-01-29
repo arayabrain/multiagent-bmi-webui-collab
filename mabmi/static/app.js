@@ -1,8 +1,8 @@
 let ws;
 let pc;
 let retryCnt = 0;
-let onTrackCnt = 0;
 const maxRetry = 3;
+let onTrackCnt = 0;
 let focusId = 0;
 let videos;
 
