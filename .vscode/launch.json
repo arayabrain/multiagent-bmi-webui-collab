@@ -24,6 +24,14 @@
                 "--reload"
             ]
         },
+        {
+            "name": "EEG Client",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/mabmi/device_client/eeg.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
         // pupil_client.py
         {
             "name": "Pupil Client",

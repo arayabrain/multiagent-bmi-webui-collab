@@ -1,13 +1,39 @@
+import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 
+import zmq.asyncio
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from mabmi.app.app_state import AppState
 from mabmi.routes import browser
+from mabmi.routes.eeg import eeg_listener
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    A context manager that manages the lifespan of the application.
+    It performs startup and shutdown actions when entering and exiting the context.
+    """
+    zmq_context = zmq.asyncio.Context()
+    socket = zmq_context.socket(zmq.SUB)
+    socket.bind("tcp://127.0.0.1:5555")
+    socket.setsockopt(zmq.SUBSCRIBE, b"")
+
+    eeg_task = asyncio.create_task(eeg_listener(socket))
+    print("eeg_listener started")
+
+    yield
+
+    eeg_task.cancel()
+    socket.close()
+    zmq_context.term()
+
+
+app = FastAPI(lifespan=lifespan)
 app.state = AppState()  # global state for the app
 app.include_router(browser.router)
 root = Path(__file__).parent.parent
@@ -36,60 +62,7 @@ async def get(request: Request):
 #         print("/pupil: Client disconnected")
 
 
-# # TODO: zeromq
-# @app.websocket("/webrtc-eeg")
-# async def ws_eeg_webrtc(websocket: WebSocket):
-#     await websocket.accept()
-#     print("/webrtc-eeg: Client connected")
-#     try:
-#         # setup WebRTC connection
-#         print("/webrtc-eeg: Setting up WebRTC connection...")
-#         # receive offer
-#         offer = json.loads(await websocket.receive_text())
-#         # setup peer connection
-#         pc = RTCPeerConnection()
-#         await pc.setRemoteDescription(RTCSessionDescription(sdp=offer["sdp"], type="offer"))
-#         # send answer
-#         answer = await pc.createAnswer()
-#         await pc.setLocalDescription(answer)
-#         await websocket.send_text(
-#             json.dumps(
-#                 {
-#                     "type": "answer",
-#                     "sdp": pc.localDescription.sdp,
-#                 }
-#             )
-#         )
-
-#         # set the event handlers for data channel
-#         @pc.on("datachannel")
-#         def on_datachannel(channel):
-#             data_channels["eeg"] = channel
-
-#             @channel.on("message")
-#             def on_message(message):
-#                 assert isinstance(message, bytes)
-#                 eeg_data = np.frombuffer(message, dtype=np.float32).reshape(n_chs, -1)
-#                 print(f"/webrtc-eeg: received eeg {eeg_data.shape}")
-
-#                 # TODO
-#                 # decode to command
-#                 command = np.random.randint(0, 4)
-#                 # update command
-#                 update_command({"type": "eeg", "command": command})  # TODO
-
-#         peer_connections["eeg"] = pc
-
-#     except WebSocketDisconnect:
-#         print("/webrtc-eeg: Client disconnected")
-#         pc = peer_connections.pop("eeg", None)
-#         if pc is not None:
-#             await pc.close()
-#         data_channels.pop("eeg", None)
-
-
 if __name__ == "__main__":
     import uvicorn
 
-    # uvicorn.run("main:app", reload=True)
     uvicorn.run("main:app")
