@@ -25,10 +25,10 @@
             ]
         },
         {
-            "name": "EEG Client",
+            "name": "EEG Publisher",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/mabmi/device_client/eeg.py",
+            "program": "${workspaceFolder}/mabmi/device_client/eeg_command_pub.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         },

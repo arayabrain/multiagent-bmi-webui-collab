@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 
 from mabmi.app.app_state import AppState
 from mabmi.routes import browser
-from mabmi.routes.eeg import eeg_listener
+from mabmi.routes.eeg_command_sub import eeg_command_sub
 
 
 @asynccontextmanager
@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     socket.bind("tcp://127.0.0.1:5555")
     socket.setsockopt(zmq.SUBSCRIBE, b"")
 
-    eeg_task = asyncio.create_task(eeg_listener(socket))
+    eeg_task = asyncio.create_task(eeg_command_sub(socket, app.state.update_command))
     print("eeg_listener started")
 
     yield
