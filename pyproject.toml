@@ -1,6 +1,8 @@
 [project]
 name = "multiagent-bmi-fastapi"
 version = "0.1.0"
+readme = "README.md"
+dependencies = []
 
 [build-system]
 requires = ["setuptools", "wheel"]
@@ -16,6 +18,5 @@ line-length = 120
 profile = "black"
 line_length = 120
 
-[[tool.mypy.overrides]]
-module = [".*", "pupil_labs.*", "aiortc.*", "gym", "av"]
-ignore_missing_imports = true
+[tool.mypy]
+disable_error_code = ["import-untyped"]
