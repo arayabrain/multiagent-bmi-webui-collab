@@ -5,6 +5,7 @@ import time
 
 import pupil_labs.pupil_core_network_client as pcnc
 import websockets
+from websockets import WebSocketServerProtocol
 
 debug = False
 if debug:
@@ -16,6 +17,7 @@ if debug:
 is_running = True
 focus: int | None = None
 lock = threading.Lock()
+connected_clients = set()
 
 
 def compute_focus_area(x, y):
@@ -54,50 +56,44 @@ def receive_gaze_and_update_focus(pupil):
 
 async def send_focus():
     global is_running, focus
-    uri = "ws://localhost:8000/pupil"
-    max_retry = 3
-    retry_cnt = 0
+    prev_focus = None
+    _focus = None
+    while is_running:
+        with lock:
+            _focus = focus
+        if _focus != prev_focus:
+            data = {"type": "gaze", "focusId": _focus}
+            await asyncio.wait([client.send(json.dumps(data)) for client in connected_clients])
+            prev_focus = _focus
+        await asyncio.sleep(0.1)  # TODO
 
-    while is_running and max_retry >= 0:
-        try:
-            async with websockets.connect(uri) as websocket:
-                print("Websocket Connected.")
-                retry_cnt = 0  # reset retry counter on successful connection
-                prev_focus = None
-                _focus = None
-                while is_running:
-                    with lock:
-                        _focus = focus
-                    if _focus != prev_focus:
-                        data = {"type": "gaze", "focusId": _focus}
-                        await websocket.send(json.dumps(data))
-                        prev_focus = _focus
-                    await asyncio.sleep(0.1)
-        except websockets.exceptions.ConnectionClosedError:
-            if retry_cnt < max_retry:
-                print("Connection closed. Reconnecting in 3 seconds...")
-                await asyncio.sleep(3)
-                retry_cnt += 1
-            else:
-                print("Maximum number of retries reached. Exiting...")
-                is_running = False
-        except ConnectionRefusedError:
-            print("Connection refused. Exiting...")
-            is_running = False
+
+async def ws_handler(websocket: WebSocketServerProtocol, path):
+    # register client
+    connected_clients.add(websocket)
+    try:
+        await websocket.wait_closed()
+    finally:
+        connected_clients.remove(websocket)
 
 
 async def main():
     address = "127.0.0.1"
-    port = 50020
+    pupil_port = 50020
+    ws_port = 8001
 
     print("Connecting to Pupil Core...")
-    pupil = pcnc.Device(address, port)
+    pupil = pcnc.Device(address, pupil_port)
     pupil.send_notification({"subject": "frame_publishing.set_format", "format": "bgr"})
     print("Pupil Core Connected.")
 
     gaze_thread = threading.Thread(target=receive_gaze_and_update_focus, args=(pupil,))
     gaze_thread.start()
-    await send_focus()
+
+    # Start the WebSocket server
+    async with websockets.serve(ws_handler, address, ws_port):
+        await send_focus()
+
     gaze_thread.join()
 
 

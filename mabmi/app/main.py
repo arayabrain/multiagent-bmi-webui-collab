@@ -46,22 +46,6 @@ async def get(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "num_agents": app.state.num_agents})
 
 
-# TODO: zeromq
-# @app.websocket("/pupil")
-# async def ws_pupil(websocket: WebSocket):
-#     await websocket.accept()
-#     ws_clients["pupil"] = websocket
-#     print("/pupil: Client connected")
-#     try:
-#         while True:
-#             data = await websocket.receive_json()
-#             print(f"/pupil: received {data}")
-#             # transfer the focus info to browser
-#             await ws_clients["browser"].send_json(data)
-#     except WebSocketDisconnect:
-#         print("/pupil: Client disconnected")
-
-
 if __name__ == "__main__":
     import uvicorn
 

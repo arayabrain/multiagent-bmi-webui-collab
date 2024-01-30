@@ -37,7 +37,7 @@
             "name": "Pupil Client",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/client/pupil_client.py",
+            "program": "${workspaceFolder}/mabmi/device_client/pupil.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "env": {

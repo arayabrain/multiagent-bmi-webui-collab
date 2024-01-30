@@ -1,11 +1,4 @@
 fastapi
 uvicorn
 aiortc
-
 # install robohive and its dependencies
-
-# For Pupil Core client
-# websockets
-pyzmq
-msgpack
-pupil-core-network-client
