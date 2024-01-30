@@ -28,7 +28,7 @@
             "name": "EEG Publisher",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/mabmi/device_client/eeg_command_pub.py",
+            "program": "${workspaceFolder}/mabmi/device_client/eeg.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         },
