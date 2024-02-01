@@ -1,4 +1,4 @@
-export const setupPeerConnection = (videos) => {
+export const setupPeerConnection = (ws, videos) => {
     const pc = new RTCPeerConnection();
     let onTrackCnt = 0;
 
@@ -32,7 +32,7 @@ export const setupPeerConnection = (videos) => {
     return pc;
 }
 
-export const handleOffer = async (pc, data) => {
+export const handleOffer = async (ws, pc, data) => {
     if (!pc) {
         console.error('no peerconnection');
         return;
