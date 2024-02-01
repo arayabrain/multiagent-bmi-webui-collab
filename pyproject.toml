@@ -2,7 +2,15 @@
 name = "multiagent-bmi-fastapi"
 version = "0.1.0"
 readme = "README.md"
-dependencies = []
+dependencies = [
+    # server
+    "fastapi",
+    "uvicorn",
+    "aiortc",
+    # client
+    "websockets",
+    "pupil-core-network-client",
+]
 
 [build-system]
 requires = ["setuptools", "wheel"]
