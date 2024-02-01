@@ -53,8 +53,8 @@ const connectEnv = (retryCnt = 0) => {
         const data = JSON.parse(event.data);
         if (data.type == "webrtc-offer") {
             console.log("wsEnv: WebRTC offer received");
-            pc = setupPeerConnection(videos);
-            await handleOffer(pc, data);
+            pc = setupPeerConnection(wsEnv, videos);
+            await handleOffer(wsEnv, pc, data);
         } else if (data.type == "webrtc-ice") {
             await handleRemoteIce(pc, data);
         }
