@@ -1,11 +1,6 @@
 import asyncio
-import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-
-if sys.platform == "win32":
-    # deal with a zmq warning on Windows
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 import zmq.asyncio
 from fastapi import FastAPI, Request
@@ -35,6 +30,7 @@ async def lifespan(app: FastAPI):
     yield
 
     eeg_task.cancel()
+    await eeg_task
     socket.close()
     zmq_context.term()
 
@@ -53,6 +49,12 @@ async def get(request: Request):
 
 
 if __name__ == "__main__":
+    import sys
+
+    if sys.platform == "win32":
+        # deal with a zmq warning on Windows
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
     import uvicorn
 
-    uvicorn.run("main:app")
+    uvicorn.run("main:app", host="localhost", port=8000)
