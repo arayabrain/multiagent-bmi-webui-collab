@@ -24,7 +24,7 @@ Web UI for the multi-agent robot arm environment
 Activate your virtual environment, then:
 1. Run environment server:
     ```bash
-    python mabui/app/main.py
+    python app/main.py
     ```
     and open http://localhost:8000/ in your browser
 2. Pupil Core
@@ -32,11 +32,11 @@ Activate your virtual environment, then:
         1. Connect the device and run Pupil Capture
         2. Run Pupil Core websocket server:
             ```
-            python mabui/devices/pupil.py
+            python app/devices/pupil.py
             ```
     - If you don't have the device, run the mock websocket server:
         ```bash
-        python mabui/devices/pupil_mock.py  # mock
+        python app/devices/pupil_mock.py  # mock
         ```
     - Click "Connect to eye tracker" button on the browser.
       The red frame should move according to the position of your gaze.
@@ -45,7 +45,7 @@ Activate your virtual environment, then:
         (not implemented)
     - If you don't have the device, run the mock EEG command ZMQ publisher:
         ```bash
-        python mabui/devices/eeg.py  # mock
+        python app/devices/eeg.py  # mock
         ```
       Commands to the robot are determined according to the class into which the brain waves are classified.
 

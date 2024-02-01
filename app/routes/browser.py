@@ -8,8 +8,8 @@ from aiortc import VideoStreamTrack
 from av import VideoFrame
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from mabui.app.app_state import AppState
-from mabui.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
+from app.app_state import AppState
+from app.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
 
 router = APIRouter()
 
@@ -61,11 +61,11 @@ async def ws_browser(websocket: WebSocket):
     except WebSocketDisconnect:
         print("/browser: Client disconnected")
         state.ws_connections.pop("browser", None)
+        await env.stop()
         pc = state.peer_connections.pop("browser", None)
         if pc:
             await pc.close()
             print("/browser: Peer connection closed")
-        await env.stop()
 
 
 class EnvRunner:
@@ -125,7 +125,7 @@ class EnvRunner:
 
 
 class ImageStreamTrack(VideoStreamTrack):
-    def __init__(self, env, camera_idx: int):
+    def __init__(self, env: EnvRunner, camera_idx: int):
         super().__init__()
         self.camera_idx = camera_idx
 
