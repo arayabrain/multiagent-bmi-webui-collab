@@ -8,16 +8,15 @@ import websockets
 from websockets import WebSocketServerProtocol
 
 debug = False
-if debug:
-    import logging
-
-    logging.basicConfig(level=logging.DEBUG)
-
 
 is_running = True
+
 focus: int | None = None
+focus_event = asyncio.Event()
 lock = threading.Lock()
+
 connected_clients = set()
+connect_event = asyncio.Event()
 
 
 def compute_focus_area(x, y):
@@ -36,7 +35,7 @@ def compute_focus_area(x, y):
     return None
 
 
-def receive_gaze_and_update_focus(pupil):
+def receive_gaze_and_update_focus(pupil, loop):
     global is_running, focus
 
     with pupil.subscribe_in_background("surface", buffer_size=1) as sub:
@@ -44,12 +43,15 @@ def receive_gaze_and_update_focus(pupil):
             message = sub.recv_new_message(timeout_ms=1000)
             if message is None:
                 continue
-            assert message.payload["name"] == "Surface 1"
-            x, y = message.payload["gaze_on_surfaces"][-1]["norm_pos"]  # use latest gaze
+            assert message.payload["name"] == "Surface 1"  # default name
+            x, y = message.payload["gaze_on_surfaces"][-1]["norm_pos"]  # use only the latest gaze
             # print(f"({x}, {y})")
             new_focus = compute_focus_area(x, y)
-            with lock:
-                focus = new_focus
+            if new_focus != focus:
+                print(f"New focus: {new_focus}")
+                with lock:
+                    focus = new_focus
+                loop.call_soon_threadsafe(focus_event.set)
 
             time.sleep(0.1)
 
@@ -59,39 +61,57 @@ async def send_focus():
     prev_focus = None
     _focus = None
     while is_running:
+        await connect_event.wait()
+        await focus_event.wait()
+
         with lock:
             _focus = focus
-        if _focus != prev_focus:
-            data = {"type": "gaze", "focusId": _focus}
-            await asyncio.wait([client.send(json.dumps(data)) for client in connected_clients])
-            prev_focus = _focus
-        await asyncio.sleep(0.1)  # TODO
+        assert _focus != prev_focus  # focus should be changed
+
+        data = json.dumps({"type": "gaze", "focusId": _focus})
+        await asyncio.wait([asyncio.create_task(client.send(data)) for client in connected_clients])
+        print(f"Sent focus: {_focus}")
+
+        prev_focus = _focus
+        focus_event.clear()
 
 
-async def ws_handler(websocket: WebSocketServerProtocol, path):
-    # register client
+async def handler(websocket: WebSocketServerProtocol):
+    print("Client connected")
+    if len(connected_clients) == 0:
+        connect_event.set()
     connected_clients.add(websocket)
-    try:
-        await websocket.wait_closed()
-    finally:
-        connected_clients.remove(websocket)
+
+    await websocket.wait_closed()
+
+    print("Client disconnected")
+    connected_clients.remove(websocket)
+    if len(connected_clients) == 0:
+        connect_event.clear()
+
+
+def connect_to_pupil(address: str, port: int):
+    print("Connecting to Pupil Core...")
+    pupil = pcnc.Device(address, port)
+    pupil.send_notification({"subject": "frame_publishing.set_format", "format": "bgr"})
+    print("Pupil Core Connected.")
+    return pupil
 
 
 async def main():
-    address = "127.0.0.1"
+    pupil_address = "127.0.0.1"
     pupil_port = 50020
+    ws_address = "127.0.0.1"
     ws_port = 8001
 
-    print("Connecting to Pupil Core...")
-    pupil = pcnc.Device(address, pupil_port)
-    pupil.send_notification({"subject": "frame_publishing.set_format", "format": "bgr"})
-    print("Pupil Core Connected.")
+    pupil = connect_to_pupil(pupil_address, pupil_port)
 
-    gaze_thread = threading.Thread(target=receive_gaze_and_update_focus, args=(pupil,))
+    loop = asyncio.get_running_loop()
+    gaze_thread = threading.Thread(target=receive_gaze_and_update_focus, args=(pupil, loop))
     gaze_thread.start()
 
     # Start the WebSocket server
-    async with websockets.serve(ws_handler, address, ws_port):
+    async with websockets.serve(handler, ws_address, ws_port):
         await send_focus()
 
     gaze_thread.join()

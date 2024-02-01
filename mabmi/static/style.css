@@ -35,3 +35,12 @@
     min-height: 100vh;
     /* Align to the center of the screen height */
 }
+
+#connectGazeButton {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    padding: 10px;
+    font-size: 16px;
+    cursor: pointer;
+}

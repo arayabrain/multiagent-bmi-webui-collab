@@ -8,9 +8,15 @@ let videos;
 
 document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
+    const connectGazeButton = document.getElementById('connectGazeButton');
 
     connectEnv();
-    connectGaze();
+
+    connectGazeButton.addEventListener('click', () => {
+        connectGaze();
+        showAprilTags();
+        connectGazeButton.style.display = 'none';
+    });
 
     // Focus the image when hovering the mouse cursor over it
     document.addEventListener('mousemove', (event) => {
@@ -83,6 +89,7 @@ const connectGaze = (retryCnt = 0) => {
 
     wsGaze.onopen = () => {
         console.log("wsGaze: connected");
+        retryCnt = 0;  // reset retry counter on successful connection
     };
     wsGaze.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -106,6 +113,24 @@ const connectGaze = (retryCnt = 0) => {
         }
         wsGaze.close();
     };
+};
+
+
+const showAprilTags = () => {
+    const aprilTags = [
+        "/static/img/tag36_11_00000.svg",
+        "/static/img/tag36_11_00001.svg",
+        "/static/img/tag36_11_00002.svg",
+        "/static/img/tag36_11_00003.svg"
+    ];
+    const positions = ["top-left", "top-right", "bottom-left", "bottom-right"];
+
+    aprilTags.forEach((tag, index) => {
+        const img = document.createElement("img");
+        img.src = tag;
+        img.classList.add("apriltag", positions[index]);
+        document.body.appendChild(img);
+    });
 };
 
 
