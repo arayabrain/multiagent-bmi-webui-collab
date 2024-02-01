@@ -28,8 +28,8 @@ async def ws_browser(websocket: WebSocket):
     state.ws_connections["browser"] = websocket
 
     # run environment
-    env_proc = EnvProcess(state)
-    env_proc.start()
+    env = EnvRunner(state)
+    env.start()
 
     try:
         while True:
@@ -48,7 +48,7 @@ async def ws_browser(websocket: WebSocket):
 
                 # add stream tracks
                 for i in range(state.num_agents):
-                    track = state.relay.subscribe(ImageStreamTrack(env_proc, i))
+                    track = state.relay.subscribe(ImageStreamTrack(env, i))
                     pc.addTransceiver(track, direction="sendonly")
                     print(f"Track {track.id} added to peer connection")
 
@@ -60,13 +60,15 @@ async def ws_browser(websocket: WebSocket):
 
     except WebSocketDisconnect:
         print("/browser: Client disconnected")
-        env_proc.stop()
+        state.ws_connections.pop("browser", None)
         pc = state.peer_connections.pop("browser", None)
         if pc:
             await pc.close()
+            print("/browser: Peer connection closed")
+        await env.stop()
 
 
-class EnvProcess:
+class EnvRunner:
     def __init__(self, state: AppState):
         self.num_agents = state.num_agents
 
@@ -78,13 +80,17 @@ class EnvProcess:
         self.command = state.command  # updated globally
 
     def start(self):
-        self.task = asyncio.create_task(self._env_process())
+        self.task = asyncio.create_task(self._run())
         # TODO: separate thread?
 
-    def stop(self):
+    async def stop(self):
         self.task.cancel()
+        try:
+            await self.task
+        except asyncio.CancelledError:
+            pass
 
-    async def _env_process(self):
+    async def _run(self):
         print("env_process started")
         env = self.env
 
@@ -119,13 +125,13 @@ class EnvProcess:
 
 
 class ImageStreamTrack(VideoStreamTrack):
-    def __init__(self, env_proc, camera_idx: int):
+    def __init__(self, env, camera_idx: int):
         super().__init__()
         self.camera_idx = camera_idx
 
         # references to variables in EnvProcess
-        self.cond = env_proc.frame_update_cond
-        self.frames = env_proc.frames
+        self.cond = env.frame_update_cond
+        self.frames = env.frames
 
     async def recv(self):
         global frames
