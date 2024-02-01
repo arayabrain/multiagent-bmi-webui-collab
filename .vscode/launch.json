@@ -28,7 +28,7 @@
             "name": "EEG Publisher",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/mabui/device_client/eeg.py",
+            "program": "${workspaceFolder}/mabui/devices/eeg.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         },
@@ -36,7 +36,7 @@
             "name": "Pupil Websocket Server",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/mabui/device_client/pupil.py",
+            "program": "${workspaceFolder}/mabui/devices/pupil.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "env": {
@@ -47,7 +47,7 @@
             "name": "Pupil Websocket Mock Server",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/mabui/device_client/pupil_mock.py",
+            "program": "${workspaceFolder}/mabui/devices/pupil_mock.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "env": {
