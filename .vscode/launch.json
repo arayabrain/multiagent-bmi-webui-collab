@@ -21,7 +21,7 @@
             "justMyCode": false,
             "args": [
                 "mabmi.app.main:app",
-                "--reload"
+                // "--reload"
             ]
         },
         {
