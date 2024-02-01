@@ -74,9 +74,10 @@ async def send_focus():
             assert _focus != prev_focus  # focus should be changed
 
             data = json.dumps({"type": "gaze", "focusId": _focus})
-            if connected_clients:  # check again
-                await asyncio.wait([asyncio.create_task(client.send(data)) for client in connected_clients])
-                print(f"Sent focus {_focus}")
+            if not connected_clients:  # sometimes client disconnects while waiting for focus
+                continue
+            await asyncio.wait([asyncio.create_task(client.send(data)) for client in connected_clients])
+            print(f"Sent focus {_focus}")
 
             prev_focus = _focus
             focus_event.clear()
