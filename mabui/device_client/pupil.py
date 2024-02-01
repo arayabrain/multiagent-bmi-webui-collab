@@ -7,7 +7,10 @@ import pupil_labs.pupil_core_network_client as pcnc
 import websockets
 from websockets import WebSocketServerProtocol
 
-debug = False
+pupil_address = "127.0.0.1"
+pupil_port = 50020
+ws_address = "127.0.0.1"
+ws_port = 8001
 
 is_running = True
 
@@ -48,7 +51,7 @@ def receive_gaze_and_update_focus(pupil, loop):
             # print(f"({x}, {y})")
             new_focus = compute_focus_area(x, y)
             if new_focus != focus:
-                print(f"New focus: {new_focus}")
+                # print(f"New focus: {new_focus}")
                 with lock:
                     focus = new_focus
                 loop.call_soon_threadsafe(focus_event.set)
@@ -60,20 +63,26 @@ async def send_focus():
     global is_running, focus
     prev_focus = None
     _focus = None
-    while is_running:
-        await connect_event.wait()
-        await focus_event.wait()
 
-        with lock:
-            _focus = focus
-        assert _focus != prev_focus  # focus should be changed
+    try:
+        while is_running:
+            await connect_event.wait()
+            await focus_event.wait()
 
-        data = json.dumps({"type": "gaze", "focusId": _focus})
-        await asyncio.wait([asyncio.create_task(client.send(data)) for client in connected_clients])
-        print(f"Sent focus: {_focus}")
+            with lock:
+                _focus = focus
+            assert _focus != prev_focus  # focus should be changed
 
-        prev_focus = _focus
-        focus_event.clear()
+            data = json.dumps({"type": "gaze", "focusId": _focus})
+            if connected_clients:  # check again
+                await asyncio.wait([asyncio.create_task(client.send(data)) for client in connected_clients])
+                print(f"Sent focus {_focus}")
+
+            prev_focus = _focus
+            focus_event.clear()
+    except asyncio.CancelledError:
+        # task.cancel() is called
+        return
 
 
 async def handler(websocket: WebSocketServerProtocol):
@@ -90,6 +99,11 @@ async def handler(websocket: WebSocketServerProtocol):
         connect_event.clear()
 
 
+async def run_server():
+    async with websockets.serve(handler, ws_address, ws_port):
+        await send_focus()
+
+
 def connect_to_pupil(address: str, port: int):
     print("Connecting to Pupil Core...")
     pupil = pcnc.Device(address, port)
@@ -98,24 +112,28 @@ def connect_to_pupil(address: str, port: int):
     return pupil
 
 
-async def main():
-    pupil_address = "127.0.0.1"
-    pupil_port = 50020
-    ws_address = "127.0.0.1"
-    ws_port = 8001
-
+def main():
     pupil = connect_to_pupil(pupil_address, pupil_port)
 
-    loop = asyncio.get_running_loop()
+    loop = asyncio.get_event_loop()
+    task = loop.create_task(run_server())
     gaze_thread = threading.Thread(target=receive_gaze_and_update_focus, args=(pupil, loop))
     gaze_thread.start()
+    print("Gaze thread started.")
 
-    # Start the WebSocket server
-    async with websockets.serve(handler, ws_address, ws_port):
-        await send_focus()
-
-    gaze_thread.join()
+    try:
+        loop.run_until_complete(task)
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt. Exiting...")
+        task.cancel()
+        loop.run_until_complete(task)  # wait until task is cancelled
+    finally:
+        global is_running
+        is_running = False
+        if gaze_thread.is_alive():
+            gaze_thread.join()
+        loop.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(main(), debug=debug)
+    main()

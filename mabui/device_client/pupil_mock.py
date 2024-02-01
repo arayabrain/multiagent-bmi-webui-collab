@@ -7,7 +7,8 @@ import time
 import websockets
 from websockets import WebSocketServerProtocol
 
-debug = False
+ws_address = "127.0.0.1"
+ws_port = 8001
 
 is_running = True
 
@@ -24,33 +25,39 @@ def receive_gaze_and_update_focus(loop):
     while is_running:
         new_focus = random.randint(0, 3)
         if new_focus != focus:
-            print(f"New focus: {new_focus}")
+            # print(f"New focus: {new_focus}")
             with lock:
                 focus = new_focus
             loop.call_soon_threadsafe(focus_event.set)
 
         # time.sleep(0.1)
-        time.sleep(2)
+        time.sleep(1)
 
 
 async def send_focus():
     global is_running, focus
     prev_focus = None
     _focus = None
-    while is_running:
-        await connect_event.wait()
-        await focus_event.wait()
 
-        with lock:
-            _focus = focus
-        assert _focus != prev_focus  # focus should be changed
+    try:
+        while is_running:
+            await connect_event.wait()
+            await focus_event.wait()
 
-        data = json.dumps({"type": "gaze", "focusId": _focus})
-        await asyncio.wait([asyncio.create_task(client.send(data)) for client in connected_clients])
-        print(f"Sent focus: {_focus}")
+            with lock:
+                _focus = focus
+            assert _focus != prev_focus  # focus should be changed
 
-        prev_focus = _focus
-        focus_event.clear()
+            data = json.dumps({"type": "gaze", "focusId": _focus})
+            if connected_clients:  # check again
+                await asyncio.wait([asyncio.create_task(client.send(data)) for client in connected_clients])
+                print(f"Sent focus {_focus}")
+
+            prev_focus = _focus
+            focus_event.clear()
+    except asyncio.CancelledError:
+        # task.cancel() is called
+        return
 
 
 async def handler(websocket: WebSocketServerProtocol):
@@ -67,20 +74,31 @@ async def handler(websocket: WebSocketServerProtocol):
         connect_event.clear()
 
 
-async def main():
-    ws_address = "127.0.0.1"
-    ws_port = 8001
-
-    loop = asyncio.get_running_loop()
-    gaze_thread = threading.Thread(target=receive_gaze_and_update_focus, args=(loop,))
-    gaze_thread.start()
-
-    # Start the WebSocket server
+async def run_server():
     async with websockets.serve(handler, ws_address, ws_port):
         await send_focus()
 
-    gaze_thread.join()
+
+def main():
+    loop = asyncio.get_event_loop()
+    task = loop.create_task(run_server())
+    gaze_thread = threading.Thread(target=receive_gaze_and_update_focus, args=(loop,))
+    gaze_thread.start()
+    print("Gaze thread started.")
+
+    try:
+        loop.run_until_complete(task)
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt. Exiting...")
+        task.cancel()
+        loop.run_until_complete(task)  # wait until task is cancelled
+    finally:
+        global is_running
+        is_running = False
+        if gaze_thread.is_alive():
+            gaze_thread.join()
+        loop.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(main(), debug=debug)
+    main()
