@@ -20,7 +20,7 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                "mabmi.app.main:app",
+                "mabui.app.main:app",
                 // "--reload"
             ]
         },
@@ -28,16 +28,26 @@
             "name": "EEG Publisher",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/mabmi/device_client/eeg.py",
+            "program": "${workspaceFolder}/mabui/device_client/eeg.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         },
-        // pupil_client.py
         {
-            "name": "Pupil Client",
+            "name": "Pupil Websocket Server",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/mabmi/device_client/pupil.py",
+            "program": "${workspaceFolder}/mabui/device_client/pupil.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONASYNCIODEBUG": "1"
+            },
+        },
+        {
+            "name": "Pupil Websocket Mock Server",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/mabui/device_client/pupil_mock.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "env": {

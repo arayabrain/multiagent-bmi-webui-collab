@@ -1,15 +1,20 @@
 import asyncio
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+if sys.platform == "win32":
+    # deal with a zmq warning on Windows
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 import zmq.asyncio
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from mabmi.app.app_state import AppState
-from mabmi.routes import browser
-from mabmi.routes.eeg_command_sub import eeg_command_sub
+from mabui.app.app_state import AppState
+from mabui.routes import browser
+from mabui.routes.eeg_command_sub import eeg_command_sub
 
 
 @asynccontextmanager
@@ -18,6 +23,7 @@ async def lifespan(app: FastAPI):
     A context manager that manages the lifespan of the application.
     It performs startup and shutdown actions when entering and exiting the context.
     """
+
     zmq_context = zmq.asyncio.Context()
     socket = zmq_context.socket(zmq.SUB)
     socket.bind("tcp://127.0.0.1:5555")

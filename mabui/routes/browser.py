@@ -8,8 +8,8 @@ from aiortc import VideoStreamTrack
 from av import VideoFrame
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from mabmi.app.app_state import AppState
-from mabmi.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
+from mabui.app.app_state import AppState
+from mabui.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
 
 router = APIRouter()
 

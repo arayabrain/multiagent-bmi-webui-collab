@@ -19,21 +19,18 @@ connected_clients = set()
 connect_event = asyncio.Event()
 
 
-def compute_focus_area():
-    return random.randint(0, 3)
-
-
 def receive_gaze_and_update_focus(loop):
     global is_running, focus
     while is_running:
-        new_focus = compute_focus_area()
+        new_focus = random.randint(0, 3)
         if new_focus != focus:
             print(f"New focus: {new_focus}")
             with lock:
                 focus = new_focus
             loop.call_soon_threadsafe(focus_event.set)
 
-        time.sleep(0.1)
+        # time.sleep(0.1)
+        time.sleep(2)
 
 
 async def send_focus():
