@@ -2,7 +2,7 @@
 Web UI for the multi-agent robot arm environment
 
 ## Overview
-![overview image](assets/multiagent-bmi-webui.drawio.png)
+![overview image](assets/overview.png)
 
 
 ## Installation
