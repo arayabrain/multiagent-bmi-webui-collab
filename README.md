@@ -38,7 +38,7 @@ Activate your virtual environment, then:
         ```bash
         python app/devices/pupil_mock.py  # mock
         ```
-    - Click "Connect to eye tracker" button on the browser.
+    - Click the "Connect to eye tracker" button on the browser.
       The red frame should move according to the position of your gaze.
 3. EEG
     - If you have the device
