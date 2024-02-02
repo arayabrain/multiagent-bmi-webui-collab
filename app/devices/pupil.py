@@ -47,7 +47,10 @@ def receive_gaze_and_update_focus(pupil, loop):
             if message is None:
                 continue
             assert message.payload["name"] == "Surface 1"  # default name
-            x, y = message.payload["gaze_on_surfaces"][-1]["norm_pos"]  # use only the latest gaze
+            gaze = message.payload["gaze_on_surfaces"]
+            if not gaze:
+                continue
+            x, y = gaze[-1]["norm_pos"]  # use only the latest gaze
             # print(f"({x}, {y})")
             new_focus = compute_focus_area(x, y)
             if new_focus != focus:
