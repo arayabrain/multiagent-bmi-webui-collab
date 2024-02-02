@@ -7,9 +7,9 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from mabui.app.app_state import AppState
-from mabui.routes import browser
-from mabui.routes.eeg_command_sub import eeg_command_sub
+from app.app_state import AppState
+from app.routes import browser
+from app.routes.eeg_command_sub import eeg_command_sub
 
 
 @asynccontextmanager
@@ -38,9 +38,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.state = AppState()  # global state for the app
 app.include_router(browser.router)
-root = Path(__file__).parent.parent
-app.mount("/static", StaticFiles(directory=root / "static"), name="static")
-templates = Jinja2Templates(directory=root / "templates")
+app_dir = Path(__file__).parent
+app.mount("/static", StaticFiles(directory=app_dir / "static"), name="static")
+templates = Jinja2Templates(directory=app_dir / "templates")
 
 
 @app.get("/")
