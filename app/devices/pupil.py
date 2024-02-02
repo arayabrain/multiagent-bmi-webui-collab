@@ -64,8 +64,8 @@ def receive_gaze_and_update_focus(pupil, loop):
 
 async def send_focus():
     global is_running, focus
-    prev_focus = None
-    _focus = None
+    prev_focus: int | None = -1  # set to -1 instead of None to force sending focus at the beginning
+    _focus: int | None = None
 
     try:
         while is_running:
