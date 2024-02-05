@@ -3,35 +3,36 @@
 
 <head>
     <title>FastAPI with WebSockets</title>
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <!-- Custom CSS -->
+
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/apriltag.css">
-
     <script type="module" src="/static/app.js"></script>
 </head>
 
 <body>
-    <div class="container">
-        <button id="connectGazeButton" class="btn btn-primary">Connect to eye tracker</button>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
+    <div class="container">
         <!-- camera images -->
-        <div>
-            <div class="row">
+        <div class="video-grid">
                 {% for i in range(num_agents) %}
-                <div class="col-lg-6 col-md-6 col-sm-12 grid-item">
+            <div class="video-container">
                     <video id="camera_{{i}}" autoplay playsinline muted></video>
                 </div>
                 {% endfor %}
+        </div>
+
+        <!-- toggle switches -->
+        <div class="toggle-switches">
+            <!-- toggle switches -->
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="toggle-eyetracker">
+                <label class="form-check-label" for="toggle-eyetracker">Eye Tracker</label>
             </div>
         </div>
     </div>
-
-    <!-- Bootstrap JS and its dependencies -->
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.4.3/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 
 </html>
