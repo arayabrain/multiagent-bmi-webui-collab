@@ -4,7 +4,8 @@ from typing import List
 import gym
 import numpy as np
 import robohive.envs.arms  # noqa: F401 # type: ignore
-from app_state import AppState
+
+from app.app_state import AppState
 
 
 class EnvRunner:
