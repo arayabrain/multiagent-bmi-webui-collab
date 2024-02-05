@@ -15,13 +15,19 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <div class="container">
-        <!-- camera images -->
         <div class="video-grid">
+            <!-- camera images -->
                 {% for i in range(num_agents) %}
             <div class="video-container">
                     <video id="camera_{{i}}" autoplay playsinline muted></video>
                 </div>
                 {% endfor %}
+
+            <!-- apriltag images -->
+            <img src="/static/img/tag36_11_00000.svg" class="apriltag top-left" alt="AprilTag Top Left">
+            <img src="/static/img/tag36_11_00001.svg" class="apriltag top-right" alt="AprilTag Top Right">
+            <img src="/static/img/tag36_11_00002.svg" class="apriltag bottom-left" alt="AprilTag Bottom Left">
+            <img src="/static/img/tag36_11_00003.svg" class="apriltag bottom-right" alt="AprilTag Bottom Right">
         </div>
 
         <!-- toggle switches -->

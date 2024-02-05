@@ -5,17 +5,24 @@ const maxRetry = 3;
 const reconnectInterval = 3000;
 let focusId = 0;
 let videos;
+let toggleGaze;
+let aprilTags;
 
 document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
-    const connectGazeButton = document.getElementById('connectGazeButton');
+    toggleGaze = document.getElementById('toggle-eyetracker');
+    aprilTags = document.getElementsByClassName("apriltag");
 
     connectEnv();
 
-    connectGazeButton.addEventListener('click', () => {
-        connectGaze();
-        showAprilTags();
-        connectGazeButton.style.display = 'none';
+    toggleGaze.addEventListener('change', () => {
+        if (toggleGaze.checked) {
+            connectGaze();
+            showAprilTags();
+        } else {
+            if (wsGaze.readyState == WebSocket.OPEN) wsGaze.close();
+            hideAprilTags();
+        }
     });
 
     // Focus the image when hovering the mouse cursor over it
@@ -82,7 +89,6 @@ const connectEnv = (retryCnt = 0) => {
     };
 }
 
-
 const connectGaze = (retryCnt = 0) => {
     // wsGaze: websocket for communication with the gaze server
     wsGaze = new WebSocket("ws://localhost:8001");
@@ -99,6 +105,11 @@ const connectGaze = (retryCnt = 0) => {
         }
     };
     wsGaze.onclose = async (e) => {
+        if (!toggleGaze.checked) {
+            console.log('wsGaze: Disconnected by user');
+            return;
+        }
+
         if (retryCnt < maxRetry) {
             console.log('wsGaze: Disconnected. Reconnecting in 3 seconds...');
             await sleep(reconnectInterval);
@@ -115,24 +126,17 @@ const connectGaze = (retryCnt = 0) => {
     };
 };
 
-
 const showAprilTags = () => {
-    const aprilTags = [
-        "/static/img/tag36_11_00000.svg",
-        "/static/img/tag36_11_00001.svg",
-        "/static/img/tag36_11_00002.svg",
-        "/static/img/tag36_11_00003.svg"
-    ];
-    const positions = ["top-left", "top-right", "bottom-left", "bottom-right"];
-
-    aprilTags.forEach((tag, index) => {
-        const img = document.createElement("img");
-        img.src = tag;
-        img.classList.add("apriltag", positions[index]);
-        document.body.appendChild(img);
+    Array.from(aprilTags).forEach((tag) => {
+        tag.style.display = 'block';
     });
-};
+}
 
+const hideAprilTags = () => {
+    Array.from(aprilTags).forEach((tag) => {
+        tag.style.display = 'none';
+    });
+}
 
 const updateFocus = (newId) => {
     if (newId == focusId) return;
@@ -151,6 +155,5 @@ const updateFocus = (newId) => {
         wsEnv.send(JSON.stringify({ type: "focus", focusId: focusId }));
     }
 }
-
 
 const sleep = (msec) => new Promise(resolve => setTimeout(resolve, msec));

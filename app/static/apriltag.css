@@ -1,27 +1,31 @@
 .apriltag {
-    position: fixed;
+    /* position: fixed; */
+    position: absolute;
     width: 100px;
     /* or any other size */
     height: 100px;
     /* or any other size */
+    display: none;
 }
 
 .top-left {
-    top: 10px;
-    left: 10px;
+    top: -9px;
+    /* gap 5px + border 2*2px */
+    left: -110px;
+    /* image 100px + margin 10px */
 }
 
 .top-right {
-    top: 10px;
-    right: 10px;
+    top: -9px;
+    right: -110px;
 }
 
 .bottom-left {
-    bottom: 10px;
-    left: 10px;
+    bottom: -9px;
+    left: -110px;
 }
 
 .bottom-right {
-    bottom: 10px;
-    right: 10px;
+    bottom: -9px;
+    right: -110px;
 }

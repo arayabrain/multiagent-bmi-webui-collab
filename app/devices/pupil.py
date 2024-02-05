@@ -18,21 +18,22 @@ focus: int | None = None
 focus_event = asyncio.Event()
 lock = threading.Lock()
 
-connected_clients = set()
+connected_clients: set[WebSocketServerProtocol] = set()
 connect_event = asyncio.Event()
 
 
 def compute_focus_area(x, y):
     # (0, 0) is the bottom-left corner
+    margin_vert = 0.3  # TODO: adjust margin
     if 0 <= x < 0.5:
-        if 0.5 <= y <= 1:
+        if 0.5 <= y <= 1 + margin_vert:
             return 0
-        elif 0 <= y < 0.5:
+        elif 0 - margin_vert <= y < 0.5:
             return 2
     elif 0.5 <= x <= 1:
-        if 0.5 <= y <= 1:
+        if 0.5 <= y <= 1 + margin_vert:
             return 1
-        elif 0 <= y < 0.5:
+        elif 0 - margin_vert <= y < 0.5:
             return 3
 
     return None

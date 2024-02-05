@@ -27,7 +27,7 @@ html {
     display: grid;
     grid-template-columns: repeat(2, auto);
     grid-template-rows: repeat(2, auto);
-    gap: 20px;
+    gap: 5px;
     /* Grid gap */
     /* width: 90vw; */
     /* You might want to adjust this if it's too wide when side by side with toggle-switches */
@@ -35,6 +35,10 @@ html {
     /* Adjust the height if needed */
     justify-content: center;
     align-items: center;
+
+    /* for apriltags */
+    position: relative;
+    box-sizing: border-box;
 }
 
 .video-container {
