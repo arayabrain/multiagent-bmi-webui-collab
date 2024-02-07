@@ -10,6 +10,9 @@ dependencies = [
     # client
     "websockets",
     "pupil-core-network-client",
+    "pylsl",
+    "click",
+    "reactivex",
 ]
 
 [build-system]

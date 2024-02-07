@@ -29,12 +29,19 @@
             ]
         },
         {
-            "name": "EEG Publisher",
+            "name": "EEG ZeroMQ Server",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/app/devices/eeg.py",
             "console": "integratedTerminal",
             "justMyCode": false,
+            "args": [
+                "--input",
+                "Audio", // debug
+                "--mode",
+                "decode",
+                // "record",
+            ],
         },
         {
             "name": "Pupil Websocket Server",
