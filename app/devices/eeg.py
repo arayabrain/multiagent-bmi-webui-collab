@@ -15,13 +15,13 @@ from reactivex import operators as ops
 
 from app.utils.networking import create_observable_from_stream_inlet, get_stream_inlet
 
-window_duration = 2  # seconds
-baseline_duration = 2  # seconds
-baseline_ready_duration = 1  # seconds
-thres = 1  # TODO
+window_duration = 1  # seconds
+baseline_duration = 5  # seconds
+baseline_ready_duration = 5  # seconds
+thres = 2.0
 
 
-def rms(data: np.ndarray) -> np.ndarray:
+def root_mean_square(data: np.ndarray) -> np.ndarray:
     """Root mean square of each channel in the data.
     Args:
         data: (time, channels)
@@ -37,13 +37,13 @@ def get_model():
         baselines: dict,
     ) -> int:
         norm_data = (data - baselines["average"]) / baselines["rms"]
-        r = rms(norm_data)
-        print(r)
-        max_ch = int(np.argmax(r))
-        if r[max_ch] > thres:
+        rms = root_mean_square(norm_data)
+        print(f"channel rms: {[f'{r:.2f}' for r in rms]}")
+        max_ch = int(np.argmax(rms))
+        if rms[max_ch] > thres:
             return max_ch + 1  # 1-indexed channel number
         else:
-            return 0  # stop command
+            return 0  # zero command
 
     return model
 
@@ -116,7 +116,7 @@ class Decoder:
     def _set_baseline(self, data: np.ndarray):
         self.baselines = {
             "average": np.mean(data, axis=0),
-            "rms": rms(data),
+            "rms": root_mean_square(data),
         }
         self.baseline_ready.set()
 
