@@ -52,7 +52,7 @@ const connectEnv = (retryCnt = 0) => {
     // wsEnv: websocket for communication with the environment server
     // - WebRTC signaling
     // - focus update notification
-    wsEnv = new WebSocket("ws://localhost:8000/browser");
+    wsEnv = new WebSocket(getWsUrl(8000) + "/browser");
     let pc;
 
     wsEnv.onopen = async () => {
@@ -91,7 +91,7 @@ const connectEnv = (retryCnt = 0) => {
 
 const connectGaze = (retryCnt = 0) => {
     // wsGaze: websocket for communication with the gaze server
-    wsGaze = new WebSocket("ws://localhost:8001");
+    wsGaze = new WebSocket(getWsUrl(8001));
 
     wsGaze.onopen = () => {
         console.log("wsGaze: connected");
@@ -154,6 +154,12 @@ const updateFocus = (newId) => {
     if (wsEnv.readyState == WebSocket.OPEN) {
         wsEnv.send(JSON.stringify({ type: "focus", focusId: focusId }));
     }
+}
+
+const getWsUrl = (port) => {
+    const loc = window.location;
+    const wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
+    return `${wsProtocol}://${loc.hostname}:${port}`;
 }
 
 const sleep = (msec) => new Promise(resolve => setTimeout(resolve, msec));
