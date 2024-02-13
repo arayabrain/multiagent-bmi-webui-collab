@@ -54,16 +54,19 @@ async def get(request: Request):
 if __name__ == "__main__":
     import sys
 
+    import uvicorn
+
     if sys.platform == "win32":
         # deal with a zmq warning on Windows
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    import uvicorn
+    # for HTTPS
+    # key_dir = app_dir / "../.keys"
 
     uvicorn.run(
         "main:app",
         host=host,
         port=8000,
-        ssl_keyfile=".keys/server.key",
-        ssl_certfile=".keys/server.crt",
+        # ssl_keyfile=key_dir / "server.key",
+        # ssl_certfile=key_dir / "server.crt",
     )

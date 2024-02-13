@@ -22,10 +22,16 @@ export const setupPeerConnection = (ws, videos) => {
         videos[onTrackCnt].srcObject = new MediaStream([track]);
         onTrackCnt++;
     }
-    pc.connectionstatechange = (event) => {
+    pc.onsignalingstatechange = (event) => {
+        console.log(`Signaling state: ${pc.signalingState}`);
+    }
+    pc.onconnectionstatechange = (event) => {
         console.log(`Connection state: ${pc.connectionState}`);
     }
-    pc.iceconnectionstatechange = (event) => {
+    pc.onicegatheringstatechange = (event) => {
+        console.log(`ICE gathering state: ${pc.iceGatheringState}`);
+    }
+    pc.oniceconnectionstatechange = (event) => {
         console.log(`ICE connection state: ${pc.iceConnectionState}`);
     }
 
