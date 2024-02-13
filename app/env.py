@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import List
 
 import gym
@@ -6,6 +7,8 @@ import numpy as np
 import robohive.envs.arms  # noqa: F401 # type: ignore
 
 from app.app_state import AppState
+
+os.environ["MUJOCO_GL"] = "egl"
 
 
 class EnvRunner:

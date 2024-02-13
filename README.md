@@ -20,6 +20,9 @@ Web UI for the multi-agent robot arm environment
     pip install -e .
     ```
 
+If necessary, you can remove `max_episode_steps` in `robohive/envs/arms/__init__.py`.
+
+
 ## Run
 Activate your virtual environment, then:
 1. Run environment server:
