@@ -2,17 +2,16 @@
 name = "multiagent-bmi-fastapi"
 version = "0.1.0"
 readme = "README.md"
-dependencies = [
-    # server
-    "fastapi",
-    "uvicorn",
-    "aiortc",
-    # client
-    "websockets",
+
+[project.optional-dependencies]
+server = ["aiortc", "fastapi", "uvicorn"]
+user = [
+    "click",
+    "h5py",
     "pupil-core-network-client",
     "pylsl",
-    "click",
     "reactivex",
+    "websockets",
 ]
 
 [build-system]

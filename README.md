@@ -14,10 +14,15 @@ Web UI for the multi-agent robot arm environment
     git checkout multi-robot
     pip install -e .
     ```
-3. Clone this repository.
-4. 
+3. Clone this repository
+4. Install
     ```bash
-    pip install -e .
+    # server only
+    pip install -e .[server]
+    # user only
+    pip install -e .[user]
+    # both
+    pip install -e .[server,user]
     ```
 
 - On Linux, you need to install `liblsl` to use the [LSL](https://github.com/sccn/liblsl).
@@ -28,6 +33,9 @@ Web UI for the multi-agent robot arm environment
     sudo dpkg -i liblsl-1.16.2-focal_amd64.deb
     ```
 
+- On windows, you need to open ports for the WebRTC UDP communication.
+Open Windows Firewall settings (`wf.msc`) and create a new inbound rule to allow UDP ports `49152-65535`.
+
 - You may need to comment out `max_episode_steps` in `robohive/envs/arms/__init__.py` to remove the episode time limit.
 
 
@@ -37,7 +45,7 @@ Activate your virtual environment, then:
     ```bash
     python app/main.py
     ```
-    and open http://localhost:8000/ in your browser
+    and open http://\<server ip\>:8000/ in your browser
 2. Pupil Core
     - If you have the device
         1. Connect the device and run Pupil Capture
@@ -55,7 +63,7 @@ Activate your virtual environment, then:
     - If you have the device, start measuring and LSL streaming.
     - If you don't have the device, run the mock EEG command ZMQ publisher:
         ```bash
-        python app/devices/eeg.py  # mock
+        python app/devices/eeg.py  # mock; see the file for options
         ```
       Commands to the robot are determined according to the class into which the brain waves are classified.
 
