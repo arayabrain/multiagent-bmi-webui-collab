@@ -13,6 +13,7 @@ ws_port = 8001
 is_running = True
 
 focus: int | None = None
+prev_focus: int | None = None
 focus_event = asyncio.Event()
 lock = threading.Lock()
 
@@ -35,8 +36,7 @@ def receive_gaze_and_update_focus(loop):
 
 
 async def send_focus():
-    global is_running, focus
-    prev_focus = None
+    global is_running, focus, prev_focus
     _focus = None
 
     try:
@@ -73,6 +73,9 @@ async def handler(websocket: WebSocketServerProtocol):
     connected_clients.remove(websocket)
     if len(connected_clients) == 0:
         connect_event.clear()
+
+        global prev_focus
+        prev_focus = None  # reset prev_focus
 
 
 async def run_server():
