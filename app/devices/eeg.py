@@ -6,8 +6,10 @@
 
 import threading
 import time
+from pathlib import Path
 
 import click
+import h5py
 import numpy as np
 import zmq
 from pylsl import resolve_streams
@@ -38,7 +40,7 @@ def get_model():
     ) -> int:
         norm_data = (data - baselines["average"]) / baselines["rms"]
         rms = root_mean_square(norm_data)
-        print(f"channel rms: {[f'{r:.2f}' for r in rms]}")
+        print(f"channel intensity: {[f'{r:.2f}' for r in rms]}")
         max_ch = int(np.argmax(rms))
         if rms[max_ch] > thres:
             return max_ch + 1  # 1-indexed channel number
@@ -46,6 +48,12 @@ def get_model():
             return 0  # zero command
 
     return model
+
+
+def _extract_buffer(buf: list) -> tuple:
+    data, timestamps = zip(*buf)
+    data = np.stack(data).astype(float)  # (time, channels)  # TODO: float32 or 64?
+    return data, timestamps
 
 
 class Decoder:
@@ -56,19 +64,18 @@ class Decoder:
         self.window_step = window_step
         self.socket = socket
         self.subscription = None
-        self.baseline_subscription = None
+        self.is_running = False
         self.baselines = None
         self.baseline_ready = threading.Event()
-        self.is_running = False
 
     def start(self):
         self.subscription = self.input_observable.pipe(
             ops.buffer_with_count(self.window_size, self.window_step),  # list of (time, channels)
-            ops.map(lambda data: np.stack(data).astype(float)),  # (time, channels)  # TODO: float32 or 64?
+            ops.map(lambda buf: _extract_buffer(buf)[0]),  # (time, channels)
             ops.map(self._decode),
         ).subscribe(
             on_next=self._publish,
-            on_completed=self._on_completed,
+            on_completed=self.stop,
         )
         self.is_running = True
 
@@ -80,8 +87,10 @@ class Decoder:
         self.socket.send(command.to_bytes(1, "big"))
         print(f"Sent EEG command: {command}")
 
-    def _on_completed(self):
+    def stop(self):
         print("Decoder completed.")
+        if self.subscription:
+            self.subscription.dispose()
         self.is_running = False
 
     def measure_baseline(self, baseline_duration, baseline_ready_duration, input_freq):
@@ -98,17 +107,17 @@ class Decoder:
         time.sleep(baseline_ready_duration)
 
         print("Measuring baseline...")
-        self.baseline_subscription = self.input_observable.pipe(
+        baseline_subscription = self.input_observable.pipe(
             ops.buffer_with_count(int(baseline_duration * input_freq)),
             ops.take(1),  # take only the first buffer
-            ops.map(lambda data: np.stack(data).astype(float)),  # (time, channels)
+            ops.map(lambda buf: _extract_buffer(buf)[0]),  # (time, channels)
         ).subscribe(
             on_next=self._set_baseline,
             on_completed=lambda: print("Baseline measurement completed."),
         )
 
         self.baseline_ready.wait()
-        self.baseline_subscription.dispose()
+        baseline_subscription.dispose()
 
         print(f"Average: {self.baselines['average']}")
         print(f"Root mean square: {self.baselines['rms']}\n")
@@ -120,53 +129,66 @@ class Decoder:
         }
         self.baseline_ready.set()
 
-    def stop(self):
-        if self.subscription and self.is_running:
-            self.subscription.dispose()
-            self.is_running = False
-
 
 class Recorder:
-    def __init__(self, input_observable, record_size, save_path="tmp/data.npy"):
+    def __init__(self, input_observable, input_nch, save_path="logs/data.hdf5", chunk_size=5000):
         self.input_observable = input_observable
-        self.record_size = record_size
-        self.save_path = save_path
+        self.input_nch = input_nch
+        self.chunk_size = chunk_size
+        self.save_path = Path(__file__).parents[2] / save_path  # relative to the workspace root
         self.subscription = None
         self.is_running = False
+        self.start_time = None
 
     def start(self):
-        self.subscription = self.input_observable.pipe(
-            ops.buffer_with_count(self.record_size),
-            ops.take(1),
-        ).subscribe(
-            on_next=self._save,
-            on_completed=self._on_completed,
-        )
+        if self.save_path.exists():
+            print(f"Appending to existing file: {self.save_path}")
+        else:
+            print(f"Creating new file: {self.save_path}")
+            self.save_path.parent.mkdir(parents=True, exist_ok=True)
+        with h5py.File(self.save_path, "a") as f:
+            if "data" not in f:
+                f.create_dataset("data", (0, self.input_nch), maxshape=(None, self.input_nch), dtype="f", chunks=True)
+            if "timestamps" not in f:
+                f.create_dataset("timestamps", (0,), maxshape=(None,), dtype="f", chunks=True)
+
+        self.start_time = time.time()
         self.is_running = True
 
-    def _save(self, buf: list):
-        data = np.stack(buf).astype(float)  # (time, channels)
-        print(f"Saving data: {data.shape}")
-        np.save(self.save_path, data)
-        print(f"Recorded data saved to {self.save_path}")
+        self.subscription = self.input_observable.pipe(
+            ops.buffer_with_count(self.chunk_size),
+        ).subscribe(
+            on_next=self._save,
+            on_completed=self.stop,
+        )
 
-    def _on_completed(self):
-        print("Recording completed.")
-        self.is_running = False
+    def _save(self, buf: list):
+        elapsed_time = time.time() - self.start_time
+        data, timestamps = _extract_buffer(buf)
+        size = data.shape[0]
+
+        with h5py.File(self.save_path, "a") as f:
+            f["data"].resize(f["data"].shape[0] + size, axis=0)
+            f["data"][-size:] = data
+            f["timestamps"].resize(f["timestamps"].shape[0] + size, axis=0)
+            f["timestamps"][-size:] = timestamps
+
+        print(f"\r{elapsed_time:.1f}s: recorded {size} samples", end="")
 
     def stop(self):
-        if self.subscription and self.is_running:
+        print("Recording completed.")
+        print(f"Save path: {self.save_path}")
+        if self.subscription:
             self.subscription.dispose()
-            self.is_running = False
+        self.is_running = False
 
 
 @click.command()
 @click.option("--input", default="EEG", type=click.Choice(["EEG", "Audio"]), help="Input type")
 @click.option("--mode", default="decode", type=click.Choice(["decode", "record"]), help="Decode or record EEG data")
-@click.option(
-    "--record-duration", default=5.0, type=click.FloatRange(min=0), help="Duration to record EEG data in seconds"
-)
-def main(input: str, mode: str, record_duration: float):
+@click.option("--record-path", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
+@click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
+def main(input: str, mode: str, record_path: str, record_interval: float):
     context = zmq.Context()
     socket = context.socket(zmq.PUB)
     socket.connect("tcp://127.0.0.1:5555")
@@ -177,6 +199,7 @@ def main(input: str, mode: str, record_duration: float):
             stream_infos = resolve_streams(wait_time=1)
             input_inlet = get_stream_inlet(stream_infos, type=input)  # TODO: name
             input_freq = round(input_inlet.info().nominal_srate())
+            input_nch = input_inlet.info().channel_count()
             print(f"Input stream {input_inlet.info().name()}: {input_freq} Hz")
             break
         except LookupError:  # Try again if get_stream_inlet fails
@@ -192,12 +215,12 @@ def main(input: str, mode: str, record_duration: float):
         runner = Decoder(model, input_observable, window_size, window_step, socket)
         runner.measure_baseline(baseline_duration, baseline_ready_duration, input_freq)
     elif mode == "record":
-        record_size = input_freq * record_duration
-        runner = Recorder(input_observable, record_size)
+        chunk_size = input_freq * record_interval
+        runner = Recorder(input_observable, input_nch, save_path=record_path, chunk_size=chunk_size)
 
     runner.start()
     try:
-        print("Decoder running... Press Ctrl+C to exit.")
+        print("Running... Press Ctrl+C to exit.\n")
         while runner.is_running:  # Keep main thread alive
             time.sleep(1)
     except KeyboardInterrupt:

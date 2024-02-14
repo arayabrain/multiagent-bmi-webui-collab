@@ -55,20 +55,17 @@ def create_observable_from_stream_inlet(stream: StreamInlet) -> reactivex.Observ
 
         # Function to forward data chunks that can be run in a thread
         def push_chunks_thread():
-            while True:
+            while not stop_event.is_set():
                 try:
                     chunk, timestamps = stream.pull_chunk()  # Pulls a chunk of data (as long as stream is available)
                     if timestamps:
-                        [observer.on_next(c) for c in chunk]
-                        # Send one item at a time
-                        # TODO: Do we need to account for latencies, delays, different OSs, etc.?
-                        # Currently timestamps are ignored beyond this point
+                        for value, timestamp in zip(chunk, timestamps):
+                            observer.on_next((value, timestamp))
                 except LostError:
                     observer.on_error("Stream lost")
                     # If the LSL stream is lost then catch the error and raise it in the observer
                     # TODO: What about stream recovery?
-                if stop_event.is_set():
-                    break  # Break out of loop on signal to finish function
+                    break
 
         # Disposal function for subscription cleanup (called automatically once subscription is over)
         def dispose():
