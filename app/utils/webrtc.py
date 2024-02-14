@@ -1,10 +1,12 @@
-from aiortc import RTCPeerConnection, RTCSessionDescription
+from aiortc import RTCConfiguration, RTCPeerConnection, RTCSessionDescription  # , RTCIceServer
 from aiortc.sdp import candidate_from_sdp
 from fastapi import WebSocket
 
 
 def createPeerConnection(websocket: WebSocket):
-    pc = RTCPeerConnection()
+    config = RTCConfiguration()
+    # config.iceServers = [RTCIceServer(urls="stun:stun.l.google.com:19302")]
+    pc = RTCPeerConnection(config)
 
     @pc.on("icecandidate")
     async def on_icecandidate(candidate):
@@ -19,11 +21,18 @@ def createPeerConnection(websocket: WebSocket):
                 "sdpMLineIndex": candidate.sdpMLineIndex,
             }
         await websocket.send_json(data)
-        print("/browser: Sent ICE candidate info")
+
+    @pc.on("signalingstatechange")
+    def on_signalingstatechange():
+        print(f"/browser: Signaling state: {pc.signalingState}")
 
     @pc.on("connectionstatechange")
     def on_connectionstatechange():
         print(f"/browser: Connection state: {pc.connectionState}")
+
+    @pc.on("icegatheringstatechange")
+    def on_icegatheringstatechange():
+        print(f"/browser: ICE gathering state: {pc.iceGatheringState}")
 
     @pc.on("iceconnectionstatechange")
     def on_iceconnectionstatechange():

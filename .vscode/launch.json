@@ -13,20 +13,12 @@
             "justMyCode": false
         },
         {
-            "name": "FastAPI",
+            "name": "Env Server",
             "type": "python",
             "request": "launch",
-            "program": "C:\\Users\\yoshi\\.venvs\\multiagent-bmi\\Scripts\\uvicorn.exe",
+            "program": "${workspaceFolder}/app/main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": [
-                "app.main:app",
-                "--host",
-                "localhost",
-                "--port",
-                "8000",
-                // "--reload"
-            ]
         },
         {
             "name": "EEG ZeroMQ Server",

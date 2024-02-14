@@ -11,6 +11,9 @@ from app.app_state import AppState
 from app.routes import browser
 from app.routes.eeg_command_sub import eeg_command_sub
 
+host = "0.0.0.0"
+# host = "127.0.0.1"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,7 +24,7 @@ async def lifespan(app: FastAPI):
 
     zmq_context = zmq.asyncio.Context()
     socket = zmq_context.socket(zmq.SUB)
-    socket.bind("tcp://127.0.0.1:5555")
+    socket.bind(f"tcp://{host}:5555")
     socket.setsockopt(zmq.SUBSCRIBE, b"")
 
     eeg_task = asyncio.create_task(eeg_command_sub(socket, app.state.update_command))
@@ -51,10 +54,19 @@ async def get(request: Request):
 if __name__ == "__main__":
     import sys
 
+    import uvicorn
+
     if sys.platform == "win32":
         # deal with a zmq warning on Windows
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    import uvicorn
+    # for HTTPS
+    # key_dir = app_dir / "../.keys"
 
-    uvicorn.run("main:app", host="localhost", port=8000)
+    uvicorn.run(
+        "main:app",
+        host=host,
+        port=8000,
+        # ssl_keyfile=key_dir / "server.key",
+        # ssl_certfile=key_dir / "server.crt",
+    )
