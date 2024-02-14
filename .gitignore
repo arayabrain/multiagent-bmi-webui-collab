@@ -164,4 +164,5 @@ cython_debug/
 tmp/
 old/
 .keys/
+logs/
 MUJOCO_LOG.TXT
