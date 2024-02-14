@@ -1,6 +1,7 @@
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 let wsEnv, wsGaze;
+const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
 const maxRetry = 3;
 const reconnectInterval = 3000;
 let focusId = 0;
@@ -52,7 +53,7 @@ const connectEnv = (retryCnt = 0) => {
     // wsEnv: websocket for communication with the environment server
     // - WebRTC signaling
     // - focus update notification
-    wsEnv = new WebSocket(getWsUrl(8000) + "/browser");
+    wsEnv = new WebSocket(`${wsProtocol}://${window.location.hostname}:${8000}/browser`);
     let pc;
 
     wsEnv.onopen = async () => {
@@ -91,7 +92,7 @@ const connectEnv = (retryCnt = 0) => {
 
 const connectGaze = (retryCnt = 0) => {
     // wsGaze: websocket for communication with the gaze server
-    wsGaze = new WebSocket(getWsUrl(8001));
+    wsGaze = new WebSocket(`ws://localhost:${8001}`);  // TODO: use same protocol as the wsEnv
 
     wsGaze.onopen = () => {
         console.log("wsGaze: connected");
@@ -154,12 +155,6 @@ const updateFocus = (newId) => {
     if (wsEnv.readyState == WebSocket.OPEN) {
         wsEnv.send(JSON.stringify({ type: "focus", focusId: focusId }));
     }
-}
-
-const getWsUrl = (port) => {
-    const loc = window.location;
-    const wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
-    return `${wsProtocol}://${loc.hostname}:${port}`;
 }
 
 const sleep = (msec) => new Promise(resolve => setTimeout(resolve, msec));
