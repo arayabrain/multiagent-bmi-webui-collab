@@ -20,7 +20,15 @@ Web UI for the multi-agent robot arm environment
     pip install -e .
     ```
 
-If necessary, you can remove `max_episode_steps` in `robohive/envs/arms/__init__.py`.
+- On Linux, you need to install `liblsl` to use the [LSL](https://github.com/sccn/liblsl).
+    Choose the appropriate version for your OS in the [release page](https://github.com/sccn/liblsl/releases) and then
+    ```bash
+    wget https://github.com/sccn/liblsl/releases/download/v1.16.2/liblsl-1.16.2-focal_amd64.deb  # change to the appropriate one
+    sudo apt install libpugixml1v5  # dependencies
+    sudo dpkg -i liblsl-1.16.2-focal_amd64.deb
+    ```
+
+- You may need to comment out `max_episode_steps` in `robohive/envs/arms/__init__.py` to remove the episode time limit.
 
 
 ## Run
@@ -44,8 +52,7 @@ Activate your virtual environment, then:
     - Click the "Connect to eye tracker" button on the browser.
       The red frame should move according to the position of your gaze.
 3. EEG
-    - If you have the device
-        (not implemented)
+    - If you have the device, start measuring and LSL streaming.
     - If you don't have the device, run the mock EEG command ZMQ publisher:
         ```bash
         python app/devices/eeg.py  # mock
