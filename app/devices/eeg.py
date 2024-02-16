@@ -181,7 +181,7 @@ class Recorder:
 
 
 @click.command()
-@click.option("--socket-ip", default="localhost", help="IP address of the Environment server")
+@click.option("--socket-ip", "-ip", default="localhost", help="IP address of the Environment server")
 @click.option("--input", default="EEG", type=click.Choice(["EEG", "Audio"]), help="Input type")
 @click.option("--mode", default="decode", type=click.Choice(["decode", "record"]), help="Decode or record EEG data")
 # decoder only
