@@ -57,5 +57,13 @@
                 "PYTHONASYNCIODEBUG": "1"
             },
         },
+        {
+            "name": "Mock EEG Streamer",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/app/devices/mock_streamer/eeg.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        }
     ]
 }

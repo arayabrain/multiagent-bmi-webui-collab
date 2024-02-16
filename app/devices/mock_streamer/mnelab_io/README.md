@@ -1,0 +1,1 @@
+This directory contains utility code from MNELAB (mnelab/io).
