@@ -18,9 +18,6 @@ from reactivex import operators as ops
 from app.utils.networking import create_observable_from_stream_inlet, get_stream_inlet
 
 window_duration = 1  # seconds
-baseline_duration = 5  # seconds
-baseline_ready_duration = 5  # seconds
-thres = 2.0
 
 
 def root_mean_square(data: np.ndarray) -> np.ndarray:
@@ -33,7 +30,7 @@ def root_mean_square(data: np.ndarray) -> np.ndarray:
     return np.sqrt(np.mean(np.square(data), axis=0))
 
 
-def get_model():
+def get_model(thres: float):
     def model(
         data: np.ndarray,  # (time, channels)
         baselines: dict,
@@ -186,9 +183,26 @@ class Recorder:
 @click.command()
 @click.option("--input", default="EEG", type=click.Choice(["EEG", "Audio"]), help="Input type")
 @click.option("--mode", default="decode", type=click.Choice(["decode", "record"]), help="Decode or record EEG data")
+# decoder only
+@click.option(
+    "--baseline-duration",
+    "-bdur",
+    default=5.0,
+    type=click.FloatRange(min=0),
+    help="Baseline measurement duration in seconds",
+)
+@click.option(
+    "--baseline-ready-duration",
+    "-rdur",
+    default=5.0,
+    type=click.FloatRange(min=0),
+    help="Duration before baseline measurement in seconds",
+)
+@click.option("--thres", "-t", default=2.0, type=click.FloatRange(min=0), help="Threshold for channel activation")
+# recorder only
 @click.option("--record-path", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
 @click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
-def main(input: str, mode: str, record_path: str, record_interval: float):
+def main(input, mode, baseline_duration, baseline_ready_duration, thres, record_path, record_interval):
     context = zmq.Context()
     socket = context.socket(zmq.PUB)
     socket.connect("tcp://127.0.0.1:5555")
@@ -209,7 +223,7 @@ def main(input: str, mode: str, record_path: str, record_interval: float):
     input_observable = create_observable_from_stream_inlet(input_inlet)
 
     if mode == "decode":
-        model = get_model()
+        model = get_model(thres)
         window_size = input_freq * window_duration
         window_step = window_size // 2
         runner = Decoder(model, input_observable, window_size, window_step, socket)
