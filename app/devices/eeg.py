@@ -181,6 +181,7 @@ class Recorder:
 
 
 @click.command()
+@click.option("--socket-ip", default="localhost", help="IP address of the Environment server")
 @click.option("--input", default="EEG", type=click.Choice(["EEG", "Audio"]), help="Input type")
 @click.option("--mode", default="decode", type=click.Choice(["decode", "record"]), help="Decode or record EEG data")
 # decoder only
@@ -202,10 +203,10 @@ class Recorder:
 # recorder only
 @click.option("--record-path", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
 @click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
-def main(input, mode, baseline_duration, baseline_ready_duration, thres, record_path, record_interval):
+def main(socket_ip, input, mode, baseline_duration, baseline_ready_duration, thres, record_path, record_interval):
     context = zmq.Context()
     socket = context.socket(zmq.PUB)
-    socket.connect("tcp://127.0.0.1:5555")
+    socket.connect(f"tcp://{socket_ip}:5555")
 
     # Create stream inlets
     while True:
