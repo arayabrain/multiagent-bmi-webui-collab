@@ -11,25 +11,31 @@ from tqdm import tqdm
 
 from app.devices.mock_streamer.mnelab_io import read_raw_xdf
 
-plot = False
 
-
-def xdf2raw(xdf_path):
+def xdf2raw(
+    xdf_path,
+    need_filter=False,
+    start_sec=0,
+    plot=False,
+    fs_new=None,  # XXX: workaround to avoid mismatch between the info and the data
+):
     xdf_path = Path(xdf_path)
     stream_info = resolve_streams(xdf_path)
     df = pd.DataFrame(stream_info)
     eeg_metadata = df[df.type == "EEG"]
     stream_ids = eeg_metadata.stream_id.values
-    # fs_new = eeg_metadata.nominal_srate.values[0]
-    fs_new = 256.0  # XXX: workaround to avoid mismatch between the info and the data
+    if fs_new is None:
+        fs_new = eeg_metadata.nominal_srate.values[0]
     raw = read_raw_xdf(xdf_path, stream_ids=stream_ids, fs_new=fs_new)
 
     # preprocessing
-    raw.filter(1, 40, picks=["misc"])
-    raw.crop(tmin=13)
-
+    if need_filter:
+        raw.filter(1, 40, picks=["misc"])
+    if start_sec > 0:
+        raw.crop(tmin=start_sec)
     if plot:
-        raw.plot(duration=30, scalings={"misc": 5e2})
+        T = raw.n_times / raw.info["sfreq"]
+        raw.plot(duration=T / 2, scalings={"misc": 5e2})
         plt.show()
 
     return raw
@@ -143,9 +149,16 @@ class MockLSLStream(object):
 
 if __name__ == "__main__":
     data_path = Path("app/devices/mock_streamer/data")
-    raw = xdf2raw(
-        data_path / "emg_marina_20240215/sub-P001/ses-S001/eeg/sub-P001_ses-S001_task-Default_run-001_eeg.xdf"
-    )
+    # filename = "emg-marina-20240215.xdf"
+    # need_filter = True
+    # start_sec = 13
+    filename = "emg-marina-20240216-filtered.xdf"
+    need_filter = False
+    start_sec = 0
+    plot = True
+    # plot = False
+
+    raw = xdf2raw(data_path / filename, need_filter=need_filter, start_sec=start_sec, plot=plot)
     with MockLSLStream("MockEMG", raw, "EEG", time_dilation=1, report_status=True) as stream:
         try:
             time.sleep(1000)
