@@ -1,5 +1,5 @@
 [project]
-name = "multiagent-bmi-fastapi"
+name = "multiagent-bmi-webui"
 version = "0.1.0"
 readme = "README.md"
 
@@ -12,6 +12,10 @@ user = [
     "pylsl",
     "reactivex",
     "websockets",
+    # mock eeg
+    "mne",
+    "pandas",
+    "pyxdf",
 ]
 
 [build-system]
