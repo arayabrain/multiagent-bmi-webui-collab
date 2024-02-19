@@ -8,7 +8,9 @@ from fastapi import WebSocket
 class AppState:
     def __init__(self) -> None:
         self.n_chs = 128
-        self.num_agents = 4
+        # self.num_agents = 4
+        self.num_agents = 3
+        # self.num_agents = 1
 
         self.command: List[int] = [0] * self.num_agents
         self.focus: int | None = None  # updated only by websocket_endpoint_browser
