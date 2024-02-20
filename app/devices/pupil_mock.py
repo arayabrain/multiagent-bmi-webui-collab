@@ -1,108 +1,80 @@
 import asyncio
-import json
 import random
-import threading
-import time
+from contextlib import asynccontextmanager
 
-import websockets
-from websockets import WebSocketServerProtocol
+import socketio
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-ws_address = "127.0.0.1"
-ws_port = 8001
+origins = [
+    "http://localhost:8001",  # socket.io server (this app)
+    "http://10.10.0.137:8000",  # browser client  # TODO: hard-coded
+]
 
 is_running = True
-
+num_clients = 0
 focus: int | None = None
-prev_focus: int | None = None
-focus_event = asyncio.Event()
-lock = threading.Lock()
 
-connected_clients = set()
-connect_event = asyncio.Event()
+num_agents = 3  # TODO: receive from the server
 
 
-def receive_gaze_and_update_focus(loop):
-    global is_running, focus
+async def gaze_worker():
+    global focus
+    print("Gaze thread started")
     while is_running:
-        new_focus = random.randint(0, 3)
+        if num_clients == 0:
+            await asyncio.sleep(1)
+            continue
+        new_focus = random.randint(0, num_agents - 1)
         if new_focus != focus:
-            # print(f"New focus: {new_focus}")
-            with lock:
-                focus = new_focus
-            loop.call_soon_threadsafe(focus_event.set)
-
-        # time.sleep(0.1)
-        time.sleep(1)
+            focus = new_focus
+            await sio.emit("gaze", {"focusId": focus})
+            print(f"Sent focus: {focus}")
+        await asyncio.sleep(1)
 
 
-async def send_focus():
-    global is_running, focus, prev_focus
-    _focus = None
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    gaze_task = asyncio.create_task(gaze_worker())
+    print("Gaze task started")
 
+    yield
+
+    gaze_task.cancel()
     try:
-        while is_running:
-            await connect_event.wait()
-            await focus_event.wait()
-
-            with lock:
-                _focus = focus
-            assert _focus != prev_focus  # focus should be changed
-
-            data = json.dumps({"type": "gaze", "focusId": _focus})
-            if not connected_clients:  # sometimes client disconnects while waiting for focus
-                continue
-            await asyncio.wait([asyncio.create_task(client.send(data)) for client in connected_clients])
-            print(f"Sent focus {_focus}")
-
-            prev_focus = _focus
-            focus_event.clear()
+        await gaze_task
     except asyncio.CancelledError:
-        # task.cancel() is called
-        return
+        print("Gaze task cancelled")
 
 
-async def handler(websocket: WebSocketServerProtocol):
-    print("Client connected")
-    if len(connected_clients) == 0:
-        connect_event.set()
-    connected_clients.add(websocket)
-
-    await websocket.wait_closed()
-
-    print("Client disconnected")
-    connected_clients.remove(websocket)
-    if len(connected_clients) == 0:
-        connect_event.clear()
-
-        global prev_focus
-        prev_focus = None  # reset prev_focus
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=origins)
+socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
 
-async def run_server():
-    async with websockets.serve(handler, ws_address, ws_port):
-        await send_focus()
+@sio.event
+async def connect(sid, environ):
+    global num_clients
+    num_clients += 1
+    print("Client connected:", sid)
 
 
-def main():
-    loop = asyncio.get_event_loop()
-    task = loop.create_task(run_server())
-    gaze_thread = threading.Thread(target=receive_gaze_and_update_focus, args=(loop,))
-    gaze_thread.start()
-    print("Gaze thread started.")
-
-    try:
-        loop.run_until_complete(task)
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt. Exiting...")
-        task.cancel()
-        loop.run_until_complete(task)  # wait until task is cancelled
-    finally:
-        global is_running
-        is_running = False
-        if gaze_thread.is_alive():
-            gaze_thread.join()
-        loop.close()
+@sio.event
+async def disconnect(sid):
+    global num_clients, focus
+    num_clients -= 1
+    print("Client disconnected:", sid)
+    if num_clients == 0:
+        focus = None  # reset focus
 
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run(socket_app, host="localhost", port=8001)

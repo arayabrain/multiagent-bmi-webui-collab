@@ -1,6 +1,7 @@
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
-let wsEnv, wsGaze;
+let wsEnv, sockGaze;
+// sockGaze: socket for communication with the gaze server
 const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
 const maxRetry = 3;
 const reconnectInterval = 3000;
@@ -18,16 +19,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
     toggleGaze.addEventListener('change', () => {
         if (toggleGaze.checked) {
-            connectGaze();
+            sockGaze = io.connect('http://127.0.0.1:8001', {
+                // transports: ['websocket', 'polling', 'flashsocket']
+            });
+            sockGaze.on('connect', () => {
+                console.log("Gaze server connected");
+            });
+            sockGaze.on('gaze', (data) => {
+                console.log("Gaze data received: ", data);
+                updateFocus(data.focusId);
+            });
             showAprilTags();
         } else {
-            if (wsGaze.readyState == WebSocket.OPEN) wsGaze.close();
+            if (sockGaze.connected) sockGaze.disconnect();
             hideAprilTags();
         }
     });
 
     // Focus the image when hovering the mouse cursor over it
     document.addEventListener('mousemove', (event) => {
+        // TODO: optimize this
         for (const [i, video] of videos.entries()) {
             const rect = video.getBoundingClientRect();
             const isHover = rect.left <= event.pageX && event.pageX <= rect.right &&
@@ -90,49 +101,12 @@ const connectEnv = (retryCnt = 0) => {
     };
 }
 
-const connectGaze = (retryCnt = 0) => {
-    // wsGaze: websocket for communication with the gaze server
-    wsGaze = new WebSocket(`ws://localhost:${8001}`);  // TODO: use same protocol as the wsEnv
-
-    wsGaze.onopen = () => {
-        console.log("wsGaze: connected");
-        retryCnt = 0;  // reset retry counter on successful connection
-    };
-    wsGaze.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === "gaze") {
-            console.log("Gaze data received: ", data);
-            updateFocus(data.focusId);
-        }
-    };
-    wsGaze.onclose = async (e) => {
-        if (!toggleGaze.checked) {
-            console.log('wsGaze: Disconnected by user');
-            return;
-        }
-
-        if (retryCnt < maxRetry) {
-            console.log('wsGaze: Disconnected. Reconnecting in 3 seconds...');
-            await sleep(reconnectInterval);
-            connectGaze(retryCnt + 1);
-        } else {
-            console.error('wsGaze: Disconnected. Maximum number of retries reached.');
-        }
-    };
-    wsGaze.onerror = (e) => {
-        if (e.message != undefined) {
-            console.error(`wsGaze: Error\n${e.message}`);
-        }
-        wsGaze.close();
-    };
-};
 
 const showAprilTags = () => {
     Array.from(aprilTags).forEach((tag) => {
         tag.style.display = 'block';
     });
 }
-
 const hideAprilTags = () => {
     Array.from(aprilTags).forEach((tag) => {
         tag.style.display = 'none';
