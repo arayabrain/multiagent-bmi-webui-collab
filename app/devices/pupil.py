@@ -1,25 +1,84 @@
 import asyncio
-import json
-import threading
-import time
+from contextlib import asynccontextmanager
 
 import pupil_labs.pupil_core_network_client as pcnc
-import websockets
-from websockets import WebSocketServerProtocol
+import socketio
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 pupil_address = "127.0.0.1"
 pupil_port = 50020
-ws_address = "127.0.0.1"
-ws_port = 8001
+origins = [
+    "http://localhost:8001",  # socket.io server (this app)
+    "http://10.10.0.137:8000",  # browser client  # TODO: hard-coded
+]
 
 is_running = True
-
+num_clients = 0
 focus: int | None = None
-focus_event = asyncio.Event()
-lock = threading.Lock()
 
-connected_clients: set[WebSocketServerProtocol] = set()
-connect_event = asyncio.Event()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    pupil = connect_to_pupil(pupil_address, pupil_port)
+    gaze_task = asyncio.create_task(gaze_worker(pupil))
+    print("Gaze task started")
+
+    yield
+
+    gaze_task.cancel()
+    try:
+        await gaze_task
+    except asyncio.CancelledError:
+        print("Gaze task cancelled")
+    pupil.close()
+    print("Pupil Core connection closed")
+
+
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=origins)
+socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
+
+
+def connect_to_pupil(address: str, port: int):
+    print("Connecting to Pupil Core...")
+    pupil = pcnc.Device(address, port)
+    pupil.send_notification({"subject": "frame_publishing.set_format", "format": "bgr"})
+    print("Pupil Core Connected.")
+    return pupil
+
+
+async def gaze_worker(pupil):
+    global is_running, focus
+
+    with pupil.subscribe_in_background("surface", buffer_size=1) as sub:
+        while is_running:
+            if num_clients == 0:
+                await asyncio.sleep(1)
+                continue
+            message = sub.recv_new_message(timeout_ms=1000)
+            if message is None:
+                continue
+            assert message.payload["name"] == "Surface 1"  # default name
+            gaze = message.payload["gaze_on_surfaces"]
+            if not gaze:
+                continue
+            x, y = gaze[-1]["norm_pos"]  # use only the latest gaze
+            # print(f"({x}, {y})")
+            new_focus = compute_focus_area(x, y)
+            if new_focus != focus:
+                focus = new_focus
+                await sio.emit("gaze", {"focusId": focus})
+                print(f"Sent focus: {focus}")
+            await asyncio.sleep(0.1)
 
 
 def compute_focus_area(x, y):
@@ -39,106 +98,21 @@ def compute_focus_area(x, y):
     return None
 
 
-def receive_gaze_and_update_focus(pupil, loop):
-    global is_running, focus
-
-    with pupil.subscribe_in_background("surface", buffer_size=1) as sub:
-        while is_running:
-            message = sub.recv_new_message(timeout_ms=1000)
-            if message is None:
-                continue
-            assert message.payload["name"] == "Surface 1"  # default name
-            gaze = message.payload["gaze_on_surfaces"]
-            if not gaze:
-                continue
-            x, y = gaze[-1]["norm_pos"]  # use only the latest gaze
-            # print(f"({x}, {y})")
-            new_focus = compute_focus_area(x, y)
-            if new_focus != focus:
-                # print(f"New focus: {new_focus}")
-                with lock:
-                    focus = new_focus
-                loop.call_soon_threadsafe(focus_event.set)
-
-            time.sleep(0.1)
+@sio.event
+async def connect(sid, environ):
+    global num_clients
+    num_clients += 1
+    print("Client connected:", sid)
 
 
-async def send_focus():
-    global is_running, focus
-    prev_focus: int | None = -1  # set to -1 instead of None to force sending focus at the beginning
-    _focus: int | None = None
-
-    try:
-        while is_running:
-            await connect_event.wait()
-            await focus_event.wait()
-
-            with lock:
-                _focus = focus
-            assert _focus != prev_focus  # focus should be changed
-
-            data = json.dumps({"type": "gaze", "focusId": _focus})
-            if not connected_clients:  # sometimes client disconnects while waiting for focus
-                continue
-            await asyncio.wait([asyncio.create_task(client.send(data)) for client in connected_clients])
-            print(f"Sent focus {_focus}")
-
-            prev_focus = _focus
-            focus_event.clear()
-    except asyncio.CancelledError:
-        # task.cancel() is called
-        return
-
-
-async def handler(websocket: WebSocketServerProtocol):
-    print("Client connected")
-    if len(connected_clients) == 0:
-        connect_event.set()
-    connected_clients.add(websocket)
-
-    await websocket.wait_closed()
-
-    print("Client disconnected")
-    connected_clients.remove(websocket)
-    if len(connected_clients) == 0:
-        connect_event.clear()
-
-
-async def run_server():
-    async with websockets.serve(handler, ws_address, ws_port):
-        await send_focus()
-
-
-def connect_to_pupil(address: str, port: int):
-    print("Connecting to Pupil Core...")
-    pupil = pcnc.Device(address, port)
-    pupil.send_notification({"subject": "frame_publishing.set_format", "format": "bgr"})
-    print("Pupil Core Connected.")
-    return pupil
-
-
-def main():
-    pupil = connect_to_pupil(pupil_address, pupil_port)
-
-    loop = asyncio.get_event_loop()
-    task = loop.create_task(run_server())
-    gaze_thread = threading.Thread(target=receive_gaze_and_update_focus, args=(pupil, loop))
-    gaze_thread.start()
-    print("Gaze thread started.")
-
-    try:
-        loop.run_until_complete(task)
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt. Exiting...")
-        task.cancel()
-        loop.run_until_complete(task)  # wait until task is cancelled
-    finally:
-        global is_running
-        is_running = False
-        if gaze_thread.is_alive():
-            gaze_thread.join()
-        loop.close()
+@sio.event
+async def disconnect(sid):
+    global num_clients, focus
+    num_clients -= 1
+    print("Client disconnected:", sid)
+    if num_clients == 0:
+        focus = None  # reset focus
 
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run(socket_app, host="localhost", port=8001, lifespan="on")

@@ -4,20 +4,32 @@
 - Sends decoding result to the server via ZMQ
 """
 
+import asyncio
 import threading
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import click
 import h5py
 import numpy as np
-import zmq
+import socketio
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pylsl import resolve_streams
 from reactivex import operators as ops
 
 from app.utils.networking import create_observable_from_stream_inlet, get_stream_inlet
 
 window_duration = 1  # seconds
+
+origins = [
+    "http://localhost:8002",  # socket.io server (this app)
+    "http://10.10.0.137:8000",  # browser client  # TODO: hard-coded
+]
+sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=origins)
+num_clients = 0
 
 
 def root_mean_square(data: np.ndarray) -> np.ndarray:
@@ -54,16 +66,16 @@ def _extract_buffer(buf: list) -> tuple:
 
 
 class Decoder:
-    def __init__(self, model, input_observable, window_size, window_step, socket):
+    def __init__(self, model, input_observable, window_size, window_step):
         self.model = model
         self.input_observable = input_observable
         self.window_size = window_size
         self.window_step = window_step
-        self.socket = socket
         self.subscription = None
         self.is_running = False
         self.baselines = None
         self.baseline_ready = threading.Event()
+        self.loop = asyncio.get_event_loop()
 
     def start(self):
         self.subscription = self.input_observable.pipe(
@@ -71,7 +83,7 @@ class Decoder:
             ops.map(lambda buf: _extract_buffer(buf)[0]),  # (time, channels)
             ops.map(self._decode),
         ).subscribe(
-            on_next=self._publish,
+            on_next=lambda command: self.loop.create_task(self._publish(command)),
             on_completed=self.stop,
         )
         self.is_running = True
@@ -80,9 +92,9 @@ class Decoder:
         assert self.baselines is not None, "Baseline not set."
         return self.model(data, self.baselines)
 
-    def _publish(self, command: int):
-        self.socket.send(command.to_bytes(1, "big"))
+    async def _publish(self, command: int):
         print(f"Sent EEG command: {command}")
+        await sio.emit("eeg", {"command": command})
 
     def stop(self):
         print("Decoder completed.")
@@ -180,8 +192,21 @@ class Recorder:
         self.is_running = False
 
 
+@sio.event
+async def connect(sid, environ):
+    global num_clients
+    num_clients += 1
+    print("Client connected:", sid)
+
+
+@sio.event
+async def disconnect(sid):
+    global num_clients
+    num_clients -= 1
+    print("Client disconnected:", sid)
+
+
 @click.command()
-@click.option("--socket-ip", "-ip", default="localhost", help="IP address of the Environment server")
 @click.option("--input", default="EEG", type=click.Choice(["EEG", "Audio"]), help="Input type")
 @click.option("--mode", default="decode", type=click.Choice(["decode", "record"]), help="Decode or record EEG data")
 # decoder only
@@ -203,47 +228,53 @@ class Recorder:
 # recorder only
 @click.option("--record-path", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
 @click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
-def main(socket_ip, input, mode, baseline_duration, baseline_ready_duration, thres, record_path, record_interval):
-    context = zmq.Context()
-    socket = context.socket(zmq.PUB)
-    socket.connect(f"tcp://{socket_ip}:5555")
+def main(input, mode, baseline_duration, baseline_ready_duration, thres, record_path, record_interval):
 
-    # Create stream inlets
-    while True:
-        try:
-            stream_infos = resolve_streams(wait_time=1)
-            input_inlet = get_stream_inlet(stream_infos, type=input)  # TODO: name
-            input_freq = round(input_inlet.info().nominal_srate())
-            input_nch = input_inlet.info().channel_count()
-            print(f"Input stream {input_inlet.info().name()}: {input_freq} Hz")
-            break
-        except LookupError:  # Try again if get_stream_inlet fails
-            pass
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # Create stream inlets
+        while True:
+            try:
+                stream_infos = resolve_streams(wait_time=1)
+                input_inlet = get_stream_inlet(stream_infos, type=input)  # TODO: name
+                input_freq = round(input_inlet.info().nominal_srate())
+                input_nch = input_inlet.info().channel_count()
+                print(f"Input stream {input_inlet.info().name()}: {input_freq} Hz")
+                break
+            except LookupError:  # Try again if get_stream_inlet fails
+                pass
 
-    # Create observables and set up processing pipeline using Rx
-    input_observable = create_observable_from_stream_inlet(input_inlet)
+        # Create observables and set up processing pipeline using Rx
+        input_observable = create_observable_from_stream_inlet(input_inlet)
 
-    if mode == "decode":
-        model = get_model(thres)
-        window_size = input_freq * window_duration
-        window_step = window_size // 2
-        runner = Decoder(model, input_observable, window_size, window_step, socket)
-        runner.measure_baseline(baseline_duration, baseline_ready_duration, input_freq)
-    elif mode == "record":
-        chunk_size = input_freq * record_interval
-        runner = Recorder(input_observable, input_nch, save_path=record_path, chunk_size=chunk_size)
+        if mode == "decode":
+            model = get_model(thres)
+            window_size = input_freq * window_duration
+            window_step = window_size // 2
+            runner = Decoder(model, input_observable, window_size, window_step)
+            runner.measure_baseline(baseline_duration, baseline_ready_duration, input_freq)
+        elif mode == "record":
+            chunk_size = input_freq * record_interval
+            runner = Recorder(input_observable, input_nch, save_path=record_path, chunk_size=chunk_size)
 
-    runner.start()
-    try:
-        print("Running... Press Ctrl+C to exit.\n")
-        while runner.is_running:  # Keep main thread alive
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt. Exiting...")
+        runner.start()
+
+        yield
+
         runner.stop()
-    finally:
-        socket.close()
-        context.term()
+
+    app = FastAPI(lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
+
+    # Start the server
+    uvicorn.run(socket_app, host="localhost", port=8002)
 
 
 if __name__ == "__main__":

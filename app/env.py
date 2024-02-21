@@ -5,6 +5,8 @@ import custom_robohive_design.env_init  # noqa: F401 # type: ignore
 import gym
 import numpy as np
 import robohive  # noqa: F401 # type: ignore
+from aiortc import VideoStreamTrack
+from av import VideoFrame
 from custom_robohive_design.multiagent_motion_planner_policy import (  # noqa: F401 # type: ignore
     MotionPlannerPolicy,
     gen_robot_names,
@@ -22,6 +24,7 @@ env_id = "FrankaPickPlaceMulti-v0"
 class EnvRunner:
     def __init__(self, state: AppState):
         self.num_agents = state.num_agents
+        self.is_running = False
 
         self.env = gym.make(env_id)
         self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
@@ -42,9 +45,11 @@ class EnvRunner:
         return obs
 
     def start(self):
+        self.is_running = True
         self.task = asyncio.create_task(self._run())
 
     async def stop(self):
+        self.is_running = False
         self.task.cancel()
         try:
             await self.task
@@ -56,7 +61,7 @@ class EnvRunner:
         env = self.env
         obs = self._reset()
 
-        while True:
+        while self.is_running:
             # action = self._get_random_action(obs, self.command)
             action = self._get_policy_action(obs, self.command)
             obs, _, done, _ = env.step(action)
@@ -104,6 +109,28 @@ class EnvRunner:
         action = np.concatenate(action)
         action = self.policies[0].norm_act(action[action_indices])
         return action
+
+
+class ImageStreamTrack(VideoStreamTrack):
+    def __init__(self, env: EnvRunner, camera_idx: int):
+        super().__init__()
+        self.camera_idx = camera_idx
+
+        # references to variables in EnvProcess
+        self.cond = env.frame_update_cond
+        self.frames = env.frames
+
+    async def recv(self):
+        async with self.cond:
+            await self.cond.wait()
+            frame = self.frames[self.camera_idx]
+
+        frame = VideoFrame.from_ndarray(frame, format="rgb24")
+        pts, time_base = await self.next_timestamp()
+        frame.pts = pts
+        frame.time_base = time_base
+
+        return frame
 
 
 if __name__ == "__main__":
