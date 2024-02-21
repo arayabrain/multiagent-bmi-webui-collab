@@ -1,4 +1,4 @@
-export const setupPeerConnection = (ws, videos) => {
+export const setupPeerConnection = (socket, videos) => {
     const pc = new RTCPeerConnection();
     let onTrackCnt = 0;
 
@@ -12,7 +12,7 @@ export const setupPeerConnection = (ws, videos) => {
             data.sdpMid = candidate.sdpMid;
             data.sdpMLineIndex = candidate.sdpMLineIndex;
         }
-        ws.send(JSON.stringify(data));
+        socket.emit('webrtc-ice', data);
     }
     pc.ontrack = (event) => {
         // called when remote stream added to peer connection
@@ -38,14 +38,15 @@ export const setupPeerConnection = (ws, videos) => {
     return pc;
 }
 
-export const handleOffer = async (ws, pc, data) => {
+export const handleOffer = async (socket, pc, data) => {
     if (!pc) {
         console.error('no peerconnection');
         return;
     }
     await pc.setRemoteDescription({ type: "offer", sdp: data.sdp });
     const answer = await pc.createAnswer();
-    ws.send(JSON.stringify({ type: "webrtc-answer", sdp: answer.sdp }));
+    // ws.send(JSON.stringify({ type: "webrtc-answer", sdp: answer.sdp }));
+    socket.emit('webrtc-answer', { type: "webrtc-answer", sdp: answer.sdp });
     console.log("WebRTC answer sent.");
     await pc.setLocalDescription(answer);
 }

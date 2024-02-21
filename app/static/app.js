@@ -1,14 +1,8 @@
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
-let wsEnv, sockGaze, sockEEG;
-// sockGaze: socket for communication with the gaze server
-const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-const maxRetry = 3;
-const reconnectInterval = 3000;
+let sockEnv, sockGaze, sockEEG;
 let focusId = 0;
-let videos;
-let toggleGaze, toggleEEG;
-let aprilTags;
+let videos, toggleGaze, toggleEEG, aprilTags;
 
 document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
@@ -20,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     toggleGaze.addEventListener('change', () => {
         if (toggleGaze.checked) {
-            sockGaze = io.connect('http://localhost:8001', { transports: ['websocket'] });
+            sockGaze = io.connect(`${location.protocol}//localhost:8001`, { transports: ['websocket'] });
             sockGaze.on('connect', () => {
                 console.log("Gaze server connected");
             });
@@ -43,7 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     toggleEEG.addEventListener('change', () => {
         if (toggleEEG.checked) {
-            sockEEG = io.connect('http://localhost:8002', { transports: ['websocket'] });
+            sockEEG = io.connect(`${location.protocol}//localhost:8002`, { transports: ['websocket'] });
             sockEEG.on('connect', () => {
                 console.log("EEG server connected");
             });
@@ -55,7 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             sockEEG.on('eeg', (data) => {
                 console.log("EEG data received: ", data);
-                wsEnv.send(JSON.stringify({ type: "eeg", command: data.command }));  // TODO
+                sockEnv.emit('eeg', data.command);
             });
         } else {
             if (sockEEG.connected) sockEEG.disconnect();
@@ -77,54 +71,36 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     // Send pressed/released keys to the server
     document.addEventListener('keydown', (event) => {
-        if (wsEnv.readyState != WebSocket.OPEN) return;
-        wsEnv.send(JSON.stringify({ type: "keydown", key: event.key }));
+        if (sockEnv.connected) sockEnv.emit('keydown', event.key);
     });
     document.addEventListener('keyup', (event) => {
-        if (wsEnv.readyState != WebSocket.OPEN) return;
-        wsEnv.send(JSON.stringify({ type: "keyup", key: event.key }));
+        if (sockEnv.connected) sockEnv.emit('keyup', event.key);
     });
 });
 
-const connectEnv = (retryCnt = 0) => {
-    // wsEnv: websocket for communication with the environment server
+const connectEnv = () => {
+    // sockEnv: socket for communication with the environment server
     // - WebRTC signaling
     // - focus update notification
-    wsEnv = new WebSocket(`${wsProtocol}://${window.location.hostname}:${8000}/browser`);
+    sockEnv = io.connect(`${location.protocol}//${location.hostname}:8000`, { transports: ['websocket'] });
     let pc;
 
-    wsEnv.onopen = async () => {
-        console.log("wsEnv: Connected");
-        retryCnt = 0;  // reset retry counter on successful connection
-
+    sockEnv.on('connect', () => {
+        console.log("Env Server connected");
         // request WebRTC offer to the server
-        wsEnv.send(JSON.stringify({ type: "webrtc-offer-request" }));
-    };
-    wsEnv.onmessage = async (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type == "webrtc-offer") {
-            console.log("wsEnv: WebRTC offer received");
-            pc = setupPeerConnection(wsEnv, videos);
-            await handleOffer(wsEnv, pc, data);
-        } else if (data.type == "webrtc-ice") {
-            await handleRemoteIce(pc, data);
-        }
-    };
-    wsEnv.onclose = async (e) => {
-        if (retryCnt < maxRetry) {
-            console.log('wsEnv: Disconnected. Reconnecting in 3 seconds...');
-            await sleep(reconnectInterval);
-            connectEnv(retryCnt + 1);
-        } else {
-            console.error('wsEnv: Disconnected. Maximum number of retries reached.');
-        }
-    };
-    wsEnv.onerror = (e) => {
-        if (e.message != undefined) {
-            console.error(`wsEnv: Error\n${e.message}`);
-        }
-        wsEnv.close();
-    };
+        sockEnv.emit('webrtc-offer-request');
+    });
+    sockEnv.on('webrtc-offer', async (data) => {
+        console.log("WebRTC offer received");
+        pc = setupPeerConnection(sockEnv, videos);
+        await handleOffer(sockEnv, pc, data);
+    });
+    sockEnv.on('webrtc-ice', async (data) => {
+        await handleRemoteIce(pc, data);
+    });
+    sockEnv.on('disconnect', async () => {
+        console.log('Env Server disconnected');
+    });
 }
 
 
@@ -152,9 +128,5 @@ const updateFocus = (newId) => {
         videos[focusId].style.border = "2px solid red";
     }
     // notify focusId to the server
-    if (wsEnv.readyState == WebSocket.OPEN) {
-        wsEnv.send(JSON.stringify({ type: "focus", focusId: focusId }));
-    }
+    if (sockEnv.connected) sockEnv.emit('focus', focusId);
 }
-
-const sleep = (msec) => new Promise(resolve => setTimeout(resolve, msec));
