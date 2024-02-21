@@ -1,6 +1,6 @@
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
-let wsEnv, sockGaze;
+let wsEnv, sockGaze, sockEEG;
 // sockGaze: socket for communication with the gaze server
 const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
 const maxRetry = 3;
@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     toggleGaze.addEventListener('change', () => {
         if (toggleGaze.checked) {
-            sockGaze = io.connect('http://127.0.0.1:8001', {
+            sockGaze = io.connect('http://localhost:8001', {
                 // transports: ['websocket', 'polling', 'flashsocket']
             });
             sockGaze.on('connect', () => {
@@ -34,6 +34,17 @@ document.addEventListener("DOMContentLoaded", () => {
             if (sockGaze.connected) sockGaze.disconnect();
             hideAprilTags();
         }
+    });
+
+    // connect to the eeg server
+    sockEEG = io.connect('http://localhost:8002', {}); // pupilと同様にこっちでいけるはず
+    // sockEEG = io.connect('http://10.10.0.137:8002');
+    sockEEG.on('connect', () => {
+        console.log("EEG server connected");
+    });
+    sockEEG.on('eeg', (data) => {
+        console.log("EEG data received: ", data);
+        wsEnv.send(JSON.stringify({ type: "eeg", command: data.command }));  // TODO
     });
 
     // Focus the image when hovering the mouse cursor over it

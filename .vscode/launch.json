@@ -21,7 +21,7 @@
             "justMyCode": false,
         },
         {
-            "name": "EEG ZeroMQ Server",
+            "name": "EEG Server",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/app/devices/eeg.py",
@@ -29,14 +29,18 @@
             "justMyCode": false,
             "args": [
                 "--input",
-                "Audio", // debug
+                "EEG",
                 "--mode",
                 "decode",
                 // "record",
+                "-bdur",
+                "1",
+                "-rdur",
+                "0",
             ],
         },
         {
-            "name": "Pupil Websocket Server",
+            "name": "Pupil Server",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/app/devices/pupil.py",
@@ -47,7 +51,15 @@
             },
         },
         {
-            "name": "Pupil Websocket Mock Server",
+            "name": "Mock EEG Streamer",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/app/devices/mock_streamer/eeg.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
+            "name": "Mock Pupil Streamer",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/app/devices/pupil_mock.py",
@@ -57,13 +69,5 @@
                 "PYTHONASYNCIODEBUG": "1"
             },
         },
-        {
-            "name": "Mock EEG Streamer",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/app/devices/mock_streamer/eeg.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-        }
     ]
 }

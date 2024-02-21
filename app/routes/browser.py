@@ -36,6 +36,9 @@ async def ws_browser(websocket: WebSocket):
             elif data["type"] == "focus":
                 print(f"/browser: received {data}")
                 state.focus = data["focusId"]
+            elif data["type"] == "eeg":
+                print(f"/browser: received {data}")
+                state.update_command(data)
 
             elif data["type"] == "webrtc-offer-request":
                 pc = createPeerConnection(websocket)

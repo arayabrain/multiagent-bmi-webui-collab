@@ -1,15 +1,12 @@
-import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import zmq.asyncio
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.app_state import AppState
 from app.routes import browser
-from app.routes.eeg_command_sub import eeg_command_sub
 
 host = "0.0.0.0"
 # host = "127.0.0.1"
@@ -17,25 +14,7 @@ host = "0.0.0.0"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    A context manager that manages the lifespan of the application.
-    It performs startup and shutdown actions when entering and exiting the context.
-    """
-
-    zmq_context = zmq.asyncio.Context()
-    socket = zmq_context.socket(zmq.SUB)
-    socket.bind(f"tcp://{host}:5555")
-    socket.setsockopt(zmq.SUBSCRIBE, b"")
-
-    eeg_task = asyncio.create_task(eeg_command_sub(socket, app.state.update_command))
-    print("eeg_listener started")
-
     yield
-
-    eeg_task.cancel()
-    await eeg_task
-    socket.close()
-    zmq_context.term()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -52,13 +31,7 @@ async def get(request: Request):
 
 
 if __name__ == "__main__":
-    import sys
-
     import uvicorn
-
-    if sys.platform == "win32":
-        # deal with a zmq warning on Windows
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     # for HTTPS
     # key_dir = app_dir / "../.keys"

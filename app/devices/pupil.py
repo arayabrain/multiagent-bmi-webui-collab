@@ -115,4 +115,4 @@ async def disconnect(sid):
 
 
 if __name__ == "__main__":
-    uvicorn.run(socket_app, host="localhost", port=8001)
+    uvicorn.run(socket_app, host="localhost", port=8001, lifespan="on")
