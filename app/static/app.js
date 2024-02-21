@@ -7,23 +7,28 @@ const maxRetry = 3;
 const reconnectInterval = 3000;
 let focusId = 0;
 let videos;
-let toggleGaze;
+let toggleGaze, toggleEEG;
 let aprilTags;
 
 document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
     toggleGaze = document.getElementById('toggle-eyetracker');
+    toggleEEG = document.getElementById('toggle-eeg');
     aprilTags = document.getElementsByClassName("apriltag");
 
     connectEnv();
 
     toggleGaze.addEventListener('change', () => {
         if (toggleGaze.checked) {
-            sockGaze = io.connect('http://localhost:8001', {
-                // transports: ['websocket', 'polling', 'flashsocket']
-            });
+            sockGaze = io.connect('http://localhost:8001', { transports: ['websocket'] });
             sockGaze.on('connect', () => {
                 console.log("Gaze server connected");
+            });
+            sockGaze.on('disconnect', () => {
+                console.log("Gaze server disconnected");
+            });
+            sockGaze.on('reconnect_attempt', () => {  // TODO: not working
+                console.log("Gaze server reconnecting...");
             });
             sockGaze.on('gaze', (data) => {
                 console.log("Gaze data received: ", data);
@@ -36,15 +41,25 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // connect to the eeg server
-    sockEEG = io.connect('http://localhost:8002', {}); // pupilと同様にこっちでいけるはず
-    // sockEEG = io.connect('http://10.10.0.137:8002');
-    sockEEG.on('connect', () => {
-        console.log("EEG server connected");
-    });
-    sockEEG.on('eeg', (data) => {
-        console.log("EEG data received: ", data);
-        wsEnv.send(JSON.stringify({ type: "eeg", command: data.command }));  // TODO
+    toggleEEG.addEventListener('change', () => {
+        if (toggleEEG.checked) {
+            sockEEG = io.connect('http://localhost:8002', { transports: ['websocket'] });
+            sockEEG.on('connect', () => {
+                console.log("EEG server connected");
+            });
+            sockEEG.on('disconnect', () => {
+                console.log("EEG server disconnected");
+            });
+            sockEEG.on('reconnect_attempt', () => {  // TODO: not working
+                console.log("EEG server reconnecting...");
+            });
+            sockEEG.on('eeg', (data) => {
+                console.log("EEG data received: ", data);
+                wsEnv.send(JSON.stringify({ type: "eeg", command: data.command }));  // TODO
+            });
+        } else {
+            if (sockEEG.connected) sockEEG.disconnect();
+        }
     });
 
     // Focus the image when hovering the mouse cursor over it
