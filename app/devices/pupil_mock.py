@@ -21,7 +21,7 @@ num_agents = 3  # TODO: receive from the server
 
 async def gaze_worker():
     global focus
-    print("Gaze thread started")
+    print("Gaze stream started")
     while is_running:
         if num_clients == 0:
             await asyncio.sleep(1)
@@ -31,7 +31,7 @@ async def gaze_worker():
             focus = new_focus
             await sio.emit("gaze", {"focusId": focus})
             print(f"Sent focus: {focus}")
-        await asyncio.sleep(1)
+        await asyncio.sleep(5)
 
 
 @asynccontextmanager
