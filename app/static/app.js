@@ -6,7 +6,7 @@ let videos, toggleGaze, toggleEEG, aprilTags;
 
 document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
-    toggleGaze = document.getElementById('toggle-eyetracker');
+    toggleGaze = document.getElementById('toggle-gaze');
     toggleEEG = document.getElementById('toggle-eeg');
     aprilTags = document.getElementsByClassName("apriltag");
 
@@ -14,11 +14,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     toggleGaze.addEventListener('change', () => {
         if (toggleGaze.checked) {
+            updateConnectionStatus('connecting', 'toggle-gaze');
             sockGaze = io.connect(`${location.protocol}//localhost:8001`, { transports: ['websocket'] });
             sockGaze.on('connect', () => {
+                updateConnectionStatus('connected', 'toggle-gaze');
                 console.log("Gaze server connected");
             });
             sockGaze.on('disconnect', () => {
+                updateConnectionStatus('disconnected', 'toggle-gaze');
                 console.log("Gaze server disconnected");
             });
             sockGaze.on('reconnect_attempt', () => {  // TODO: not working
@@ -37,11 +40,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     toggleEEG.addEventListener('change', () => {
         if (toggleEEG.checked) {
+            updateConnectionStatus('connecting', 'toggle-eeg');
             sockEEG = io.connect(`${location.protocol}//localhost:8002`, { transports: ['websocket'] });
             sockEEG.on('connect', () => {
+                updateConnectionStatus('connected', 'toggle-eeg');
                 console.log("EEG server connected");
             });
             sockEEG.on('disconnect', () => {
+                updateConnectionStatus('disconnected', 'toggle-eeg');
                 console.log("EEG server disconnected");
             });
             sockEEG.on('reconnect_attempt', () => {  // TODO: not working
@@ -129,4 +135,22 @@ const updateFocus = (newId) => {
     }
     // notify focusId to the server
     if (sockEnv.connected) sockEnv.emit('focus', focusId);
+}
+
+function updateConnectionStatus(status, elementId) {
+    var statusElement = document.getElementById(elementId);
+    statusElement.classList.remove('connected', 'disconnected', 'connecting');
+    switch (status) {
+        case 'connected':
+            statusElement.classList.add('connected');
+            break;
+        case 'disconnected':
+            statusElement.classList.add('disconnected');
+            break;
+        case 'connecting':
+            statusElement.classList.add('connecting');
+            break;
+        default:
+            console.error("Unknown status: ", status);
+    }
 }
