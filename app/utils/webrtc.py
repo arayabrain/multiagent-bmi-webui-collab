@@ -44,10 +44,11 @@ def createPeerConnection(sio: socketio.AsyncServer):
 async def handle_offer_request(pc: RTCPeerConnection, sio: socketio.AsyncServer):
     print("/browser: Received offer request")
     offer = await pc.createOffer()
-    await sio.emit("webrtc-offer", {"sdp": offer.sdp})
-    print("/browser: Sent WebRTC offer. Setting local description...")
+    print("Setting local description...")
     await pc.setLocalDescription(offer)  # slow; takes 5s
     print("Local description set.")
+    await sio.emit("webrtc-offer", {"sdp": offer.sdp})
+    print("/browser: Sent WebRTC offer.")
 
 
 async def handle_answer(pc: RTCPeerConnection, data):
