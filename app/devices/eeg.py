@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import struct
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -46,15 +47,16 @@ def get_model(thres: float):
     def model(
         data: np.ndarray,  # (time, channels)
         baselines: dict,
-    ) -> int:
+    ) -> tuple[int, np.ndarray]:
         norm_data = (data - baselines["average"]) / baselines["rms"]
         rms = root_mean_square(norm_data)
         print(f"channel intensity: {[f'{r:.2f}' for r in rms]}")
         max_ch = int(np.argmax(rms))
         if rms[max_ch] > thres:
-            return max_ch + 1  # 1-indexed channel number
+            command = max_ch + 1  # 1-indexed channel number
         else:
-            return 0  # zero command
+            command = 0  # zero command
+        return command, rms  # rms as likelihoods
 
     return model
 
@@ -83,7 +85,7 @@ class Decoder:
             ops.map(lambda buf: _extract_buffer(buf)[0]),  # (time, channels)
             ops.map(self._decode),
         ).subscribe(
-            on_next=lambda command: self.loop.create_task(self._publish(command)),
+            on_next=lambda data: self.loop.create_task(self._publish(*data)),
             on_completed=self.stop,
         )
         self.is_running = True
@@ -92,9 +94,11 @@ class Decoder:
         assert self.baselines is not None, "Baseline not set."
         return self.model(data, self.baselines)
 
-    async def _publish(self, command: int):
-        print(f"Sent EEG command: {command}")
-        await sio.emit("eeg", {"command": command})
+    async def _publish(self, command: int, likelihoods: np.ndarray):
+        print(f"EEG command: {command}, likelihoods: {likelihoods}")
+        # command: 8-bit unsigned integer, likelihoods: 32-bit float, little-endian
+        bytes = struct.pack("<B", command) + likelihoods.astype("<f4").tobytes()
+        await sio.emit("eeg", bytes)
 
     def stop(self):
         print("Decoder completed.")
@@ -192,20 +196,6 @@ class Recorder:
         self.is_running = False
 
 
-@sio.event
-async def connect(sid, environ):
-    global num_clients
-    num_clients += 1
-    print("Client connected:", sid)
-
-
-@sio.event
-async def disconnect(sid):
-    global num_clients
-    num_clients -= 1
-    print("Client disconnected:", sid)
-
-
 @click.command()
 @click.option("--input", default="EEG", type=click.Choice(["EEG", "Audio"]), help="Input type")
 @click.option("--mode", default="decode", type=click.Choice(["decode", "record"]), help="Decode or record EEG data")
@@ -229,6 +219,20 @@ async def disconnect(sid):
 @click.option("--record-path", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
 @click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
 def main(input, mode, baseline_duration, baseline_ready_duration, thres, record_path, record_interval):
+
+    @sio.event
+    async def connect(sid, environ):
+        global num_clients
+        num_clients += 1
+        print("Client connected:", sid)
+
+        await sio.emit("info", {"threshold": thres})
+
+    @sio.event
+    async def disconnect(sid):
+        global num_clients
+        num_clients -= 1
+        print("Client disconnected:", sid)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

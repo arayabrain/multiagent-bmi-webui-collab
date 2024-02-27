@@ -1,8 +1,9 @@
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 let sockEnv, sockGaze, sockEEG;
-let focusId = 0;
+let focusId = 0;  // TODO: null?
 let videos, toggleGaze, toggleEEG, aprilTags;
+const charts = [];
 
 document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
@@ -53,12 +54,22 @@ document.addEventListener("DOMContentLoaded", () => {
             sockEEG.on('reconnect_attempt', () => {  // TODO: not working
                 console.log("EEG server reconnecting...");
             });
-            sockEEG.on('eeg', (data) => {
-                console.log("EEG data received: ", data);
-                sockEnv.emit('eeg', data.command);
+            sockEEG.on('info', (data) => {
+                createCharts(data.threshold);
+            });
+            sockEEG.on('eeg', (arrayBuffer) => {
+                const view = new DataView(arrayBuffer);
+                const command = view.getUint8(0, true);
+                const likelihoods = new Float32Array(arrayBuffer.slice(1));
+                console.log(`EEG data received:\n command ${command}\n likelihoods ${Array.from(likelihoods).map(l => l.toFixed(2))}`);
+                sockEnv.emit('eeg', command);
+
+                if (focusId == null || charts.length == 0) return;
+                updateChartData(charts[focusId], likelihoods);
             });
         } else {
             if (sockEEG.connected) sockEEG.disconnect();
+            removeCharts(charts);
         }
     });
 
@@ -115,6 +126,7 @@ const showAprilTags = () => {
         tag.style.display = 'block';
     });
 }
+
 const hideAprilTags = () => {
     Array.from(aprilTags).forEach((tag) => {
         tag.style.display = 'none';
@@ -137,7 +149,7 @@ const updateFocus = (newId) => {
     if (sockEnv.connected) sockEnv.emit('focus', focusId);
 }
 
-function updateConnectionStatus(status, elementId) {
+const updateConnectionStatus = (status, elementId) => {
     var statusElement = document.getElementById(elementId);
     statusElement.classList.remove('connected', 'disconnected', 'connecting');
     switch (status) {
@@ -153,4 +165,97 @@ function updateConnectionStatus(status, elementId) {
         default:
             console.error("Unknown status: ", status);
     }
+}
+
+const createCharts = (thres) => {
+    const classColors = [
+        'rgba(255, 24, 0, 0.3)',  // red
+        // 'rgba(64, 212, 0, 0.3)',  // green
+        // 'rgba(30, 25, 255, 0.3)',  // blue
+    ];
+    const borderColors = [
+        'rgb(178, 16, 0)',  // red
+        // 'rgb(40, 135, 0)',  // green
+        // 'rgb(20, 17, 178)',  // blue
+    ];
+
+    const config = {
+        type: 'bar',
+        data: {
+            labels: Array(classColors.length).fill(''),
+            datasets: [{
+                data: Array(classColors.length).fill(0.4),
+                // data: [0.2, 0.5, 0.25],
+                backgroundColor: classColors,
+                borderColor: borderColors,
+                borderWidth: 1,
+            }]
+        },
+        options: {
+            plugins: {
+                legend: {
+                    display: false,
+                },
+                annotation: {
+                    annotations: {
+                        lineThres: {
+                            type: 'line',
+                            yMin: thres,
+                            yMax: thres,
+                            borderColor: 'black',
+                            borderWidth: 1,
+                            borderDash: [4, 4], // 点線のスタイル
+                        }
+                    }
+                },
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        display: false,
+                    },
+                    grid: {
+                        display: false,
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    max: thres / 0.7,
+                    ticks: {
+                        display: false,
+                        // display: true,
+                        // stepSize: 0.1,
+                        // callback: (value) => [0, 0.3, 1].includes(value) ? value : '',
+                    },
+                    grid: {
+                        display: false,
+                    }
+                },
+            },
+            maintainAspectRatio: false,
+            backgroundColor: 'white',
+        },
+    };
+
+    // Create charts
+    const chartCanvases = document.getElementsByClassName('likelihood-chart');
+    [...chartCanvases].forEach((canvas) => {
+        const chart = new Chart(canvas.getContext('2d'), config);
+        chart.update();
+        charts.push(chart);
+        canvas.parentElement.style.display = 'block';  // show the parent container
+    });
+}
+
+const removeCharts = () => {
+    while (charts.length > 0) {
+        const chart = charts.pop();
+        chart.canvas.parentElement.style.display = 'none';
+        chart.destroy();
+    }
+};
+
+const updateChartData = (chart, data) => {
+    chart.data.datasets[0].data = data;
+    chart.update();
 }
