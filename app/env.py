@@ -10,6 +10,7 @@ from av import VideoFrame
 from custom_robohive_design.multiagent_motion_planner_policy import (  # noqa: F401 # type: ignore
     MotionPlannerPolicy,
     gen_robot_names,
+    simulate_action,
 )
 
 from app.app_state import AppState
@@ -63,11 +64,14 @@ class EnvRunner:
 
         while self.is_running:
             # action = self._get_random_action(obs, self.command)
-            action = self._get_policy_action(obs, self.command)
-            obs, _, done, _ = env.step(action)
 
             # action = self._get_policy_action(obs, self.command)
-            # simulate_action(env.sim, action[np.newaxis, :])
+            # obs, _, done, _ = env.step(action)
+
+            action = self._get_policy_action(obs, self.command, norm=False)
+            action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
+            simulate_action(env.sim, action[np.newaxis, :], action_indices, render=False)
+            done = False
 
             visuals = env.get_visuals()
 
@@ -90,7 +94,7 @@ class EnvRunner:
 
         return action
 
-    def _get_policy_action(self, obs, command):
+    def _get_policy_action(self, obs, command, norm=True):
         # TODO: set command for each policy
         # command: 0, 1, 2, 3 correspond to no action and three colors
         action = []
@@ -105,9 +109,10 @@ class EnvRunner:
                 a = policy.get_action()
             action.append(a)
 
-        action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
         action = np.concatenate(action)
-        action = self.policies[0].norm_act(action[action_indices])
+        if norm:
+            action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
+            action = self.policies[0].norm_act(action[action_indices])
         return action
 
 
@@ -136,4 +141,5 @@ class ImageStreamTrack(VideoStreamTrack):
 if __name__ == "__main__":
     state = AppState()
     runner = EnvRunner(state)
+    runner.is_running = True
     asyncio.run(runner._run())
