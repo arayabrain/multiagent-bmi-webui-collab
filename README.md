@@ -86,5 +86,5 @@ Activate your virtual environment, then:
 
     You can use audio signals using [LSL AudioCapture](https://github.com/labstreaminglayer/App-AudioCapture). Set `--input Audio` and adjust the decoder threshold e.g. `--thres 5`.
 
-    [!WARNING]
-    The correspondence between the command and the robot's target is currently being worked out.
+> [!WARNING]
+> The correspondence between the command and the robot's target is currently being worked out.
