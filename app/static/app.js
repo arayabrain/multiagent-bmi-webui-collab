@@ -3,6 +3,7 @@ import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 let sockEnv, sockGaze, sockEEG;
 let focusId = 0;  // TODO: null?
 let videos, toggleGaze, toggleEEG, aprilTags;
+let classColors, numAgents;  // info from the env server
 const charts = [];
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -44,6 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
             updateConnectionStatus('connecting', 'toggle-eeg');
             sockEEG = io.connect(`${location.protocol}//localhost:8002`, { transports: ['websocket'] });
             sockEEG.on('connect', () => {
+                sockEEG.emit('init', { numClasses: classColors.length });  // classColors must be initialized
                 updateConnectionStatus('connected', 'toggle-eeg');
                 console.log("EEG server connected");
             });
@@ -54,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
             sockEEG.on('reconnect_attempt', () => {  // TODO: not working
                 console.log("EEG server reconnecting...");
             });
-            sockEEG.on('info', (data) => {
+            sockEEG.on('init', (data) => {
                 createCharts(data.threshold);
             });
             sockEEG.on('eeg', (arrayBuffer) => {
@@ -106,6 +108,10 @@ const connectEnv = () => {
         console.log("Env Server connected");
         // request WebRTC offer to the server
         sockEnv.emit('webrtc-offer-request');
+    });
+    sockEnv.on('init', (data) => {
+        classColors = data.classColors;
+        numAgents = data.numAgents;
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
@@ -168,16 +174,13 @@ const updateConnectionStatus = (status, elementId) => {
 }
 
 const createCharts = (thres) => {
-    const classColors = [
-        'rgba(255, 24, 0, 0.3)',  // red
-        // 'rgba(64, 212, 0, 0.3)',  // green
-        // 'rgba(30, 25, 255, 0.3)',  // blue
-    ];
-    const borderColors = [
-        'rgb(178, 16, 0)',  // red
-        // 'rgb(40, 135, 0)',  // green
-        // 'rgb(20, 17, 178)',  // blue
-    ];
+    if (classColors === undefined) console.error("classColors is not defined");
+    const borderColors = classColors.map(color => {
+        // 70% darkened color
+        const rgb = color.match(/\d+/g);
+        const darkened = rgb.map(c => Math.floor(c * 0.7));
+        return `rgb(${darkened.join(',')})`;
+    });
 
     const config = {
         type: 'bar',

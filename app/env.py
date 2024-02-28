@@ -19,7 +19,13 @@ os.environ["MUJOCO_GL"] = "egl"  # for headless rendering
 
 
 # env_id = "FrankaReachFixedMulti-v0"
+
 env_id = "FrankaPickPlaceMulti-v0"
+class_colors = [
+    "rgba(30, 25, 255, 0.3)",  # blue
+    "rgba(64, 212, 0, 0.3)",  # green
+    "rgba(255, 24, 0, 0.3)",  # red
+]
 
 
 class EnvRunner:
@@ -29,6 +35,7 @@ class EnvRunner:
 
         self.env = gym.make(env_id)
         self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
+        self.class_colors = class_colors
 
         self.frames: list[np.ndarray | None] = [None] * self.num_agents
         self.frame_update_cond = asyncio.Condition()

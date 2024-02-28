@@ -43,14 +43,21 @@ def root_mean_square(data: np.ndarray) -> np.ndarray:
     return np.sqrt(np.mean(np.square(data), axis=0))
 
 
-def get_model(thres: float):
+def get_model(num_classes: int, thres: float, baselines: dict):
     def model(
         data: np.ndarray,  # (time, channels)
-        baselines: dict,
     ) -> tuple[int, np.ndarray]:
         norm_data = (data - baselines["average"]) / baselines["rms"]
         rms = root_mean_square(norm_data)
         print(f"channel intensity: {[f'{r:.2f}' for r in rms]}")
+
+        if len(rms) < num_classes:
+            # zero-padding at the end
+            rms = np.pad(rms, (0, num_classes - len(rms)))
+        elif len(rms) > num_classes:
+            # truncate
+            rms = rms[:num_classes]
+
         max_ch = int(np.argmax(rms))
         if rms[max_ch] > thres:
             command = max_ch + 1  # 1-indexed channel number
@@ -75,11 +82,13 @@ class Decoder:
         self.window_step = window_step
         self.subscription = None
         self.is_running = False
-        self.baselines = None
-        self.baseline_ready = threading.Event()
         self.loop = asyncio.get_event_loop()
 
     def start(self):
+        if self.is_running:
+            print("Decoder is already running.")
+            return
+
         self.subscription = self.input_observable.pipe(
             ops.buffer_with_count(self.window_size, self.window_step),  # list of (time, channels)
             ops.map(lambda buf: _extract_buffer(buf)[0]),  # (time, channels)
@@ -91,8 +100,7 @@ class Decoder:
         self.is_running = True
 
     def _decode(self, data: np.ndarray):
-        assert self.baselines is not None, "Baseline not set."
-        return self.model(data, self.baselines)
+        return self.model(data)
 
     async def _publish(self, command: int, likelihoods: np.ndarray):
         print(f"EEG command: {command}, likelihoods: {likelihoods}")
@@ -101,46 +109,59 @@ class Decoder:
         await sio.emit("eeg", bytes)
 
     def stop(self):
-        print("Decoder completed.")
+        print("Decoder stopped.")
         if self.subscription:
             self.subscription.dispose()
         self.is_running = False
 
-    def measure_baseline(self, baseline_duration, baseline_ready_duration, input_freq):
-        self.baseline_ready.clear()
 
-        # prompt user to keep still
-        click.confirm(
-            f"\nPreparing to measure the baseline. Press the Enter key, then relax and stay still."
-            f"\nMeasurement will start in {baseline_ready_duration}s and will continue for {baseline_duration}s.",
-            default=True,
-        )
+def measure_baseline(
+    input_observable,
+    baseline_duration,
+    baseline_ready_duration,
+    input_freq,
+):
+    baselines = None
+    baseline_ready = threading.Event()
 
-        print(f"Starting baseline measurement in {baseline_ready_duration}s...")
-        time.sleep(baseline_ready_duration)
-
-        print("Measuring baseline...")
-        baseline_subscription = self.input_observable.pipe(
-            ops.buffer_with_count(int(baseline_duration * input_freq)),
-            ops.take(1),  # take only the first buffer
-            ops.map(lambda buf: _extract_buffer(buf)[0]),  # (time, channels)
-        ).subscribe(
-            on_next=self._set_baseline,
-            on_completed=lambda: print("Baseline measurement completed."),
-        )
-
-        self.baseline_ready.wait()
-        baseline_subscription.dispose()
-
-        print(f"Average: {self.baselines['average']}")
-        print(f"Root mean square: {self.baselines['rms']}\n")
-
-    def _set_baseline(self, data: np.ndarray):
-        self.baselines = {
+    def set_baseline(data: np.ndarray):
+        nonlocal baselines
+        baselines = {
             "average": np.mean(data, axis=0),
             "rms": root_mean_square(data),
         }
-        self.baseline_ready.set()
+        baseline_ready.set()
+
+    # prompt user to keep still
+    click.confirm(
+        f"\nPreparing to measure the baseline. Press Enter, then relax and stay still."
+        f"\nMeasurement will start in {baseline_ready_duration}s and will continue for {baseline_duration}s.",
+        default=True,
+    )
+    # TODO
+    # if not confirm:
+    # return
+
+    print(f"Starting baseline measurement in {baseline_ready_duration}s...")
+    time.sleep(baseline_ready_duration)
+
+    print("Measuring baseline...")
+    baseline_subscription = input_observable.pipe(
+        ops.buffer_with_count(int(baseline_duration * input_freq)),
+        ops.take(1),  # take only the first buffer
+        ops.map(lambda buf: _extract_buffer(buf)[0]),  # (time, channels)
+    ).subscribe(
+        on_next=set_baseline,
+        on_completed=lambda: print("Baseline measurement completed."),
+    )
+
+    baseline_ready.wait()
+    baseline_subscription.dispose()
+
+    print(f"Average: {baselines['average']}")
+    print(f"Root mean square: {baselines['rms']}\n")
+
+    return baselines
 
 
 class Recorder:
@@ -189,7 +210,7 @@ class Recorder:
         print(f"\r{elapsed_time:.1f}s: recorded {size} samples", end="")
 
     def stop(self):
-        print("Recording completed.")
+        print("Recorder stopped.")
         print(f"Save path: {self.save_path}")
         if self.subscription:
             self.subscription.dispose()
@@ -219,14 +240,14 @@ class Recorder:
 @click.option("--record-path", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
 @click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
 def main(input, mode, baseline_duration, baseline_ready_duration, thres, record_path, record_interval):
+    runner = None
 
     @sio.event
     async def connect(sid, environ):
         global num_clients
         num_clients += 1
         print("Client connected:", sid)
-
-        await sio.emit("info", {"threshold": thres})
+        await sio.emit("init", {"threshold": thres}, to=sid)
 
     @sio.event
     async def disconnect(sid):
@@ -234,8 +255,16 @@ def main(input, mode, baseline_duration, baseline_ready_duration, thres, record_
         num_clients -= 1
         print("Client disconnected:", sid)
 
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
+        # Stop the runner if no clients are connected
+        # await asyncio.sleep(reconnect_wait_time)  # TODO
+        if num_clients == 0 and runner and runner.is_running:
+            runner.stop()
+
+    @sio.on("init")
+    async def init(sid, data):
+        print(f"Received initialization info: {data}")
+        num_classes = data["numClasses"]
+
         # Create stream inlets
         while True:
             try:
@@ -251,21 +280,25 @@ def main(input, mode, baseline_duration, baseline_ready_duration, thres, record_
         # Create observables and set up processing pipeline using Rx
         input_observable = create_observable_from_stream_inlet(input_inlet)
 
+        nonlocal runner
         if mode == "decode":
-            model = get_model(thres)
+            baselines = measure_baseline(input_observable, baseline_duration, baseline_ready_duration, input_freq)
+
+            model = get_model(num_classes, thres, baselines)
             window_size = input_freq * window_duration
             window_step = window_size // 2
             runner = Decoder(model, input_observable, window_size, window_step)
-            runner.measure_baseline(baseline_duration, baseline_ready_duration, input_freq)
         elif mode == "record":
             chunk_size = input_freq * record_interval
             runner = Recorder(input_observable, input_nch, save_path=record_path, chunk_size=chunk_size)
 
         runner.start()
 
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
         yield
-
-        runner.stop()
+        if runner and runner.is_running:
+            runner.stop()
 
     app = FastAPI(lifespan=lifespan)
     app.add_middleware(

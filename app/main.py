@@ -32,6 +32,7 @@ async def connect(sid, environ):
     print("Client connected:", sid)
     if not env.is_running:
         env.start()
+    await sio.emit("init", {"classColors": env.class_colors, "numAgents": app_state.num_agents}, to=sid)
 
 
 @sio.event
