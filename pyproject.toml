@@ -4,14 +4,14 @@ version = "0.1.0"
 readme = "README.md"
 
 [project.optional-dependencies]
-server = ["aiortc", "fastapi", "uvicorn"]
+server = ["aiortc", "fastapi", "uvicorn", "python-socketio"]
 user = [
     "click",
     "h5py",
     "pupil-core-network-client",
     "pylsl",
+    "python-socketio",
     "reactivex",
-    "websockets",
     # mock eeg
     "mne",
     "pandas",
