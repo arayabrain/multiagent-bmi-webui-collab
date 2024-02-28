@@ -235,7 +235,7 @@ class Recorder:
     type=click.FloatRange(min=0),
     help="Duration before baseline measurement in seconds",
 )
-@click.option("--thres", "-t", default=2.0, type=click.FloatRange(min=0), help="Threshold for channel activation")
+@click.option("--thres", "-t", default=15.0, type=click.FloatRange(min=0), help="Threshold for channel activation")
 # recorder only
 @click.option("--record-path", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
 @click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
