@@ -6,6 +6,23 @@ html {
     justify-content: center;
     align-items: center;
     font-size: 18px;
+    cursor: none;
+    /* Hide the mouse cursor */
+}
+
+#cursor {
+    position: absolute;
+    z-index: 10000;
+    pointer-events: none;
+    display: none;
+    /* Hide the cursor by default */
+
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.5);
+    transform: translate(-50%, -50%);
+    /* Center the cursor at the mouse position */
 }
 
 .container {

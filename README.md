@@ -55,36 +55,42 @@ Activate your virtual environment, then:
     ```bash
     python app/main.py
     ```
-    and open `http://${server ip}:8000/` in your browser.
-2. Pupil Core
-    - If you have the device
-        1. set it up and run Pupil Capture
-        2. Run Pupil Core websocket server:
+    and open `https://${server ip}:8000/` in your browser.
+2. Run devices for selecting a robot to control
+    You can select a robot that by moving the cursor using various devices.
+    - Mouse
+    - Gamepad
+    - Pupil Core
+        - If you have the device,
+            1. set it up and run Pupil Capture
+            2. Run gaze websocket server:
+                ```
+                python app/devices/pupil.py
+                ```
+        - If you don't have the device, run dummy one:
+            ```bash
+            python app/devices/pupil_dummy.py
             ```
-            python app/devices/pupil.py
+        Toggle the "Eye Tracker" switch on your browser.
+3. Run devices for selecting commands
+    - Keyboard
+        Use the number keys to enter commands.
+    - EEG/EMG
+        - If you have the device, set it up and start LSL streaming
+        - If you don't have the device, run the mock EEG stream
+            (there is only one channel currently)
+            ```bash
+            python app/devices/mock_streamer/eeg.py
             ```
-    - If you don't have the device, run dummy one:
-        ```bash
-        python app/devices/pupil_dummy.py
-        ```
-    - Toggle the "Eye Tracker" switch on the browser.
-      The red frame should move according to the position of your gaze.
-3. EEG/EMG
-    - If you have the device, set it up and start LSL streaming
-    - If you don't have the device, run the mock EEG stream
-        (there is only one channel currently)
-        ```bash
-        python app/devices/mock_streamer/eeg.py
-        ```
-    - Run the decoder script
-        ```bash
-        python app/devices/eeg.py
-        ```
-    - Toggle the "EEG" switch on the browser.
-    - Perform baseline measurements according to the prompt.
-    - The classification results are then sent to the environment and used as commands for the focused robot.
+        - Run the decoder script
+            ```bash
+            python app/devices/eeg.py
+            ```
+        Toggle the "EEG" switch on your browser.  
+        Then follow the prompts to take a baseline measurement.  
+        The classification results are then sent to the environment and used as commands for the focused robot.  
 
-    You can use audio signals using [LSL AudioCapture](https://github.com/labstreaminglayer/App-AudioCapture). Set `--input Audio` and adjust the decoder threshold e.g. `--thres 5`.
+        You can also use audio signals using [LSL AudioCapture](https://github.com/labstreaminglayer/App-AudioCapture). Set `--input Audio` and adjust the decoder threshold e.g. `--thres 5`.
 
 > [!WARNING]
 > The correspondence between the command and the robot's target is currently being worked out.

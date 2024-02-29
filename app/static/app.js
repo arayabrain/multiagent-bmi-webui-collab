@@ -1,8 +1,8 @@
+import { getFocusId, setSockEnv, updateCursorAndFocus } from './cursor.js';
 import { setGamepadHandler } from './gamepad.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 let sockEnv, sockGaze, sockEEG;
-let focusId = 0;  // TODO: null?
 let videos, toggleGaze, toggleEEG, aprilTags;
 let classColors, numAgents;  // info from the env server
 const charts = [];
@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             sockGaze.on('gaze', (data) => {
                 console.log("Gaze data received: ", data);
-                updateFocus(data.focusId);
+                _updateFocus(data.focusId);
             });
             showAprilTags();
         } else {
@@ -67,6 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 console.log(`EEG data received:\n command ${command}\n likelihoods ${Array.from(likelihoods).map(l => l.toFixed(2))}`);
                 sockEnv.emit('eeg', command);
 
+                const focusId = getFocusId();
                 if (focusId == null || charts.length == 0) return;
                 updateChartData(charts[focusId], likelihoods);
             });
@@ -76,19 +77,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Focus the image when hovering the mouse cursor over it
+    // Move the cursor to the mouse position
     document.addEventListener('mousemove', (event) => {
-        // TODO: optimize this
-        for (const [i, video] of videos.entries()) {
-            const rect = video.getBoundingClientRect();
-            const isHover = rect.left <= event.pageX && event.pageX <= rect.right &&
-                rect.top <= event.pageY && event.pageY <= rect.bottom;
-            if (isHover) {
-                updateFocus(i);
-                break;
-            }
-        }
+        updateCursorAndFocus(event.clientX, event.clientY);
     });
+
     // Send pressed/released keys to the server
     document.addEventListener('keydown', (event) => {
         if (sockEnv.connected) sockEnv.emit('keydown', event.key);
@@ -126,6 +119,8 @@ const connectEnv = () => {
     sockEnv.on('disconnect', async () => {
         console.log('Env Server disconnected');
     });
+
+    setSockEnv(sockEnv);
 }
 
 
@@ -141,21 +136,6 @@ const hideAprilTags = () => {
     });
 }
 
-const updateFocus = (newId) => {
-    if (newId == focusId) return;
-    // remove border of the previous focused image
-    if (focusId != null) {
-        videos[focusId].style.border = "2px solid transparent";
-    }
-    // update focusId
-    focusId = newId;
-    // set border to the new focused image
-    if (focusId != null) {
-        videos[focusId].style.border = "2px solid red";
-    }
-    // notify focusId to the server
-    if (sockEnv.connected) sockEnv.emit('focus', focusId);
-}
 
 const updateConnectionStatus = (status, elementId) => {
     var statusElement = document.getElementById(elementId);
