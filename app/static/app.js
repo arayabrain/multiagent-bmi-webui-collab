@@ -1,3 +1,4 @@
+import { setGamepadHandler } from './gamepad.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 let sockEnv, sockGaze, sockEEG;
@@ -95,6 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener('keyup', (event) => {
         if (sockEnv.connected) sockEnv.emit('keyup', event.key);
     });
+    setGamepadHandler();
 });
 
 const connectEnv = () => {

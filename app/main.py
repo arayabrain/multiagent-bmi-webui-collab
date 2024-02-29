@@ -95,12 +95,12 @@ async def webrtc_ice(sid, data):
 
 if __name__ == "__main__":
     # for HTTPS
-    # key_dir = app_dir / "../.keys"
+    key_dir = app_dir / "../.keys"
 
     uvicorn.run(
         socket_app,
         host="0.0.0.0",
         port=8000,
-        # ssl_keyfile=key_dir / "server.key",
-        # ssl_certfile=key_dir / "server.crt",
+        ssl_keyfile=key_dir / "server.key",
+        ssl_certfile=key_dir / "server.crt",
     )
