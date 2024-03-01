@@ -5,8 +5,7 @@ from aiortc.contrib.media import MediaRelay
 class AppState:
     def __init__(self) -> None:
         self.n_chs = 128
-        # self.num_agents = 4
-        self.num_agents = 3
+        self.num_agents = 4
         # self.num_agents = 1
 
         self.command: list[int] = [0] * self.num_agents

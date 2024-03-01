@@ -20,7 +20,8 @@ os.environ["MUJOCO_GL"] = "egl"  # for headless rendering
 
 # env_id = "FrankaReachFixedMulti-v0"
 
-env_id = "FrankaPickPlaceMulti-v0"
+# env_id = "FrankaPickPlaceMulti-v0"
+env_id = "FrankaPickPlaceMulti4-v0"
 class_colors = [
     "rgba(30, 25, 255, 0.3)",  # blue
     "rgba(64, 212, 0, 0.3)",  # green
