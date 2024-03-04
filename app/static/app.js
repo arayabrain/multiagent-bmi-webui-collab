@@ -1,10 +1,11 @@
 import { getFocusId, setSockEnv, updateAndNotifyFocus, updateCursorAndFocus } from './cursor.js';
 import { setGamepadHandler } from './gamepad.js';
+import { binStr2Rgba, scaleRgba } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 let sockEnv, sockGaze, sockEEG;
 let videos, toggleGaze, toggleEEG, aprilTags;
-let classColors, numAgents;  // info from the env server
+let class2color, numClasses, numAgents;  // info from the env server
 const charts = [];
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -46,7 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
             updateConnectionStatus('connecting', 'toggle-eeg');
             sockEEG = io.connect(`http://localhost:8002`, { transports: ['websocket'] });  // TODO: https?
             sockEEG.on('connect', () => {
-                sockEEG.emit('init', { numClasses: classColors.length });  // classColors must be initialized
+                sockEEG.emit('init', { numClasses: numClasses });
                 updateConnectionStatus('connected', 'toggle-eeg');
                 console.log("EEG server connected");
             });
@@ -105,7 +106,12 @@ const connectEnv = () => {
         sockEnv.emit('webrtc-offer-request');
     });
     sockEnv.on('init', (data) => {
-        classColors = data.classColors;
+        // data.class2color: {0: "001", ...}
+        // class2color: {0: "rgba(0, 0, 255, 0.3)", ...}
+        class2color = Object.fromEntries(Object.entries(data.class2color)
+            .map(([classId, colorBinStr]) => [classId, binStr2Rgba(colorBinStr)])
+        );
+        numClasses = Object.keys(class2color).length;
         numAgents = data.numAgents;
     });
     sockEnv.on('webrtc-offer', async (data) => {
@@ -156,22 +162,17 @@ const updateConnectionStatus = (status, elementId) => {
 }
 
 const createCharts = (thres) => {
-    if (classColors === undefined) console.error("classColors is not defined");
-    const borderColors = classColors.map(color => {
-        // 70% darkened color
-        const rgb = color.match(/\d+/g);
-        const darkened = rgb.map(c => Math.floor(c * 0.7));
-        return `rgb(${darkened.join(',')})`;
-    });
+    if (class2color === undefined) console.error("class2color is not defined");
+    const colors = Object.keys(class2color).sort().map(key => class2color[key]);
+    const borderColors = colors.map(rgba => scaleRgba(rgba, 0.7, 1));  // 70% darkened colors
 
     const config = {
         type: 'bar',
         data: {
-            labels: Array(classColors.length).fill(''),
+            labels: Array(numClasses).fill(''),  // neccesary
             datasets: [{
-                data: Array(classColors.length).fill(0.4),
-                // data: [0.2, 0.5, 0.25],
-                backgroundColor: classColors,
+                data: Array(numClasses).fill(0.4),
+                backgroundColor: colors,
                 borderColor: borderColors,
                 borderWidth: 1,
             }]
@@ -189,7 +190,7 @@ const createCharts = (thres) => {
                             yMax: thres,
                             borderColor: 'black',
                             borderWidth: 1,
-                            borderDash: [4, 4], // 点線のスタイル
+                            borderDash: [4, 4], // dashed line style
                         }
                     }
                 },
