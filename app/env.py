@@ -13,30 +13,23 @@ from custom_robohive_design.multiagent_motion_planner_policy import (  # noqa: F
     simulate_action,
 )
 
-from app.app_state import AppState
-
 os.environ["MUJOCO_GL"] = "egl"  # for headless rendering
 
 
-# env_id = "FrankaReachFixedMulti-v0"
-
-# env_id = "FrankaPickPlaceMulti-v0"
-env_id = "FrankaPickPlaceMulti4-v0"
-
-
 class EnvRunner:
-    def __init__(self, state: AppState):
-        self.num_agents = state.num_agents
+    def __init__(self, env: gym.Env, command: list[int]) -> None:
         self.is_running = False
 
-        self.env = gym.make(env_id)
+        self.env = env
+        self.command = command  # updated globally
+        self.num_agents = self.env.nrobots
         self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
         self.class2color = {v: k for k, v in self.env.color_dict.items()}
         # {0: "001", 1: "010", ...}; digits correspond to rgb
 
+        # placeholders for frames to stream
         self.frames: list[np.ndarray | None] = [None] * self.num_agents
         self.frame_update_cond = asyncio.Condition()
-        self.command = state.command  # updated globally
 
         # init policies
         # horizon = 10
@@ -143,7 +136,10 @@ class ImageStreamTrack(VideoStreamTrack):
 
 
 if __name__ == "__main__":
-    state = AppState()
-    runner = EnvRunner(state)
+    import gym
+
+    env = gym.make("FrankaPickPlaceMulti4-v0")
+    command = [0] * env.nrobots
+    runner = EnvRunner(env, command)
     runner.is_running = True
     asyncio.run(runner._run())
