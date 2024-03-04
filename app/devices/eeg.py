@@ -27,7 +27,7 @@ window_duration = 1  # seconds
 
 origins = [
     "http://localhost:8002",  # socket.io server (this app)
-    "http://10.10.0.137:8000",  # browser client  # TODO: hard-coded
+    "https://10.10.0.137:8000",  # browser client  # TODO: hard-coded
 ]
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=origins)
 num_clients = 0

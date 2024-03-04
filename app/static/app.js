@@ -1,4 +1,4 @@
-import { getFocusId, setSockEnv, updateCursorAndFocus } from './cursor.js';
+import { getFocusId, setSockEnv, updateAndNotifyFocus, updateCursorAndFocus } from './cursor.js';
 import { setGamepadHandler } from './gamepad.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
     toggleGaze.addEventListener('change', () => {
         if (toggleGaze.checked) {
             updateConnectionStatus('connecting', 'toggle-gaze');
-            sockGaze = io.connect(`${location.protocol}//localhost:8001`, { transports: ['websocket'] });
+            sockGaze = io.connect(`http://localhost:8001`, { transports: ['websocket'] });  // TODO: https?
             sockGaze.on('connect', () => {
                 updateConnectionStatus('connected', 'toggle-gaze');
                 console.log("Gaze server connected");
@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             sockGaze.on('gaze', (data) => {
                 console.log("Gaze data received: ", data);
-                _updateFocus(data.focusId);
+                updateAndNotifyFocus(data.focusId);
             });
             showAprilTags();
         } else {
@@ -44,7 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
     toggleEEG.addEventListener('change', () => {
         if (toggleEEG.checked) {
             updateConnectionStatus('connecting', 'toggle-eeg');
-            sockEEG = io.connect(`${location.protocol}//localhost:8002`, { transports: ['websocket'] });
+            sockEEG = io.connect(`http://localhost:8002`, { transports: ['websocket'] });  // TODO: https?
             sockEEG.on('connect', () => {
                 sockEEG.emit('init', { numClasses: classColors.length });  // classColors must be initialized
                 updateConnectionStatus('connected', 'toggle-eeg');

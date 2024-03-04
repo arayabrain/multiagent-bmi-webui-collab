@@ -41,7 +41,7 @@ export const updateCursorAndFocus = (x, y, isDelta = false) => {
     }
 }
 
-const updateAndNotifyFocus = (newId) => {
+export const updateAndNotifyFocus = (newId) => {  // FIXME: use only updateCursorAndFocus
     if (newId == focusId) return;
     // remove border of the previous focused image
     if (focusId != null) {
