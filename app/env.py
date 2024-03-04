@@ -17,15 +17,19 @@ os.environ["MUJOCO_GL"] = "egl"  # for headless rendering
 
 
 class EnvRunner:
-    def __init__(self, env: gym.Env, command: list[int]) -> None:
+    def __init__(self, env_id: str) -> None:
         self.is_running = False
 
-        self.env = env
-        self.command = command  # updated globally
+        self.env = gym.make(env_id)
         self.num_agents = self.env.nrobots
         self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
         self.class2color = {v: k for k, v in self.env.color_dict.items()}
         # {0: "001", 1: "010", ...}; digits correspond to rgb
+
+        # states
+        self.command: list[int] = [0] * self.num_agents  # command from user
+        self.is_action_running: list[bool] = [False] * self.num_agents
+        self.focus_id: int | None = None  # user focus
 
         # placeholders for frames to stream
         self.frames: list[np.ndarray | None] = [None] * self.num_agents
@@ -37,6 +41,10 @@ class EnvRunner:
         self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
 
     def _reset(self):
+        self.command = [0] * self.num_agents
+        self.is_action_running = [False] * self.num_agents
+        # we don't reset focus_id
+
         obs = self.env.reset()
         for policy in self.policies:
             policy.reset(self.env)
@@ -112,6 +120,19 @@ class EnvRunner:
             action = self.policies[0].norm_act(action[action_indices])
         return action
 
+    def update_command(self, event, data):
+        if self.focus_id is None:
+            return
+        if event == "eeg":
+            # assume data is a command
+            self.command[self.focus_id] = data
+        elif event == "keydown":
+            # assume data is a key
+            if data == "0":
+                self.command[self.focus_id] = 0
+            elif data in ("1", "2", "3"):
+                self.command[self.focus_id] = 1
+
 
 class ImageStreamTrack(VideoStreamTrack):
     def __init__(self, env: EnvRunner, camera_idx: int):
@@ -136,10 +157,6 @@ class ImageStreamTrack(VideoStreamTrack):
 
 
 if __name__ == "__main__":
-    import gym
-
-    env = gym.make("FrankaPickPlaceMulti4-v0")
-    command = [0] * env.nrobots
-    runner = EnvRunner(env, command)
+    runner = EnvRunner("FrankaPickPlaceMulti4-v0")
     runner.is_running = True
     asyncio.run(runner._run())

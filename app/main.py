@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import gym
 import socketio
 import uvicorn
 from aiortc import RTCPeerConnection
@@ -20,18 +19,11 @@ app_dir = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=app_dir / "static"), name="static")
 templates = Jinja2Templates(directory=app_dir / "templates")
 
-# constants
 # env_id = "FrankaReachFixedMulti-v0"
 # env_id = "FrankaPickPlaceMulti-v0"
 env_id = "FrankaPickPlaceMulti4-v0"
+env = EnvRunner(env_id)
 
-gym_env = gym.make(env_id)
-num_agents = gym_env.nrobots
-
-# global states for the app
-command: list[int] = [0] * num_agents
-focus_id: int | None = None  # updated only by websocket_endpoint_browser
-env = EnvRunner(gym_env, command)
 pc: RTCPeerConnection | None = None
 relay = MediaRelay()  # use the same instance for all connections
 
@@ -42,7 +34,7 @@ async def get(request: Request):
         "index.html",
         {
             "request": request,
-            "num_agents": num_agents,
+            "num_agents": env.num_agents,
         },
     )
 
@@ -56,7 +48,7 @@ async def connect(sid, environ):
         "init",
         {
             "class2color": env.class2color,
-            "numAgents": num_agents,
+            "numAgents": env.num_agents,
         },
         to=sid,
     )
@@ -76,40 +68,25 @@ async def disconnect(sid):
 @sio.on("keyup")
 async def keyup(sid, key):
     print(f"keyup: received {key}")
-    update_command("keyup", key)
+    env.update_command("keyup", key)
 
 
 @sio.on("keydown")
 async def keydown(sid, key):
     print(f"keydown: received {key}")
-    update_command("keydown", key)
+    env.update_command("keydown", key)
 
 
 @sio.on("focus")
-async def focus(sid, new_focus_id):
-    global focus_id
-    print(f"focus: received {new_focus_id}")
-    focus_id = new_focus_id
+async def focus(sid, focus_id):
+    print(f"focus: received {focus_id}")
+    env.focus_id = focus_id
 
 
 @sio.on("eeg")
 async def eeg(sid, command):
     print(f"eeg: received {command}")
-    update_command("eeg", command)
-
-
-def update_command(event, data):
-    if focus_id is None:
-        return
-    if event == "eeg":
-        # assume data is a command
-        command[focus_id] = data
-    elif event == "keydown":
-        # assume data is a key
-        if data == "0":
-            command[focus_id] = 0
-        elif data in ("1", "2", "3"):
-            command[focus_id] = 1
+    env.update_command("eeg", command)
 
 
 @sio.on("webrtc-offer-request")
