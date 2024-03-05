@@ -5,6 +5,7 @@ import custom_robohive_design.env_init  # noqa: F401 # type: ignore
 import gym
 import numpy as np
 import robohive  # noqa: F401 # type: ignore
+import socketio
 from aiortc import VideoStreamTrack
 from av import VideoFrame
 from custom_robohive_design.multiagent_motion_planner_policy import (  # noqa: F401 # type: ignore
@@ -17,7 +18,7 @@ os.environ["MUJOCO_GL"] = "egl"  # for headless rendering
 
 
 class EnvRunner:
-    def __init__(self, env_id: str) -> None:
+    def __init__(self, env_id: str, sio: socketio.AsyncServer = None) -> None:
         self.is_running = False
 
         self.env = gym.make(env_id)
@@ -25,6 +26,8 @@ class EnvRunner:
         self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
         self.class2color = {v: k for k, v in self.env.color_dict.items()}
         # {0: "001", 1: "010", ...}; digits correspond to rgb
+
+        self.sio = sio
 
         # states
         self.command: list[int] = [0] * self.num_agents  # command from user
@@ -120,18 +123,36 @@ class EnvRunner:
             action = self.policies[0].norm_act(action[action_indices])
         return action
 
-    def update_command(self, event, data):
+    async def update_command(self, event, data):
         if self.focus_id is None:
             return
+        if self.is_action_running[self.focus_id]:
+            # ignore commands if action is running
+            return
+
+        command = None
         if event == "eeg":
             # assume data is a command
-            self.command[self.focus_id] = data
+            command = data
         elif event == "keydown":
             # assume data is a key
-            if data == "0":
-                self.command[self.focus_id] = 0
-            elif data in ("1", "2", "3"):
-                self.command[self.focus_id] = 1
+            if data in [str(i) for i in range(len(self.class2color))]:
+                command = int(data)
+
+        if command is not None:
+            # update command
+            self.command[self.focus_id] = command
+            # update is_action_running
+            if command > 0:
+                self.is_action_running[self.focus_id] = True
+
+            await self.notify_command()
+
+    async def notify_command(self, sid=None):
+        if self.sio is not None:
+            await self.sio.emit("command", self.command, to=sid)
+
+    # TODO: update self.is_action_running if action is done
 
 
 class ImageStreamTrack(VideoStreamTrack):

@@ -5,7 +5,7 @@ import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 let sockEnv, sockGaze, sockEEG;
 let videos, toggleGaze, toggleEEG, aprilTags;
-let class2color, numClasses, numAgents;  // info from the env server
+let class2color, numClasses, command;  // info from the env server
 const charts = [];
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -62,14 +62,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 createCharts(data.threshold);
             });
             sockEEG.on('eeg', (arrayBuffer) => {
+                // forward the command to the env server
                 const view = new DataView(arrayBuffer);
                 const command = view.getUint8(0, true);
+                sockEnv.emit('eeg', command);
                 const likelihoods = new Float32Array(arrayBuffer.slice(1));
                 console.log(`EEG data received:\n command ${command}\n likelihoods ${Array.from(likelihoods).map(l => l.toFixed(2))}`);
-                sockEnv.emit('eeg', command);
 
+                // update the chart data
                 const focusId = getFocusId();
-                if (focusId == null || charts.length == 0) return;
                 updateChartData(charts[focusId], likelihoods);
             });
         } else {
@@ -110,9 +111,15 @@ const connectEnv = () => {
         // class2color: {0: "rgba(0, 0, 255, 0.3)", ...}
         class2color = Object.fromEntries(Object.entries(data.class2color)
             .map(([classId, colorBinStr]) => [classId, binStr2Rgba(colorBinStr)])
-        );
+        );  // TODO: receive colors directly
         numClasses = Object.keys(class2color).length;
-        numAgents = data.numAgents;
+    });
+    sockEnv.on('command', (data) => {
+        command = data;
+        if (charts.length > 0) {
+            const focusId = getFocusId();
+            toggleChartActivationIfNeeded(charts[focusId], command[focusId]);
+        }
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
@@ -220,6 +227,7 @@ const createCharts = (thres) => {
             },
             maintainAspectRatio: false,
             backgroundColor: 'white',
+            isActive: true,  // chart will be activated when an action is running
         },
     };
 
@@ -242,6 +250,32 @@ const removeCharts = () => {
 };
 
 const updateChartData = (chart, data) => {
+    if (chart === undefined) return;
+    if (!chart.options.isActive) return;
+
     chart.data.datasets[0].data = data;
     chart.update();
+}
+
+const toggleChartActivationIfNeeded = (chart, command) => {
+    const isNotActionRunning = command == 0;
+    if (chart.options.isActive == isNotActionRunning) return;
+    else if (isNotActionRunning) {
+        // activate chart
+        chart.options.isActive = true;
+        const colors = Object.keys(class2color).sort().map(key => class2color[key]);
+        chart.data.datasets[0].backgroundColor = colors;
+        chart.data.datasets[0].borderColor = colors.map(rgba => scaleRgba(rgba, 0.7, 1));
+        chart.canvas.parentElement.style.opacity = 0.8;
+        chart.update();
+    } else {
+        // deactivate chart
+        chart.options.isActive = false;
+        const colors = chart.data.datasets[0].backgroundColor;
+        chart.data.datasets[0].backgroundColor = colors.map((color, i) => i == command ? color : scaleRgba(color, 0.9, 1));
+        const borderColors = chart.data.datasets[0].borderColor;
+        chart.data.datasets[0].borderColor = borderColors.map((rgba, i) => i == command ? rgba : scaleRgba(rgba, 0.9, 1));
+        chart.canvas.parentElement.style.opacity = 0.4;
+        chart.update();
+    }
 }

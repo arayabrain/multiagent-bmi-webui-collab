@@ -22,7 +22,7 @@ templates = Jinja2Templates(directory=app_dir / "templates")
 # env_id = "FrankaReachFixedMulti-v0"
 # env_id = "FrankaPickPlaceMulti-v0"
 env_id = "FrankaPickPlaceMulti4-v0"
-env = EnvRunner(env_id)
+env = EnvRunner(env_id, sio)
 
 pc: RTCPeerConnection | None = None
 relay = MediaRelay()  # use the same instance for all connections
@@ -48,10 +48,10 @@ async def connect(sid, environ):
         "init",
         {
             "class2color": env.class2color,
-            "numAgents": env.num_agents,
         },
         to=sid,
     )
+    await env.notify_command(sid)
 
 
 @sio.event
@@ -68,13 +68,13 @@ async def disconnect(sid):
 @sio.on("keyup")
 async def keyup(sid, key):
     print(f"keyup: received {key}")
-    env.update_command("keyup", key)
+    await env.update_command("keyup", key)
 
 
 @sio.on("keydown")
 async def keydown(sid, key):
     print(f"keydown: received {key}")
-    env.update_command("keydown", key)
+    await env.update_command("keydown", key)
 
 
 @sio.on("focus")
@@ -86,7 +86,7 @@ async def focus(sid, focus_id):
 @sio.on("eeg")
 async def eeg(sid, command):
     print(f"eeg: received {command}")
-    env.update_command("eeg", command)
+    await env.update_command("eeg", command)
 
 
 @sio.on("webrtc-offer-request")
