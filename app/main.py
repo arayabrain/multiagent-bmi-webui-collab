@@ -58,8 +58,7 @@ async def connect(sid, environ):
 async def disconnect(sid):
     global pc
     print("Client disconnected:", sid)
-    if env.is_running:
-        await env.stop()
+    # env does not stop
     if pc:
         await pc.close()
         pc = None
