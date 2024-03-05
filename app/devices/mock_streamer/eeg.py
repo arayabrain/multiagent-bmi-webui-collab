@@ -2,6 +2,8 @@ import time
 from multiprocessing import Process
 from pathlib import Path
 
+import mne
+import numpy as np
 import pandas as pd
 import pylsl
 from matplotlib import pyplot as plt
@@ -14,6 +16,7 @@ from app.devices.mock_streamer.mnelab_io import read_raw_xdf
 
 def xdf2raw(
     xdf_path,
+    min_n_ch=None,
     need_filter=False,
     start_sec=0,
     plot=False,
@@ -28,14 +31,35 @@ def xdf2raw(
         fs_new = eeg_metadata.nominal_srate.values[0]
     raw = read_raw_xdf(xdf_path, stream_ids=stream_ids, fs_new=fs_new)
 
+    # overwrite the channel types
+    ch_types = ["eeg"] * len(raw.info["ch_names"])
+    raw.set_channel_types({ch: ch_type for ch, ch_type in zip(raw.info["ch_names"], ch_types)})
+
     # preprocessing
     if need_filter:
         raw.filter(1, 40, picks=["misc"])
     if start_sec > 0:
         raw.crop(tmin=start_sec)
+
+    # increase the number of channels to min_n_ch
+    n_ch = raw.info["nchan"]
+    if min_n_ch is not None and n_ch < min_n_ch:
+        offset_samp = int(5 * fs_new)  # shift the data by 5 seconds (* channel index)
+        data = raw.get_data()
+        new_ch_data_ls = []
+        new_ch_name_ls = []
+        for i in range(min_n_ch - n_ch):
+            ch_data = np.roll(data[i % n_ch, :], (i + 1) * offset_samp)
+            new_ch_data_ls.append(ch_data)
+            new_ch_name_ls.append(f"dummy_{i}")
+
+        new_info = mne.create_info(new_ch_name_ls, fs_new, ch_types="eeg")
+        new_raw = mne.io.RawArray(np.array(new_ch_data_ls), new_info)
+        raw.add_channels([new_raw], force_update_info=True)
+
     if plot:
         T = raw.n_times / raw.info["sfreq"]
-        raw.plot(duration=T / 2, scalings={"misc": 5e2})
+        raw.plot(duration=T / 2, scalings={"eeg": 5e2, "misc": 5e2})
         plt.show()
 
     return raw
@@ -153,12 +177,13 @@ if __name__ == "__main__":
     # need_filter = True
     # start_sec = 13
     filename = "emg-marina-20240216-filtered.xdf"
+    min_n_ch = 4
     need_filter = False
     start_sec = 0
-    plot = True
-    # plot = False
+    # plot = True
+    plot = False
 
-    raw = xdf2raw(data_path / filename, need_filter=need_filter, start_sec=start_sec, plot=plot)
+    raw = xdf2raw(data_path / filename, min_n_ch=min_n_ch, need_filter=need_filter, start_sec=start_sec, plot=plot)
     with MockLSLStream("MockEMG", raw, "EEG", time_dilation=1, report_status=True) as stream:
         try:
             time.sleep(1000)
