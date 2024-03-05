@@ -15,69 +15,8 @@ document.addEventListener("DOMContentLoaded", () => {
     aprilTags = document.getElementsByClassName("apriltag");
 
     connectEnv();
-
-    toggleGaze.addEventListener('change', () => {
-        if (toggleGaze.checked) {
-            updateConnectionStatus('connecting', 'toggle-gaze');
-            sockGaze = io.connect(`http://localhost:8001`, { transports: ['websocket'] });  // TODO: https?
-            sockGaze.on('connect', () => {
-                updateConnectionStatus('connected', 'toggle-gaze');
-                console.log("Gaze server connected");
-            });
-            sockGaze.on('disconnect', () => {
-                updateConnectionStatus('disconnected', 'toggle-gaze');
-                console.log("Gaze server disconnected");
-            });
-            sockGaze.on('reconnect_attempt', () => {  // TODO: not working
-                console.log("Gaze server reconnecting...");
-            });
-            sockGaze.on('gaze', (data) => {
-                console.log("Gaze data received: ", data);
-                updateAndNotifyFocus(data.focusId);
-            });
-            showAprilTags();
-        } else {
-            if (sockGaze.connected) sockGaze.disconnect();
-            hideAprilTags();
-        }
-    });
-
-    toggleEEG.addEventListener('change', () => {
-        if (toggleEEG.checked) {
-            updateConnectionStatus('connecting', 'toggle-eeg');
-            sockEEG = io.connect(`http://localhost:8002`, { transports: ['websocket'] });  // TODO: https?
-            sockEEG.on('connect', () => {
-                sockEEG.emit('init', { numClasses: numClasses });
-                updateConnectionStatus('connected', 'toggle-eeg');
-                console.log("EEG server connected");
-            });
-            sockEEG.on('disconnect', () => {
-                updateConnectionStatus('disconnected', 'toggle-eeg');
-                console.log("EEG server disconnected");
-            });
-            sockEEG.on('reconnect_attempt', () => {  // TODO: not working
-                console.log("EEG server reconnecting...");
-            });
-            sockEEG.on('init', (data) => {
-                createCharts(data.threshold);
-            });
-            sockEEG.on('eeg', (arrayBuffer) => {
-                // forward the command to the env server
-                const view = new DataView(arrayBuffer);
-                const command = view.getUint8(0, true);
-                sockEnv.emit('eeg', command);
-                const likelihoods = new Float32Array(arrayBuffer.slice(1));
-                console.log(`EEG data received:\n command ${command}\n likelihoods ${Array.from(likelihoods).map(l => l.toFixed(2))}`);
-
-                // update the chart data
-                const focusId = getFocusId();
-                updateChartData(charts[focusId], likelihoods);
-            });
-        } else {
-            if (sockEEG.connected) sockEEG.disconnect();
-            removeCharts(charts);
-        }
-    });
+    toggleGaze.addEventListener('change', () => onToggleGaze(toggleGaze.checked));
+    toggleEEG.addEventListener('change', () => onToggleEEG(toggleEEG.checked));
 
     // Move the cursor to the mouse position
     document.addEventListener('mousemove', (event) => {
@@ -136,22 +75,84 @@ const connectEnv = () => {
     setSockEnv(sockEnv);
 }
 
+const onToggleGaze = (checked) => {
+    if (checked) {
+        updateConnectionStatusElement('connecting', 'toggle-gaze');
+        sockGaze = io.connect(`http://localhost:8001`, { transports: ['websocket'] });  // TODO: https?
+        sockGaze.on('connect', () => {
+            updateConnectionStatusElement('connected', 'toggle-gaze');
+            console.log("Gaze server connected");
+        });
+        sockGaze.on('disconnect', () => {
+            updateConnectionStatusElement('disconnected', 'toggle-gaze');
+            console.log("Gaze server disconnected");
+        });
+        sockGaze.on('reconnect_attempt', () => {  // TODO: not working
+            console.log("Gaze server reconnecting...");
+        });
+        sockGaze.on('gaze', (data) => {
+            console.log("Gaze data received: ", data);
+            updateAndNotifyFocus(data.focusId);
+        });
+        showAprilTags();
+    } else {
+        if (sockGaze.connected) sockGaze.disconnect();
+        hideAprilTags();
+    }
+}
+
+const onToggleEEG = (checked) => {
+    if (checked) {
+        updateConnectionStatusElement('connecting', 'toggle-eeg');
+        sockEEG = io.connect(`http://localhost:8002`, { transports: ['websocket'] });  // TODO: https?
+        sockEEG.on('connect', () => {
+            sockEEG.emit('init', { numClasses: numClasses });
+            updateConnectionStatusElement('connected', 'toggle-eeg');
+            console.log("EEG server connected");
+        });
+        sockEEG.on('disconnect', () => {
+            updateConnectionStatusElement('disconnected', 'toggle-eeg');
+            console.log("EEG server disconnected");
+        });
+        sockEEG.on('reconnect_attempt', () => {  // TODO: not working
+            console.log("EEG server reconnecting...");
+        });
+        sockEEG.on('init', (data) => {
+            createCharts(data.threshold);
+        });
+        sockEEG.on('eeg', (arrayBuffer) => {
+            // forward the command to the env server
+            const view = new DataView(arrayBuffer);
+            const command = view.getUint8(0, true);
+            sockEnv.emit('eeg', command);
+            const likelihoods = new Float32Array(arrayBuffer.slice(1));
+            console.log(`EEG data received:\n command ${command}\n likelihoods ${[...likelihoods].map(l => l.toFixed(2))}`);
+
+            // update the chart data
+            const focusId = getFocusId();
+            updateChartData(charts[focusId], likelihoods);
+        });
+    } else {
+        if (sockEEG.connected) sockEEG.disconnect();
+        removeCharts(charts);
+    }
+}
 
 const showAprilTags = () => {
-    Array.from(aprilTags).forEach((tag) => {
+    [...aprilTags].forEach((tag) => {
         tag.style.display = 'block';
     });
 }
 
 const hideAprilTags = () => {
-    Array.from(aprilTags).forEach((tag) => {
+    [...aprilTags].forEach((tag) => {
         tag.style.display = 'none';
     });
 }
 
 
-const updateConnectionStatus = (status, elementId) => {
-    var statusElement = document.getElementById(elementId);
+const updateConnectionStatusElement = (status, statusElementId) => {
+    var statusElement = document.getElementById(statusElementId);
     statusElement.classList.remove('connected', 'disconnected', 'connecting');
     switch (status) {
         case 'connected':
