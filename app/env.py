@@ -24,8 +24,8 @@ class EnvRunner:
         self.env = gym.make(env_id)
         self.num_agents = self.env.nrobots
         self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
-        self.class2color = {v: k for k, v in self.env.color_dict.items()}
-        # {0: "001", 1: "010", ...}; digits correspond to rgb
+        self.class2color = {v + 1: k for k, v in self.env.color_dict.items()}
+        # {1: "001", 2: "010", ...}; digits correspond to rgb
 
         self.sio = sio
 
@@ -110,10 +110,14 @@ class EnvRunner:
             if c == 0:
                 a = np.zeros(self.a_dim_per_agent)
             else:
-                if c != policy.current_target_indx:
+                target_idx = c - 1
+                # FIXME: there are only two targets in the env for now
+                if target_idx not in [0, 1]:
+                    a = np.zeros(self.a_dim_per_agent)
+                if target_idx != policy.current_target_indx:
                     # new target
                     policy.reset(self.env)
-                    policy.current_target_indx = c
+                    policy.current_target_indx = target_idx
                 a = policy.get_action()
             action.append(a)
 
