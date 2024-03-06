@@ -5,7 +5,8 @@ import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 let sockEnv, sockGaze, sockEEG;
 let videos, toggleGaze, toggleEEG, aprilTags;
-let class2color, numClasses, command;  // info from the env server
+let numClasses, command, nextAcceptableCommands;  // info from the env server
+let barColors, barBorderColors;
 const charts = [];
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -48,18 +49,23 @@ const connectEnv = () => {
     sockEnv.on('init', (data) => {
         // data.class2color: {0: "001", ...}
         // class2color: {0: "rgba(0, 0, 255, 0.3)", ...}
-        class2color = Object.fromEntries(Object.entries(data.class2color)
+        const class2color = Object.fromEntries(Object.entries(data.class2color)
             .map(([classId, colorBinStr]) => [classId, binStr2Rgba(colorBinStr)])
         );  // TODO: receive colors directly
+        barColors = Object.keys(class2color).sort().map(key => class2color[key]);
+        barBorderColors = barColors.map(rgba => scaleRgba(rgba, 0.7, 1));  // 70% darkened colors
         numClasses = Object.keys(class2color).length;
+        const numAgents = data.numAgents;
+        command = Array(numAgents).fill(null);
+        nextAcceptableCommands = Array(numAgents).fill([]);
     });
     sockEnv.on('command', (data) => {
-        command = data;
-        console.log("SockEnv: command ", command);
-        if (charts.length > 0) {
-            const focusId = getFocusId();
-            toggleChartActivationIfNeeded(charts[focusId], command[focusId]);
-        }
+        // this event should be emitted only after the 'init' event
+        const agentId = data.agentId;
+        command[agentId] = data.command;
+        nextAcceptableCommands[agentId] = data.nextAcceptableCommands;
+        console.log(`Command of agent ${agentId} updated: ${command[agentId]}, ${nextAcceptableCommands[agentId]}`);
+        updateChartColor(charts[agentId], command[agentId], nextAcceptableCommands[agentId]);
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
@@ -132,7 +138,7 @@ const onToggleEEG = (checked) => {
 
             // update the chart data
             const focusId = getFocusId();
-            updateChartData(charts[focusId], likelihoods);
+            updateChartData(focusId, likelihoods);
         });
     } else {
         if (sockEEG.connected) sockEEG.disconnect();
@@ -172,18 +178,14 @@ const updateConnectionStatusElement = (status, statusElementId) => {
 }
 
 const createCharts = (thres) => {
-    if (class2color === undefined) console.error("class2color is not defined");
-    const colors = Object.keys(class2color).sort().map(key => class2color[key]);
-    const borderColors = colors.map(rgba => scaleRgba(rgba, 0.7, 1));  // 70% darkened colors
-
     const config = {
         type: 'bar',
         data: {
             labels: Array(numClasses).fill(''),  // neccesary
             datasets: [{
                 data: Array(numClasses).fill(0.4),
-                backgroundColor: colors,
-                borderColor: borderColors,
+                backgroundColor: barColors,
+                borderColor: barBorderColors,
                 borderWidth: 1,
             }]
         },
@@ -230,7 +232,6 @@ const createCharts = (thres) => {
             },
             maintainAspectRatio: false,
             backgroundColor: 'white',
-            status: 'all',  // 'all' | 'cancel-only' | 'none'
         },
     };
 
@@ -252,62 +253,33 @@ const removeCharts = () => {
     }
 };
 
-const updateChartData = (chart, data) => {
+const updateChartData = (agentId, likelihoods) => {
+    const chart = charts[agentId];
     if (chart === undefined) return;
 
-    if (chart.options.status === 'none') {
-        return;
-    } else if (chart.options.status === 'cancel-only') {
-        // update only class 0
-        chart.data.datasets[0].data[0] = data[0];
-    } else {
-        chart.data.datasets[0].data = data;
-    }
+    // update only the likelihood of acceptable commands
+    chart.data.datasets[0].data = likelihoods.map((likelihood, command) =>
+        nextAcceptableCommands[agentId].includes(command) ? likelihood : chart.data.datasets[0].data[command]
+    );
     chart.update();
 }
 
-const toggleChartActivationIfNeeded = (chart, currentCommand) => {
-    const commandStatus = currentCommand === null ? 'all' : currentCommand === 0 ? 'none' : 'cancel-only';
-    if (chart.options.status === commandStatus) return;
+const updateChartColor = (chart, currentCommand, nextAcceptableCommands) => {
+    if (chart === undefined) return;
 
-    chart.options.status = commandStatus;
-    const colors = Object.keys(class2color).sort().map(key => class2color[key]);
-    const borderColors = colors.map(rgba => scaleRgba(rgba, 0.7, 1));
-
-    const commands = [...Array(numClasses).keys()];
-    const acceptableCommands = currentCommand === null ? commands : currentCommand === 0 ? [] : [0];
-
-    const modBg = (command) => {
-        if (command === currentCommand) return scaleRgba(colors[command], 1, 1);
-        // if (acceptableCommands.includes(command)) return colors[command];
-        return colors[command];
+    const modBg = (barId) => {
+        // highlight the current command bar
+        if (barId === currentCommand) return scaleRgba(barColors[barId], 1, 1);
+        return barColors[barId];
     }
-    const modBorder = (command) => {
-        if (command === currentCommand) return 'rgba(0, 0, 0, 1)';
-        if (acceptableCommands.includes(command)) return borderColors[command];
+    const modBorder = (barId) => {
+        // add black border to the current command bar
+        if (barId === currentCommand) return 'rgba(0, 0, 0, 1)';
+        // remove border from the unacceptable command bars
+        if (nextAcceptableCommands.includes(barId)) return barBorderColors[barId];
         return 'rgba(255, 255, 255, 1)';
     }
-    chart.data.datasets[0].backgroundColor = commands.map((command) => modBg(command, currentCommand));
-    chart.data.datasets[0].borderColor = commands.map((command) => modBorder(command, currentCommand));
-
-    // if (commandStatus === 'all') {
-    //     // activate chart
-    //     chart.data.datasets[0].backgroundColor = colors;
-    //     chart.data.datasets[0].borderColor = borderColors;
-    //     // chart.canvas.parentElement.style.opacity = 0.8;
-    // } else if (commandStatus === 'none') {
-    //     // deactivate chart
-    //     chart.data.datasets[0].backgroundColor = colors.map((color, i) => i === command ? scaleRgba(color, 1, 1) : scaleRgba(color, 1, 0.1));
-    //     // chart.data.datasets[0].borderColor = borderColors.map((color, i) => i == command ? color : 'rgba(0, 0, 0, 1)');
-    //     chart.data.datasets[0].borderColor = colors;  // remove border
-    //     // chart.canvas.parentElement.style.opacity = 0.4;
-    // } else if (commandStatus === 'cancel-only') {
-    //     // deactivate all but class 0 and the command class
-    //     chart.data.datasets[0].backgroundColor = colors.map((color, i) => i == 0 ? color : i == command ? scaleRgba(color, 1, 1) : scaleRgba(color, 1, 0.1));
-    //     // chart.data.datasets[0].borderColor = borderColors.map((color, i) => [command, 0].includes(i) ? color : 'rgba(0, 0, 0, 1)');
-    //     chart.data.datasets[0].borderColor = borderColors.map((color, i) => i == 0 ? color : colors[i]);  // remove border
-    //     // chart.canvas.parentElement.style.opacity = 0.8;
-    // }
-
+    chart.data.datasets[0].backgroundColor = [...Array(numClasses).keys()].map(modBg);
+    chart.data.datasets[0].borderColor = [...Array(numClasses).keys()].map(modBorder);
     chart.update();
 }

@@ -32,13 +32,19 @@ class EnvRunner:
         self.env = gym.make(env_id)
         self.num_agents = self.env.nrobots
         self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
-        self.command_keys = [str(i) for i in range(len(self.class2color))]  # ["0", "1", ...]
+
+        self.num_classes = len(self.class2color)
+        self.command_keys = [str(i) for i in range(self.num_classes)]  # ["0", "1", ...]
 
         self.sio = sio
 
         # states
-        self.command: list[int | None] = [None] * self.num_agents  # command from user
-        self.focus_id: int | None = None  # user focus
+        command, acceptable_commands, focus_id = self._get_init_states()
+        self.command: list[int | None] = command  # command from user
+        self.next_acceptable_commands: list[list[int | None]] = (
+            acceptable_commands  # next acceptable commands for each agent
+        )
+        self.focus_id: int | None = focus_id  # user focus
 
         # placeholders for frames to stream
         self.frames: list[np.ndarray | None] = [None] * self.num_agents
@@ -57,8 +63,25 @@ class EnvRunner:
         dic[0] = "000"  # cancel action
         return dic
 
+    def _get_init_states(self):
+        command = [None] * self.num_agents
+        next_acceptable_commands = list(map(self._get_next_acceptable_commands, command))
+        focus_id = None
+        return command, next_acceptable_commands, focus_id
+
+    def _get_next_acceptable_commands(self, current_command):
+        if current_command is None:
+            # If command is not set, all commands are acceptable
+            return list(range(self.num_classes))
+        elif current_command == 0:
+            # If cancel command is set, no command is acceptable until cancel is done
+            return []
+        else:
+            # If manipulation command is set, only cancel command is acceptable
+            return [0]
+
     def _reset(self):
-        self.command = [None] * self.num_agents  # command from user
+        self.command, self.next_acceptable_commands, _ = self._get_init_states()
         # we don't reset focus_id
 
         obs = self.env.reset()
@@ -96,8 +119,7 @@ class EnvRunner:
             if any(dones):
                 for i, done in enumerate(dones):
                     if done:
-                        self.command[i] = None
-                await self.notify_command()
+                        await self._update_and_notify_command(None, i)
 
             action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
             simulate_action(env.sim, action[np.newaxis, :], action_indices, render=False)
@@ -153,7 +175,7 @@ class EnvRunner:
                     policy.reset(self.env)
                     policy.current_target_indx = target_idx
                 a = policy.get_action()
-                done = policy.done
+                done = policy.done  # TODO: check if this is correct
             actions.append(a)
             dones.append(done)
 
@@ -178,22 +200,42 @@ class EnvRunner:
             if data in self.command_keys:
                 command = int(data)
 
-        is_running_action = self.command[self.focus_id] is not None  # include cancel in action
-        is_starting_action = not is_running_action and command is not None
-        is_canceling_action = is_running_action and command == 0
-        # TODO: what if current and new action are both cancel?
-        if is_starting_action or is_canceling_action:
-            # update command
-            print(f"update_command: {event} {data}")
-            self.command[self.focus_id] = command
-            await self.notify_command()
+        if command in self.next_acceptable_commands[self.focus_id]:
+            await self._update_and_notify_command(command, self.focus_id)
 
-    async def notify_command(self, sid=None):
+    async def _update_and_notify_command(self, command, agent_id):
+        self.command[agent_id] = command
+        self.next_acceptable_commands[agent_id] = self._get_next_acceptable_commands(command)
+        await self.sio.emit(
+            "command",
+            {
+                "agentId": agent_id,
+                "command": self.command[agent_id],
+                "nextAcceptableCommands": self.next_acceptable_commands[agent_id],
+            },
+        )
+
+    async def notify_commands(self, agent_ids: list[int], sid=None):
+        # notify client of the command of the specified agents
         # separate this method to be called from connect event
-        if self.sio is not None:
-            await self.sio.emit("command", self.command, to=sid)
+        if self.sio is None:
+            print("Socket is not set")
+            return
 
-    # TODO: update self.is_action_running if action is done
+        await asyncio.gather(
+            *[
+                self.sio.emit(
+                    "command",
+                    {
+                        "agentId": agent_id,
+                        "command": self.command[agent_id],
+                        "nextAcceptableCommands": self.next_acceptable_commands[agent_id],
+                    },
+                    to=sid,
+                )
+                for agent_id in agent_ids
+            ]
+        )
 
 
 class ImageStreamTrack(VideoStreamTrack):

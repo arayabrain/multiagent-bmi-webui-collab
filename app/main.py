@@ -48,10 +48,11 @@ async def connect(sid, environ):
         "init",
         {
             "class2color": env.class2color,
+            "numAgents": env.num_agents,
         },
         to=sid,
     )
-    await env.notify_command(sid)
+    await env.notify_commands(range(env.num_agents), sid)
 
 
 @sio.event
