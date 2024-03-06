@@ -1,6 +1,5 @@
 import asyncio
 import os
-import platform
 import subprocess
 
 import custom_robohive_design.env_init  # noqa: F401 # type: ignore
