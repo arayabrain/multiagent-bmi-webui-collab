@@ -1,5 +1,6 @@
 import asyncio
 import os
+import platform
 
 import custom_robohive_design.env_init  # noqa: F401 # type: ignore
 import gym
@@ -14,7 +15,8 @@ from custom_robohive_design.multiagent_motion_planner_policy import (  # noqa: F
     simulate_action,
 )
 
-os.environ["MUJOCO_GL"] = "egl"  # for headless rendering
+if platform.system() == "Linux":
+    os.environ["MUJOCO_GL"] = "egl"  # for headless rendering
 
 
 class EnvRunner:
