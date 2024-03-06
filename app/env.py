@@ -32,15 +32,19 @@ class EnvRunner:
         self.env = gym.make(env_id)
         self.num_agents = self.env.nrobots
         self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
-        self.class2color = {v + 1: k for k, v in self.env.color_dict.items()}
-        # {1: "001", 2: "010", ...}; digits correspond to rgb
+
+        self.num_classes = len(self.class2color)
+        self.command_keys = [str(i) for i in range(self.num_classes)]  # ["0", "1", ...]
 
         self.sio = sio
 
         # states
-        self.command: list[int] = [0] * self.num_agents  # command from user
-        self.is_action_running: list[bool] = [False] * self.num_agents
-        self.focus_id: int | None = None  # user focus
+        command, acceptable_commands, focus_id = self._get_init_states()
+        self.command: list[int | None] = command  # command from user
+        self.next_acceptable_commands: list[list[int | None]] = (
+            acceptable_commands  # next acceptable commands for each agent
+        )
+        self.focus_id: int | None = focus_id  # user focus
 
         # placeholders for frames to stream
         self.frames: list[np.ndarray | None] = [None] * self.num_agents
@@ -51,9 +55,33 @@ class EnvRunner:
         horizon = 2  # TODO
         self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
 
+    @property
+    def class2color(self):
+        # {0: "000", 1: "001", ...}
+        # digits correspond to rgb
+        dic = {v + 1: k for k, v in self.env.color_dict.items()}
+        dic[0] = "000"  # cancel action
+        return dic
+
+    def _get_init_states(self):
+        command = [None] * self.num_agents
+        next_acceptable_commands = list(map(self._get_next_acceptable_commands, command))
+        focus_id = None
+        return command, next_acceptable_commands, focus_id
+
+    def _get_next_acceptable_commands(self, current_command):
+        if current_command is None:
+            # If command is not set, all commands are acceptable
+            return list(range(self.num_classes))
+        elif current_command == 0:
+            # If cancel command is set, no command is acceptable until cancel is done
+            return []
+        else:
+            # If manipulation command is set, only cancel command is acceptable
+            return [0]
+
     def _reset(self):
-        self.command = [0] * self.num_agents
-        self.is_action_running = [False] * self.num_agents
+        self.command, self.next_acceptable_commands, _ = self._get_init_states()
         # we don't reset focus_id
 
         obs = self.env.reset()
@@ -84,7 +112,15 @@ class EnvRunner:
             # action = self._get_policy_action(obs, self.command)
             # obs, _, done, _ = env.step(action)
 
-            action = self._get_policy_action(obs, self.command, norm=False)
+            # action = self._get_policy_action(obs, self.command, norm=False)
+
+            action, dones = self._get_policy_action(obs, self.command, norm=False)
+            # reset command to None if policy is done
+            if any(dones):
+                for i, done in enumerate(dones):
+                    if done:
+                        await self._update_and_notify_command(None, i)
+
             action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
             simulate_action(env.sim, action[np.newaxis, :], action_indices, render=False)
             done = False
@@ -113,58 +149,93 @@ class EnvRunner:
     def _get_policy_action(self, obs, command, norm=True):
         # TODO: set command for each policy
         # command: 0, 1, 2, 3 correspond to no action and three colors
-        action = []
+        actions = []
+        dones = []
         for c, policy in zip(command, self.policies):
-            if c == 0:
+            if c is None:
+                # command not set
                 a = np.zeros(self.a_dim_per_agent)
+                done = False
+            elif c == 0:
+                # cancel command
+                policy.reset(self.env)
+                # TODO: Target's red cube don't go away
+                a = np.zeros(self.a_dim_per_agent)
+                done = True
+            elif c >= 3:
+                # FIXME: ignore command because there are only two targets in the env for now
+                policy.reset(self.env)
+                a = np.zeros(self.a_dim_per_agent)
+                done = True
             else:
+                # manipulation command
                 target_idx = c - 1
-                # FIXME: there are only two targets in the env for now
-                if target_idx not in [0, 1]:
-                    a = np.zeros(self.a_dim_per_agent)
                 if target_idx != policy.current_target_indx:
                     # new target
                     policy.reset(self.env)
                     policy.current_target_indx = target_idx
                 a = policy.get_action()
-            action.append(a)
+                done = policy.done  # TODO: check if this is correct
+            actions.append(a)
+            dones.append(done)
 
-        action = np.concatenate(action)
+        action = np.concatenate(actions)
         if norm:
             action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
             action = self.policies[0].norm_act(action[action_indices])
-        return action
+
+        return action, dones
 
     async def update_command(self, event, data):
         if self.focus_id is None:
             return
-        if self.is_action_running[self.focus_id]:
-            # ignore commands if action is running
-            return
 
+        # convert data to command
         command = None
         if event == "eeg":
             # assume data is a command
             command = data
         elif event == "keydown":
             # assume data is a key
-            if data in [str(i) for i in range(len(self.class2color))]:
+            if data in self.command_keys:
                 command = int(data)
 
-        if command is not None:
-            # update command
-            self.command[self.focus_id] = command
-            # update is_action_running
-            if command > 0:
-                self.is_action_running[self.focus_id] = True
+        if command in self.next_acceptable_commands[self.focus_id]:
+            await self._update_and_notify_command(command, self.focus_id)
 
-            await self.notify_command()
+    async def _update_and_notify_command(self, command, agent_id):
+        self.command[agent_id] = command
+        self.next_acceptable_commands[agent_id] = self._get_next_acceptable_commands(command)
+        await self.sio.emit(
+            "command",
+            {
+                "agentId": agent_id,
+                "command": self.command[agent_id],
+                "nextAcceptableCommands": self.next_acceptable_commands[agent_id],
+            },
+        )
 
-    async def notify_command(self, sid=None):
-        if self.sio is not None:
-            await self.sio.emit("command", self.command, to=sid)
+    async def notify_commands(self, agent_ids: list[int], sid=None):
+        # notify client of the command of the specified agents
+        # separate this method to be called from connect event
+        if self.sio is None:
+            print("Socket is not set")
+            return
 
-    # TODO: update self.is_action_running if action is done
+        await asyncio.gather(
+            *[
+                self.sio.emit(
+                    "command",
+                    {
+                        "agentId": agent_id,
+                        "command": self.command[agent_id],
+                        "nextAcceptableCommands": self.next_acceptable_commands[agent_id],
+                    },
+                    to=sid,
+                )
+                for agent_id in agent_ids
+            ]
+        )
 
 
 class ImageStreamTrack(VideoStreamTrack):

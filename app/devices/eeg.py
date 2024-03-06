@@ -47,10 +47,10 @@ def root_mean_square(data: np.ndarray) -> np.ndarray:
 def get_model(num_classes: int, thres: float, baselines: dict):
     def model(
         data: np.ndarray,  # (time, channels)
-    ) -> tuple[int, np.ndarray]:
+    ) -> tuple[int | None, np.ndarray]:
         norm_data = (data - baselines["average"]) / baselines["rms"]
         rms = root_mean_square(norm_data)
-        print(f"channel intensity: {[f'{r:.2f}' for r in rms]}")
+        # print(f"channel intensity: {[f'{r:.2f}' for r in rms]}")
 
         if len(rms) < num_classes:
             # zero-padding at the end
@@ -61,9 +61,9 @@ def get_model(num_classes: int, thres: float, baselines: dict):
 
         max_ch = int(np.argmax(rms))
         if rms[max_ch] > thres:
-            command = max_ch + 1  # 1-indexed channel number
+            command = max_ch  # channel index
         else:
-            command = 0  # zero command
+            command = None  # no command
         return command, rms  # rms as likelihoods
 
     return model
@@ -103,11 +103,9 @@ class Decoder:
     def _decode(self, data: np.ndarray):
         return self.model(data)
 
-    async def _publish(self, command: int, likelihoods: np.ndarray):
-        print(f"EEG command: {command}, likelihoods: {likelihoods}")
-        # command: 8-bit unsigned integer, likelihoods: 32-bit float, little-endian
-        bytes = struct.pack("<B", command) + likelihoods.astype("<f4").tobytes()
-        await sio.emit("eeg", bytes)
+    async def _publish(self, command: int | None, likelihoods: np.ndarray):
+        print(f"EEG command: {command}, likelihoods: {[f'{l:.2f}' for l in likelihoods]}")
+        await sio.emit("eeg", {"command": command, "likelihoods": likelihoods.tolist()})
 
     def stop(self):
         print("Decoder stopped.")

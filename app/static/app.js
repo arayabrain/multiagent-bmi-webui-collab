@@ -5,7 +5,8 @@ import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 let sockEnv, sockGaze, sockEEG;
 let videos, toggleGaze, toggleEEG, aprilTags;
-let class2color, numClasses, command;  // info from the env server
+let numClasses, command, nextAcceptableCommands;  // info from the env server
+let barColors, barBorderColors;
 const charts = [];
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -48,17 +49,23 @@ const connectEnv = () => {
     sockEnv.on('init', (data) => {
         // data.class2color: {0: "001", ...}
         // class2color: {0: "rgba(0, 0, 255, 0.3)", ...}
-        class2color = Object.fromEntries(Object.entries(data.class2color)
+        const class2color = Object.fromEntries(Object.entries(data.class2color)
             .map(([classId, colorBinStr]) => [classId, binStr2Rgba(colorBinStr)])
         );  // TODO: receive colors directly
+        barColors = Object.keys(class2color).sort().map(key => class2color[key]);
+        barBorderColors = barColors.map(rgba => scaleRgba(rgba, 0.7, 1));  // 70% darkened colors
         numClasses = Object.keys(class2color).length;
+        const numAgents = data.numAgents;
+        command = Array(numAgents).fill(null);
+        nextAcceptableCommands = Array(numAgents).fill([]);
     });
     sockEnv.on('command', (data) => {
-        command = data;
-        if (charts.length > 0) {
-            const focusId = getFocusId();
-            toggleChartActivationIfNeeded(charts[focusId], command[focusId]);
-        }
+        // this event should be emitted only after the 'init' event
+        const agentId = data.agentId;
+        command[agentId] = data.command;
+        nextAcceptableCommands[agentId] = data.nextAcceptableCommands;
+        console.log(`Command of agent ${agentId} updated: ${command[agentId]}, ${nextAcceptableCommands[agentId]}`);
+        updateChartColor(charts[agentId], command[agentId], nextAcceptableCommands[agentId]);
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
@@ -112,25 +119,26 @@ const onToggleEEG = (checked) => {
         });
         sockEEG.on('disconnect', () => {
             updateConnectionStatusElement('disconnected', 'toggle-eeg');
+            removeCharts(charts);
             console.log("EEG server disconnected");
         });
         sockEEG.on('reconnect_attempt', () => {  // TODO: not working
             console.log("EEG server reconnecting...");
         });
         sockEEG.on('init', (data) => {
+            if (charts.length > 0) removeCharts(charts);
             createCharts(data.threshold);
         });
-        sockEEG.on('eeg', (arrayBuffer) => {
+        sockEEG.on('eeg', (data) => {
             // forward the command to the env server
-            const view = new DataView(arrayBuffer);
-            const command = view.getUint8(0, true);
+            const command = data.command;
             sockEnv.emit('eeg', command);
-            const likelihoods = new Float32Array(arrayBuffer.slice(1));
-            console.log(`EEG data received:\n command ${command}\n likelihoods ${[...likelihoods].map(l => l.toFixed(2))}`);
+            const likelihoods = data.likelihoods;
+            console.log(`EEG data received:\n command ${command}\n likelihoods ${likelihoods.map(l => l.toFixed(2))}`);
 
             // update the chart data
             const focusId = getFocusId();
-            updateChartData(charts[focusId], likelihoods);
+            updateChartData(focusId, likelihoods);
         });
     } else {
         if (sockEEG.connected) sockEEG.disconnect();
@@ -170,18 +178,14 @@ const updateConnectionStatusElement = (status, statusElementId) => {
 }
 
 const createCharts = (thres) => {
-    if (class2color === undefined) console.error("class2color is not defined");
-    const colors = Object.keys(class2color).sort().map(key => class2color[key]);
-    const borderColors = colors.map(rgba => scaleRgba(rgba, 0.7, 1));  // 70% darkened colors
-
     const config = {
         type: 'bar',
         data: {
             labels: Array(numClasses).fill(''),  // neccesary
             datasets: [{
                 data: Array(numClasses).fill(0.4),
-                backgroundColor: colors,
-                borderColor: borderColors,
+                backgroundColor: barColors,
+                borderColor: barBorderColors,
                 borderWidth: 1,
             }]
         },
@@ -228,7 +232,6 @@ const createCharts = (thres) => {
             },
             maintainAspectRatio: false,
             backgroundColor: 'white',
-            isActive: true,  // chart will be activated when an action is running
         },
     };
 
@@ -250,33 +253,33 @@ const removeCharts = () => {
     }
 };
 
-const updateChartData = (chart, data) => {
+const updateChartData = (agentId, likelihoods) => {
+    const chart = charts[agentId];
     if (chart === undefined) return;
-    if (!chart.options.isActive) return;
 
-    chart.data.datasets[0].data = data;
+    // update only the likelihood of acceptable commands
+    chart.data.datasets[0].data = likelihoods.map((likelihood, command) =>
+        nextAcceptableCommands[agentId].includes(command) ? likelihood : chart.data.datasets[0].data[command]
+    );
     chart.update();
 }
 
-const toggleChartActivationIfNeeded = (chart, command) => {
-    const isNotActionRunning = command == 0;
-    if (chart.options.isActive == isNotActionRunning) return;
-    else if (isNotActionRunning) {
-        // activate chart
-        chart.options.isActive = true;
-        const colors = Object.keys(class2color).sort().map(key => class2color[key]);
-        chart.data.datasets[0].backgroundColor = colors;
-        chart.data.datasets[0].borderColor = colors.map(rgba => scaleRgba(rgba, 0.7, 1));
-        chart.canvas.parentElement.style.opacity = 0.8;
-        chart.update();
-    } else {
-        // deactivate chart
-        chart.options.isActive = false;
-        const colors = chart.data.datasets[0].backgroundColor;
-        chart.data.datasets[0].backgroundColor = colors.map((color, i) => i == command ? color : scaleRgba(color, 0.9, 1));
-        const borderColors = chart.data.datasets[0].borderColor;
-        chart.data.datasets[0].borderColor = borderColors.map((rgba, i) => i == command ? rgba : scaleRgba(rgba, 0.9, 1));
-        chart.canvas.parentElement.style.opacity = 0.4;
-        chart.update();
+const updateChartColor = (chart, currentCommand, nextAcceptableCommands) => {
+    if (chart === undefined) return;
+
+    const modBg = (barId) => {
+        // highlight the current command bar
+        if (barId === currentCommand) return scaleRgba(barColors[barId], 1, 1);
+        return barColors[barId];
     }
+    const modBorder = (barId) => {
+        // add black border to the current command bar
+        if (barId === currentCommand) return 'rgba(0, 0, 0, 1)';
+        // remove border from the unacceptable command bars
+        if (nextAcceptableCommands.includes(barId)) return barBorderColors[barId];
+        return 'rgba(255, 255, 255, 1)';
+    }
+    chart.data.datasets[0].backgroundColor = [...Array(numClasses).keys()].map(modBg);
+    chart.data.datasets[0].borderColor = [...Array(numClasses).keys()].map(modBorder);
+    chart.update();
 }
