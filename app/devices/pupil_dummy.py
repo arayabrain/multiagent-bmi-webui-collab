@@ -9,7 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 origins = [
     "http://localhost:8001",  # socket.io server (this app)
-    "https://10.10.0.137:8000",  # browser client  # TODO: hard-coded
+    "https://localhost:8000",  # browser client
+    "https://10.10.0.137:8000",  # TODO: hard-coded
 ]
 
 is_running = True
