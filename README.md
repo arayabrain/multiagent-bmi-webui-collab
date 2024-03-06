@@ -92,5 +92,9 @@ Activate your virtual environment, then:
 
         You can also use audio signals using [LSL AudioCapture](https://github.com/labstreaminglayer/App-AudioCapture). Set `--input Audio` and adjust the decoder threshold e.g. `--thres 5`.
 
-> [!WARNING]
-> The correspondence between the command and the robot's target is currently being worked out.
+### List of commands
+- None: no command
+- 0: cancel manipulation (key `0`)
+- 1: manipulate target 1 (key `1`)
+- 2: manipulate target 2 (key `2`)
+- 3: manipulate target 3 (key `3`); currently not used
