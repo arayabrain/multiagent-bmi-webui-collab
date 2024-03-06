@@ -55,6 +55,7 @@ const connectEnv = () => {
     });
     sockEnv.on('command', (data) => {
         command = data;
+        console.log("SockEnv: command ", command);
         if (charts.length > 0) {
             const focusId = getFocusId();
             toggleChartActivationIfNeeded(charts[focusId], command[focusId]);
@@ -112,21 +113,22 @@ const onToggleEEG = (checked) => {
         });
         sockEEG.on('disconnect', () => {
             updateConnectionStatusElement('disconnected', 'toggle-eeg');
+            removeCharts(charts);
             console.log("EEG server disconnected");
         });
         sockEEG.on('reconnect_attempt', () => {  // TODO: not working
             console.log("EEG server reconnecting...");
         });
         sockEEG.on('init', (data) => {
+            if (charts.length > 0) removeCharts(charts);
             createCharts(data.threshold);
         });
-        sockEEG.on('eeg', (arrayBuffer) => {
+        sockEEG.on('eeg', (data) => {
             // forward the command to the env server
-            const view = new DataView(arrayBuffer);
-            const command = view.getUint8(0, true);
+            const command = data.command;
             sockEnv.emit('eeg', command);
-            const likelihoods = new Float32Array(arrayBuffer.slice(1));
-            console.log(`EEG data received:\n command ${command}\n likelihoods ${[...likelihoods].map(l => l.toFixed(2))}`);
+            const likelihoods = data.likelihoods;
+            console.log(`EEG data received:\n command ${command}\n likelihoods ${likelihoods.map(l => l.toFixed(2))}`);
 
             // update the chart data
             const focusId = getFocusId();
@@ -228,7 +230,7 @@ const createCharts = (thres) => {
             },
             maintainAspectRatio: false,
             backgroundColor: 'white',
-            isActive: true,  // chart will be activated when an action is running
+            status: 'all',  // 'all' | 'cancel-only' | 'none'
         },
     };
 
@@ -252,31 +254,60 @@ const removeCharts = () => {
 
 const updateChartData = (chart, data) => {
     if (chart === undefined) return;
-    if (!chart.options.isActive) return;
 
-    chart.data.datasets[0].data = data;
+    if (chart.options.status === 'none') {
+        return;
+    } else if (chart.options.status === 'cancel-only') {
+        // update only class 0
+        chart.data.datasets[0].data[0] = data[0];
+    } else {
+        chart.data.datasets[0].data = data;
+    }
     chart.update();
 }
 
-const toggleChartActivationIfNeeded = (chart, command) => {
-    const isNotActionRunning = command == 0;
-    if (chart.options.isActive == isNotActionRunning) return;
-    else if (isNotActionRunning) {
-        // activate chart
-        chart.options.isActive = true;
-        const colors = Object.keys(class2color).sort().map(key => class2color[key]);
-        chart.data.datasets[0].backgroundColor = colors;
-        chart.data.datasets[0].borderColor = colors.map(rgba => scaleRgba(rgba, 0.7, 1));
-        chart.canvas.parentElement.style.opacity = 0.8;
-        chart.update();
-    } else {
-        // deactivate chart
-        chart.options.isActive = false;
-        const colors = chart.data.datasets[0].backgroundColor;
-        chart.data.datasets[0].backgroundColor = colors.map((color, i) => i == command ? color : scaleRgba(color, 0.9, 1));
-        const borderColors = chart.data.datasets[0].borderColor;
-        chart.data.datasets[0].borderColor = borderColors.map((rgba, i) => i == command ? rgba : scaleRgba(rgba, 0.9, 1));
-        chart.canvas.parentElement.style.opacity = 0.4;
-        chart.update();
+const toggleChartActivationIfNeeded = (chart, currentCommand) => {
+    const commandStatus = currentCommand === null ? 'all' : currentCommand === 0 ? 'none' : 'cancel-only';
+    if (chart.options.status === commandStatus) return;
+
+    chart.options.status = commandStatus;
+    const colors = Object.keys(class2color).sort().map(key => class2color[key]);
+    const borderColors = colors.map(rgba => scaleRgba(rgba, 0.7, 1));
+
+    const commands = [...Array(numClasses).keys()];
+    const acceptableCommands = currentCommand === null ? commands : currentCommand === 0 ? [] : [0];
+
+    const modBg = (command) => {
+        if (command === currentCommand) return scaleRgba(colors[command], 1, 1);
+        // if (acceptableCommands.includes(command)) return colors[command];
+        return colors[command];
     }
+    const modBorder = (command) => {
+        if (command === currentCommand) return 'rgba(0, 0, 0, 1)';
+        if (acceptableCommands.includes(command)) return borderColors[command];
+        return 'rgba(255, 255, 255, 1)';
+    }
+    chart.data.datasets[0].backgroundColor = commands.map((command) => modBg(command, currentCommand));
+    chart.data.datasets[0].borderColor = commands.map((command) => modBorder(command, currentCommand));
+
+    // if (commandStatus === 'all') {
+    //     // activate chart
+    //     chart.data.datasets[0].backgroundColor = colors;
+    //     chart.data.datasets[0].borderColor = borderColors;
+    //     // chart.canvas.parentElement.style.opacity = 0.8;
+    // } else if (commandStatus === 'none') {
+    //     // deactivate chart
+    //     chart.data.datasets[0].backgroundColor = colors.map((color, i) => i === command ? scaleRgba(color, 1, 1) : scaleRgba(color, 1, 0.1));
+    //     // chart.data.datasets[0].borderColor = borderColors.map((color, i) => i == command ? color : 'rgba(0, 0, 0, 1)');
+    //     chart.data.datasets[0].borderColor = colors;  // remove border
+    //     // chart.canvas.parentElement.style.opacity = 0.4;
+    // } else if (commandStatus === 'cancel-only') {
+    //     // deactivate all but class 0 and the command class
+    //     chart.data.datasets[0].backgroundColor = colors.map((color, i) => i == 0 ? color : i == command ? scaleRgba(color, 1, 1) : scaleRgba(color, 1, 0.1));
+    //     // chart.data.datasets[0].borderColor = borderColors.map((color, i) => [command, 0].includes(i) ? color : 'rgba(0, 0, 0, 1)');
+    //     chart.data.datasets[0].borderColor = borderColors.map((color, i) => i == 0 ? color : colors[i]);  // remove border
+    //     // chart.canvas.parentElement.style.opacity = 0.8;
+    // }
+
+    chart.update();
 }

@@ -32,14 +32,12 @@ class EnvRunner:
         self.env = gym.make(env_id)
         self.num_agents = self.env.nrobots
         self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
-        self.class2color = {v + 1: k for k, v in self.env.color_dict.items()}
-        # {1: "001", 2: "010", ...}; digits correspond to rgb
+        self.command_keys = [str(i) for i in range(len(self.class2color))]  # ["0", "1", ...]
 
         self.sio = sio
 
         # states
-        self.command: list[int] = [0] * self.num_agents  # command from user
-        self.is_action_running: list[bool] = [False] * self.num_agents
+        self.command: list[int | None] = [None] * self.num_agents  # command from user
         self.focus_id: int | None = None  # user focus
 
         # placeholders for frames to stream
@@ -51,9 +49,16 @@ class EnvRunner:
         horizon = 2  # TODO
         self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
 
+    @property
+    def class2color(self):
+        # {0: "000", 1: "001", ...}
+        # digits correspond to rgb
+        dic = {v + 1: k for k, v in self.env.color_dict.items()}
+        dic[0] = "000"  # cancel action
+        return dic
+
     def _reset(self):
-        self.command = [0] * self.num_agents
-        self.is_action_running = [False] * self.num_agents
+        self.command = [None] * self.num_agents  # command from user
         # we don't reset focus_id
 
         obs = self.env.reset()
@@ -84,7 +89,16 @@ class EnvRunner:
             # action = self._get_policy_action(obs, self.command)
             # obs, _, done, _ = env.step(action)
 
-            action = self._get_policy_action(obs, self.command, norm=False)
+            # action = self._get_policy_action(obs, self.command, norm=False)
+
+            action, dones = self._get_policy_action(obs, self.command, norm=False)
+            # reset command to None if policy is done
+            if any(dones):
+                for i, done in enumerate(dones):
+                    if done:
+                        self.command[i] = None
+                await self.notify_command()
+
             action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
             simulate_action(env.sim, action[np.newaxis, :], action_indices, render=False)
             done = False
@@ -113,54 +127,69 @@ class EnvRunner:
     def _get_policy_action(self, obs, command, norm=True):
         # TODO: set command for each policy
         # command: 0, 1, 2, 3 correspond to no action and three colors
-        action = []
+        actions = []
+        dones = []
         for c, policy in zip(command, self.policies):
-            if c == 0:
+            if c is None:
+                # command not set
                 a = np.zeros(self.a_dim_per_agent)
+                done = False
+            elif c == 0:
+                # cancel command
+                policy.reset(self.env)
+                # TODO: Target's red cube don't go away
+                a = np.zeros(self.a_dim_per_agent)
+                done = True
+            elif c >= 3:
+                # FIXME: ignore command because there are only two targets in the env for now
+                policy.reset(self.env)
+                a = np.zeros(self.a_dim_per_agent)
+                done = True
             else:
+                # manipulation command
                 target_idx = c - 1
-                # FIXME: there are only two targets in the env for now
-                if target_idx not in [0, 1]:
-                    a = np.zeros(self.a_dim_per_agent)
                 if target_idx != policy.current_target_indx:
                     # new target
                     policy.reset(self.env)
                     policy.current_target_indx = target_idx
                 a = policy.get_action()
-            action.append(a)
+                done = policy.done
+            actions.append(a)
+            dones.append(done)
 
-        action = np.concatenate(action)
+        action = np.concatenate(actions)
         if norm:
             action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
             action = self.policies[0].norm_act(action[action_indices])
-        return action
+
+        return action, dones
 
     async def update_command(self, event, data):
         if self.focus_id is None:
             return
-        if self.is_action_running[self.focus_id]:
-            # ignore commands if action is running
-            return
 
+        # convert data to command
         command = None
         if event == "eeg":
             # assume data is a command
             command = data
         elif event == "keydown":
             # assume data is a key
-            if data in [str(i) for i in range(len(self.class2color))]:
+            if data in self.command_keys:
                 command = int(data)
 
-        if command is not None:
+        is_running_action = self.command[self.focus_id] is not None  # include cancel in action
+        is_starting_action = not is_running_action and command is not None
+        is_canceling_action = is_running_action and command == 0
+        # TODO: what if current and new action are both cancel?
+        if is_starting_action or is_canceling_action:
             # update command
+            print(f"update_command: {event} {data}")
             self.command[self.focus_id] = command
-            # update is_action_running
-            if command > 0:
-                self.is_action_running[self.focus_id] = True
-
             await self.notify_command()
 
     async def notify_command(self, sid=None):
+        # separate this method to be called from connect event
         if self.sio is not None:
             await self.sio.emit("command", self.command, to=sid)
 
