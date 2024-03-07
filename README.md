@@ -7,7 +7,7 @@ Web UI for the multi-agent robot arm environment
 
 ## Installation
 1. Create and activate a virtual environment. Tested with Python 3.10.
-2. Install [robohive](https://github.com/dosssman/robohive/tree/multi-robot)
+2. Install [robohive](https://github.com/dosssman/robohive/tree/multi-robot)  
     (If you use the `custom_robohive_design` environment, the original robohive may also work, but it's not verified)
     ```bash
     git clone --recursive https://github.com/dosssman/robohive.git
@@ -32,7 +32,7 @@ Web UI for the multi-agent robot arm environment
     # both
     pip install -e .[server,user]
     ```
-6. (If you launch a server) Generate a self-signed certificate for the server
+6. (If you launch a server) Generate a self-signed certificate for the server  
     If you're using a machine other than `localhost` (the same machine to start the UI/browser) as the server, please add the IP to `.keys/san.cnf`.
     ```cnf
     [ alt_names ]
@@ -69,9 +69,9 @@ Activate your virtual environment, then:
     ```bash
     python app/main.py
     ```
-    and open `https://${server ip}:8000/` in your browser.
+    and open `https://${server ip}:8000/` in your browser.  
     You will see a warning because we are using a self-signed certificate, but please ignore it and proceed with the connection.
-2. Run devices for selecting a robot to control
+2. Run devices for selecting a robot to control  
     You can select a robot that by moving the cursor using various devices.
     - Mouse
     - Gamepad
