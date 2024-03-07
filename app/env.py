@@ -119,6 +119,7 @@ class EnvRunner:
             if any(dones):
                 for i, done in enumerate(dones):
                     if done:
+                        self.policies[i].reset(self.env)
                         await self._update_and_notify_command(None, i)
 
             action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
@@ -147,35 +148,57 @@ class EnvRunner:
         return action
 
     def _get_policy_action(self, obs, command, norm=True):
-        # TODO: set command for each policy
-        # command: 0, 1, 2, 3 correspond to no action and three colors
         actions = []
         dones = []
         for c, policy in zip(command, self.policies):
             if c is None:
                 # command not set
+                # TODO: is zero the initial state?
                 a = np.zeros(self.a_dim_per_agent)
                 done = False
             elif c == 0:
                 # cancel command
                 policy.reset(self.env)
-                # TODO: Target's red cube don't go away
                 a = np.zeros(self.a_dim_per_agent)
-                done = True
-            elif c >= 3:
-                # FIXME: ignore command because there are only two targets in the env for now
-                policy.reset(self.env)
-                a = np.zeros(self.a_dim_per_agent)
+                # TODO: check if robot posture has been reset
                 done = True
             else:
                 # manipulation command
-                target_idx = c - 1
-                if target_idx != policy.current_target_indx:
-                    # new target
+                target_color_idx = c - 1  # -1 because 0 is cancel command
+
+                # find target index
+                target_idx = None
+                for i, (_, target_name) in enumerate(policy.obj_target_pairs):
+                    # target_name: "drop_target{robot_idx}_{color_idx + 1}"
+                    if target_name[-1] == str(target_color_idx + 1):
+                        target_idx = i
+                        break
+                if target_idx is None:
+                    # ignore command
+                    # TODO: this should not happen if the number of classes == the number of target colors
                     policy.reset(self.env)
-                    policy.current_target_indx = target_idx
-                a = policy.get_action()
-                done = policy.done  # TODO: check if this is correct
+                    a = np.zeros(self.a_dim_per_agent)
+                    done = True
+
+                # TODO: check if the target is already done
+
+                else:
+                    if target_idx != policy.current_target_indx:
+                        # new target
+                        # TODO: initial current_target_indx is 0, but -1 or None is better?
+                        policy.current_target_indx = target_idx
+
+                    # TODO: modify policy.get_action not to reset internally
+                    # a = policy.get_action()
+                    # done = policy.done
+
+                    # custom policy.get_action
+                    box_name, target_name = policy.obj_target_pairs[policy.current_target_indx]
+                    policy.planner.box_name = box_name
+                    policy.planner.target_name = target_name
+                    a = policy.planner.get_action()
+                    done = policy.planner.done
+
             actions.append(a)
             dones.append(done)
 
