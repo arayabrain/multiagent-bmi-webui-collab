@@ -32,6 +32,20 @@ Web UI for the multi-agent robot arm environment
     # both
     pip install -e .[server,user]
     ```
+5. (If you launch a server) Generate a self-signed certificate for the server
+    If you're using a machine other than `localhost` as the server, please add the IP to `.keys/san.cnf`.
+    ```cnf
+    [ alt_names ]
+    IP.1 = 127.0.0.1  # localhost
+    IP.2 = 10.10.0.137  # vector
+    IP.3 = <your server ip>
+    ```
+    Then run the following commands to generate the certificate and keys:
+    ```bash
+    cd .keys
+    openssl req -new -nodes -out server.csr -keyout server.key -config san.cnf
+    openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt -extensions req_ext -extfile san.cnf
+    ```
 
 - On Linux, you need to install `liblsl` to use the [LSL](https://github.com/sccn/liblsl).
     Choose the appropriate version for your OS in the [release page](https://github.com/sccn/liblsl/releases) and then
@@ -46,7 +60,7 @@ Open Windows Firewall settings (`wf.msc`) and create a new inbound rule to allow
 
 - You may need to comment out `max_episode_steps` of the environment you use to remove the episode time limit.
     - `FrankaReachFixedMulti-v0` in `robohive/envs/arms/__init__.py`
-    - `FrankaPickPlaceMulti-v0` in `custom_robohive_design/env_init.py`
+    - `FrankaPickPlaceMulti4-v0` in `custom_robohive_design/env_init.py`
 
 
 ## Run
@@ -56,6 +70,7 @@ Activate your virtual environment, then:
     python app/main.py
     ```
     and open `https://${server ip}:8000/` in your browser.
+    You will see a warning because we are using a self-signed certificate, but please ignore it and proceed with the connection.
 2. Run devices for selecting a robot to control
     You can select a robot that by moving the cursor using various devices.
     - Mouse
@@ -64,12 +79,12 @@ Activate your virtual environment, then:
         - If you have the device,
             1. set it up and run Pupil Capture
             2. Run gaze websocket server:
-                ```
-                python app/devices/pupil.py
+                ```bash
+                python app/devices/pupil.py [-e <your environment server ip> (default: localhost)]
                 ```
         - If you don't have the device, run dummy one:
             ```bash
-            python app/devices/pupil_dummy.py
+            python app/devices/pupil_dummy.py [-e <your environment server ip> (default: localhost)]
             ```
         Toggle the "Eye Tracker" switch on your browser.
 3. Run devices for selecting commands
@@ -84,7 +99,7 @@ Activate your virtual environment, then:
             ```
         - Run the decoder script
             ```bash
-            python app/devices/eeg.py
+            python app/devices/eeg.py [-e <your environment server ip> (default: localhost)]
             ```
         Toggle the "EEG" switch on your browser.  
         Then follow the prompts to take a baseline measurement.  

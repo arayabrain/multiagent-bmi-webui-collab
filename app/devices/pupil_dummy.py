@@ -2,25 +2,20 @@ import asyncio
 import random
 from contextlib import asynccontextmanager
 
+import click
 import socketio
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-origins = [
-    "http://localhost:8001",  # socket.io server (this app)
-    "https://localhost:8000",  # browser client
-    "https://10.10.0.137:8000",  # TODO: hard-coded
-]
-
 is_running = True
 num_clients = 0
 focus: int | None = None
 
-num_agents = 3  # TODO: receive from the server
+num_agents = 4  # TODO: receive from the server
 
 
-async def gaze_worker():
+async def gaze_worker(sio: socketio.AsyncServer):
     global focus
     print("Gaze stream started")
     while is_running:
@@ -35,47 +30,57 @@ async def gaze_worker():
         await asyncio.sleep(5)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    gaze_task = asyncio.create_task(gaze_worker())
-    print("Gaze task started")
+@click.command()
+@click.option("--env-ip", "-e", default="localhost", type=str, help="IP address of the environment server")
+def main(env_ip):
+    host = "localhost"
+    port = 8001
+    origins = [
+        f"http://{host}:{port}",  # gaze server (this app)
+        f"https://{env_ip}:8000",  # environment server
+    ]
 
-    yield
+    sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=origins)
 
-    gaze_task.cancel()
-    try:
-        await gaze_task
-    except asyncio.CancelledError:
-        print("Gaze task cancelled")
+    @sio.event
+    async def connect(sid, environ):
+        global num_clients
+        num_clients += 1
+        print("Client connected:", sid)
 
+    @sio.event
+    async def disconnect(sid):
+        global num_clients, focus
+        num_clients -= 1
+        print("Client disconnected:", sid)
+        if num_clients == 0:
+            focus = None  # reset focus
 
-app = FastAPI(lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=origins)
-socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        gaze_task = asyncio.create_task(gaze_worker(sio))
+        print("Gaze task started")
 
+        yield
 
-@sio.event
-async def connect(sid, environ):
-    global num_clients
-    num_clients += 1
-    print("Client connected:", sid)
+        gaze_task.cancel()
+        try:
+            await gaze_task
+        except asyncio.CancelledError:
+            print("Gaze task cancelled")
 
+    app = FastAPI(lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
-@sio.event
-async def disconnect(sid):
-    global num_clients, focus
-    num_clients -= 1
-    print("Client disconnected:", sid)
-    if num_clients == 0:
-        focus = None  # reset focus
+    uvicorn.run(socket_app, host=host, port=port)
 
 
 if __name__ == "__main__":
-    uvicorn.run(socket_app, host="localhost", port=8001)
+    main()

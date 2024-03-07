@@ -5,7 +5,6 @@
 """
 
 import asyncio
-import struct
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -24,13 +23,6 @@ from reactivex import operators as ops
 from app.utils.networking import create_observable_from_stream_inlet, get_stream_inlet
 
 window_duration = 1  # seconds
-
-origins = [
-    "http://localhost:8002",  # socket.io server (this app)
-    "https://localhost:8000",  # browser client
-    "https://10.10.0.137:8000",  # TODO: hard-coded
-]
-sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=origins)
 num_clients = 0
 
 
@@ -84,6 +76,10 @@ class Decoder:
         self.subscription = None
         self.is_running = False
         self.loop = asyncio.get_event_loop()
+        self.sio = None
+
+    def set_socket(self, sio):
+        self.sio = sio
 
     def start(self):
         if self.is_running:
@@ -105,7 +101,7 @@ class Decoder:
 
     async def _publish(self, command: int | None, likelihoods: np.ndarray):
         print(f"EEG command: {command}, likelihoods: {[f'{l:.2f}' for l in likelihoods]}")
-        await sio.emit("eeg", {"command": command, "likelihoods": likelihoods.tolist()})
+        await self.sio.emit("eeg", {"command": command, "likelihoods": likelihoods.tolist()})
 
     def stop(self):
         print("Decoder stopped.")
@@ -217,6 +213,7 @@ class Recorder:
 
 
 @click.command()
+@click.option("--env-ip", "-e", default="localhost", type=str, help="IP address of the environment server")
 @click.option("--input", default="EEG", type=click.Choice(["EEG", "Audio"]), help="Input type")
 @click.option("--mode", default="decode", type=click.Choice(["decode", "record"]), help="Decode or record EEG data")
 # decoder only
@@ -238,7 +235,14 @@ class Recorder:
 # recorder only
 @click.option("--record-path", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
 @click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
-def main(input, mode, baseline_duration, baseline_ready_duration, thres, record_path, record_interval):
+def main(env_ip, input, mode, baseline_duration, baseline_ready_duration, thres, record_path, record_interval):
+    host = "localhost"
+    port = 8002
+    origins = [
+        f"http://{host}:{port}",  # eeg server (this app)
+        f"https://{env_ip}:8000",  # environment server
+    ]
+    sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=origins)
     runner = None
 
     @sio.event
@@ -287,6 +291,7 @@ def main(input, mode, baseline_duration, baseline_ready_duration, thres, record_
             window_size = input_freq * window_duration
             window_step = window_size // 2
             runner = Decoder(model, input_observable, window_size, window_step)
+            runner.set_socket(sio)
         elif mode == "record":
             chunk_size = input_freq * record_interval
             runner = Recorder(input_observable, input_nch, save_path=record_path, chunk_size=chunk_size)
@@ -310,7 +315,7 @@ def main(input, mode, baseline_duration, baseline_ready_duration, thres, record_
     socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
     # Start the server
-    uvicorn.run(socket_app, host="localhost", port=8002)
+    uvicorn.run(socket_app, host=host, port=port)
 
 
 if __name__ == "__main__":

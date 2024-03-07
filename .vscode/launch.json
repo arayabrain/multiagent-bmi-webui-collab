@@ -28,6 +28,8 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
+                "-e",
+                "10.10.0.137",
                 "--input",
                 "EEG",
                 // "Audio",
@@ -50,20 +52,13 @@
             "program": "${workspaceFolder}/app/devices/pupil.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "env": {
-                "PYTHONASYNCIODEBUG": "1"
-            },
+            "args": [
+                "-e",
+                "10.10.0.137",
+            ]
         },
         {
-            "name": "Mock EEG Streamer",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/app/devices/mock_streamer/eeg.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-        },
-        {
-            "name": "Mock Pupil Streamer",
+            "name": "Pupil Server (Dummy)",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/app/devices/pupil_dummy.py",
@@ -72,6 +67,18 @@
             "env": {
                 "PYTHONASYNCIODEBUG": "1"
             },
+            "args": [
+                "-e",
+                "10.10.0.137",
+            ]
+        },
+        {
+            "name": "Mock EEG Streamer",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/app/devices/mock_streamer/eeg.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
         },
     ]
 }
