@@ -20,10 +20,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pylsl import resolve_streams
 from reactivex import operators as ops
 
+from app.devices.utils import array2str
 from app.utils.networking import create_observable_from_stream_inlet, get_stream_inlet
 
 window_duration = 1  # seconds
-num_clients = 0
+reconnect_wait_time = 5
 
 
 def root_mean_square(data: np.ndarray) -> np.ndarray:
@@ -42,7 +43,6 @@ def get_model(num_classes: int, thres: float, baselines: dict):
     ) -> tuple[int | None, np.ndarray]:
         norm_data = (data - baselines["average"]) / baselines["rms"]
         rms = root_mean_square(norm_data)
-        # print(f"channel intensity: {[f'{r:.2f}' for r in rms]}")
 
         if len(rms) < num_classes:
             # zero-padding at the end
@@ -64,17 +64,25 @@ def get_model(num_classes: int, thres: float, baselines: dict):
 def _extract_buffer(buf: list) -> tuple:
     data, timestamps = zip(*buf)
     data = np.stack(data).astype(float)  # (time, channels)  # TODO: float32 or 64?
+    # TODO: bottleneck?
     return data, timestamps
 
 
 class Decoder:
-    def __init__(self, model, input_observable, window_size, window_step):
-        self.model = model
+    def __init__(
+        self,
+        input_observable,
+        model,
+        window_size,
+        window_step,
+    ):
         self.input_observable = input_observable
-        self.window_size = window_size
-        self.window_step = window_step
         self.subscription = None
         self.is_running = False
+
+        self.model = model
+        self.window_size = window_size
+        self.window_step = window_step
         self.loop = asyncio.get_event_loop()
         self.sio = None
 
@@ -91,7 +99,7 @@ class Decoder:
             ops.map(lambda buf: _extract_buffer(buf)[0]),  # (time, channels)
             ops.map(self._decode),
         ).subscribe(
-            on_next=lambda data: self.loop.create_task(self._publish(*data)),
+            on_next=self._publish,
             on_completed=self.stop,
         )
         self.is_running = True
@@ -99,15 +107,26 @@ class Decoder:
     def _decode(self, data: np.ndarray):
         return self.model(data)
 
-    async def _publish(self, command: int | None, likelihoods: np.ndarray):
-        print(f"EEG command: {command}, likelihoods: {[f'{l:.2f}' for l in likelihoods]}")
-        await self.sio.emit("eeg", {"command": command, "likelihoods": likelihoods.tolist()})
+    def _publish(self, data: tuple[int | None, np.ndarray]):
+        if self.loop.is_closed():
+            return
+
+        command, likelihoods = data
+
+        async def emit(command: int | None, likelihoods: np.ndarray):
+            await self.sio.emit("eeg", {"command": command, "likelihoods": likelihoods.tolist()})
+
+        self.loop.create_task(emit(command, likelihoods))
+
+        command_str = f"{command:>4}" if command is not None else "None"
+        likelihoods_str = array2str(likelihoods)
+        print(f"EEG command: {command_str}, likelihoods: {likelihoods_str}")
 
     def stop(self):
-        print("Decoder stopped.")
-        if self.subscription:
+        if self.subscription is not None:
             self.subscription.dispose()
         self.is_running = False
+        print("Decoder stopped.")
 
 
 def measure_baseline(
@@ -115,6 +134,7 @@ def measure_baseline(
     baseline_duration,
     baseline_ready_duration,
     input_freq,
+    auto_start=False,
 ):
     baselines = None
     baseline_ready = threading.Event()
@@ -125,17 +145,21 @@ def measure_baseline(
             "average": np.mean(data, axis=0),
             "rms": root_mean_square(data),
         }
+
+        print(f"Average: {array2str(baselines['average'])}")
+        print(f"Root mean square: {array2str(baselines['rms'])}")
+
         baseline_ready.set()
 
     # prompt user to keep still
-    click.confirm(
+    confirm = auto_start or click.confirm(
         f"\nPreparing to measure the baseline. Press Enter, then relax and stay still."
         f"\nMeasurement will start in {baseline_ready_duration}s and will continue for {baseline_duration}s.",
         default=True,
     )
-    # TODO
-    # if not confirm:
-    # return
+    if not confirm:
+        print("Baseline measurement cancelled. Using average=0, rms=1 as default.")
+        return {"average": 0, "rms": 1}
 
     print(f"Starting baseline measurement in {baseline_ready_duration}s...")
     time.sleep(baseline_ready_duration)
@@ -147,27 +171,35 @@ def measure_baseline(
         ops.map(lambda buf: _extract_buffer(buf)[0]),  # (time, channels)
     ).subscribe(
         on_next=set_baseline,
-        on_completed=lambda: print("Baseline measurement completed."),
+        on_completed=lambda: print("Baseline measurement completed.\n"),
     )
 
     baseline_ready.wait()
     baseline_subscription.dispose()
 
-    print(f"Average: {baselines['average']}")
-    print(f"Root mean square: {baselines['rms']}\n")
-
     return baselines
 
 
 class Recorder:
-    def __init__(self, input_observable, input_nch, save_path="logs/data.hdf5", chunk_size=5000):
+    def __init__(
+        self,
+        input_observable,
+        input_nch,
+        save_path,
+        chunk_size=5000,
+    ):
         self.input_observable = input_observable
-        self.input_nch = input_nch
-        self.chunk_size = chunk_size
-        self.save_path = Path(__file__).parents[2] / save_path  # relative to the workspace root
         self.subscription = None
         self.is_running = False
+
+        self.input_nch = input_nch
+        self.chunk_size = chunk_size
         self.start_time = None
+
+        if Path(save_path).is_absolute():
+            self.save_path = Path(save_path)
+        else:
+            self.save_path = Path(__file__).parents[2] / save_path  # relative to the workspace root
 
     def start(self):
         if self.save_path.exists():
@@ -196,27 +228,30 @@ class Recorder:
         data, timestamps = _extract_buffer(buf)
         size = data.shape[0]
 
+        # TODO: save as xdf?
         with h5py.File(self.save_path, "a") as f:
             f["data"].resize(f["data"].shape[0] + size, axis=0)
             f["data"][-size:] = data
             f["timestamps"].resize(f["timestamps"].shape[0] + size, axis=0)
             f["timestamps"][-size:] = timestamps
 
-        print(f"\r{elapsed_time:.1f}s: recorded {size} samples", end="")
+        print(f"{elapsed_time:.1f}s: recorded {size} samples")
 
     def stop(self):
-        print("Recorder stopped.")
-        print(f"Save path: {self.save_path}")
-        if self.subscription:
+        if self.subscription is not None:
             self.subscription.dispose()
         self.is_running = False
+        print("Recorder stopped.")
+        print(f"Save path: {self.save_path}")
 
 
 @click.command()
 @click.option("--env-ip", "-e", default="localhost", type=str, help="IP address of the environment server")
-@click.option("--input", default="EEG", type=click.Choice(["EEG", "Audio"]), help="Input type")
-@click.option("--mode", default="decode", type=click.Choice(["decode", "record"]), help="Decode or record EEG data")
+@click.option("--input", "-i", default="EEG", type=click.Choice(["EEG", "Audio"]), help="Input type")
+@click.option("--no-decode", flag_value=True, type=bool, help="Disable decoding")
+@click.option("--no-record", flag_value=True, type=bool, help="Disable recording")
 # decoder only
+@click.option("--auto-baseline", flag_value=True, help="Automatically start baseline measurement")
 @click.option(
     "--baseline-duration",
     "-bdur",
@@ -233,9 +268,20 @@ class Recorder:
 )
 @click.option("--thres", "-t", default=15.0, type=click.FloatRange(min=0), help="Threshold for channel activation")
 # recorder only
-@click.option("--record-path", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
+@click.option("--record-path", "-p", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
 @click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
-def main(env_ip, input, mode, baseline_duration, baseline_ready_duration, thres, record_path, record_interval):
+def main(
+    env_ip,
+    input,
+    no_decode,
+    no_record,
+    auto_baseline,
+    baseline_duration,
+    baseline_ready_duration,
+    thres,
+    record_path,
+    record_interval,
+):
     host = "localhost"
     port = 8002
     origins = [
@@ -243,30 +289,43 @@ def main(env_ip, input, mode, baseline_duration, baseline_ready_duration, thres,
         f"https://{env_ip}:8000",  # environment server
     ]
     sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=origins)
-    runner = None
+    num_clients = 0
+
+    runners = []
 
     @sio.event
     async def connect(sid, environ):
-        global num_clients
+        nonlocal num_clients
         num_clients += 1
         print("Client connected:", sid)
         await sio.emit("init", {"threshold": thres}, to=sid)
 
     @sio.event
     async def disconnect(sid):
-        global num_clients
+        nonlocal num_clients
         num_clients -= 1
         print("Client disconnected:", sid)
 
-        # Stop the runner if no clients are connected
-        # await asyncio.sleep(reconnect_wait_time)  # TODO
-        if num_clients == 0 and runner and runner.is_running:
-            runner.stop()
+        # Stop the runners if no clients are connected
+        if num_clients == 0:
+            # Wait a bit for reconnection (skip for now)
+            # print(f"Stop runners if no clients are connected in {reconnect_wait_time} seconds.")
+            # await asyncio.sleep(reconnect_wait_time)
+
+            for runner in runners:
+                if runner.is_running:
+                    runner.stop()
+            runners.clear()
 
     @sio.on("init")
     async def init(sid, data):
         print(f"Received initialization info: {data}")
         num_classes = data["numClasses"]
+
+        if len(runners) > 0:
+            # if the runners are already set up, do nothing
+            print("Runners are already set up. Use the existing runners.")
+            return
 
         # Create stream inlets
         while True:
@@ -283,26 +342,33 @@ def main(env_ip, input, mode, baseline_duration, baseline_ready_duration, thres,
         # Create observables and set up processing pipeline using Rx
         input_observable = create_observable_from_stream_inlet(input_inlet)
 
-        nonlocal runner
-        if mode == "decode":
-            baselines = measure_baseline(input_observable, baseline_duration, baseline_ready_duration, input_freq)
+        runners.clear()
+        if not no_record:
+            chunk_size = input_freq * record_interval
+            recorder = Recorder(input_observable, input_nch, save_path=record_path, chunk_size=chunk_size)
+            runners.append(recorder)
+        if not no_decode:
+            baselines = measure_baseline(
+                input_observable, baseline_duration, baseline_ready_duration, input_freq, auto_start=auto_baseline
+            )
 
             model = get_model(num_classes, thres, baselines)
             window_size = input_freq * window_duration
             window_step = window_size // 2
-            runner = Decoder(model, input_observable, window_size, window_step)
-            runner.set_socket(sio)
-        elif mode == "record":
-            chunk_size = input_freq * record_interval
-            runner = Recorder(input_observable, input_nch, save_path=record_path, chunk_size=chunk_size)
+            decoder = Decoder(input_observable, model, window_size, window_step)
+            decoder.set_socket(sio)
+            runners.append(decoder)
 
-        runner.start()
+        # Start the runners
+        for runner in runners:
+            runner.start()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         yield
-        if runner and runner.is_running:
-            runner.stop()
+        for runner in runners:
+            if runner.is_running:
+                runner.stop()
 
     app = FastAPI(lifespan=lifespan)
     app.add_middleware(

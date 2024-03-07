@@ -80,11 +80,13 @@ Activate your virtual environment, then:
             1. set it up and run Pupil Capture
             2. Run gaze websocket server:
                 ```bash
-                python app/devices/pupil.py [-e <your environment server ip> (default: localhost)]
+                python app/devices/pupil.py \
+                    [-e <your environment server ip> (default: localhost)]
                 ```
         - If you don't have the device, run dummy one:
             ```bash
-            python app/devices/pupil_dummy.py [-e <your environment server ip> (default: localhost)]
+            python app/devices/pupil_dummy.py \
+                [-e <your environment server ip> (default: localhost)]
             ```
         Toggle the "Eye Tracker" switch on your browser.
 3. Run devices for selecting commands
@@ -99,7 +101,9 @@ Activate your virtual environment, then:
             ```
         - Run the decoder script
             ```bash
-            python app/devices/eeg.py [-e <your environment server ip> (default: localhost)]
+            python app/devices/eeg.py \
+                [-e <your environment server ip> (default: localhost)] \
+                [-p <recorded data path> (default: logs/data.hdf5)]
             ```
         Toggle the "EEG" switch on your browser.  
         Then follow the prompts to take a baseline measurement.  
