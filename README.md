@@ -22,8 +22,8 @@ Web UI for the multi-agent robot arm environment
     git checkout use-from-webui  # temporary
     pip install -e .
     ```
-3. Clone this repository
-4. Install
+4. Clone this repository
+5. Install
     ```bash
     # server only
     pip install -e .[server]
@@ -32,8 +32,8 @@ Web UI for the multi-agent robot arm environment
     # both
     pip install -e .[server,user]
     ```
-5. (If you launch a server) Generate a self-signed certificate for the server
-    If you're using a machine other than `localhost` as the server, please add the IP to `.keys/san.cnf`.
+6. (If you launch a server) Generate a self-signed certificate for the server
+    If you're using a machine other than `localhost` (the same machine to start the UI/browser) as the server, please add the IP to `.keys/san.cnf`.
     ```cnf
     [ alt_names ]
     IP.1 = 127.0.0.1  # localhost
