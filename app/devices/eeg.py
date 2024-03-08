@@ -1,7 +1,7 @@
 """
 - Receives EEG data from LSL Stream
 - Decodes EEG data
-- Sends decoding result to the server via ZMQ
+- Sends decoding result to the server via SocketIO
 """
 
 import asyncio
@@ -22,9 +22,6 @@ from reactivex import operators as ops
 
 from app.devices.utils import array2str
 from app.utils.networking import create_observable_from_stream_inlet, get_stream_inlet
-
-window_duration = 1  # seconds
-reconnect_wait_time = 5
 
 
 def root_mean_square(data: np.ndarray) -> np.ndarray:
@@ -73,8 +70,8 @@ class Decoder:
         self,
         input_observable,
         model,
-        window_size,
-        window_step,
+        window_size: int,
+        window_step: int | None = None,
     ):
         self.input_observable = input_observable
         self.subscription = None
@@ -84,9 +81,9 @@ class Decoder:
         self.window_size = window_size
         self.window_step = window_step
         self.loop = asyncio.get_event_loop()
-        self.sio = None
+        self.sio: socketio.AsyncServer | None = None
 
-    def set_socket(self, sio):
+    def set_socket(self, sio: socketio.AsyncServer):
         self.sio = sio
 
     def start(self):
@@ -114,6 +111,7 @@ class Decoder:
         command, likelihoods = data
 
         async def emit(command: int | None, likelihoods: np.ndarray):
+            assert isinstance(self.sio, socketio.AsyncServer), "Socket is not set."
             await self.sio.emit("eeg", {"command": command, "likelihoods": likelihoods.tolist()})
 
         self.loop.create_task(emit(command, likelihoods))
@@ -262,11 +260,18 @@ class Recorder:
 @click.option(
     "--baseline-ready-duration",
     "-rdur",
-    default=5.0,
+    default=2.0,
     type=click.FloatRange(min=0),
     help="Duration before baseline measurement in seconds",
 )
-@click.option("--thres", "-t", default=15.0, type=click.FloatRange(min=0), help="Threshold for channel activation")
+@click.option("--thres", "-t", default=12.0, type=click.FloatRange(min=0), help="Threshold for channel activation")
+@click.option(
+    "--window-duration",
+    "-wdur",
+    default=0.2,  # long window can cause delay
+    type=click.FloatRange(min=0),
+    help="Window duration in seconds",
+)
 # recorder only
 @click.option("--record-path", "-p", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
 @click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
@@ -279,6 +284,7 @@ def main(
     baseline_duration,
     baseline_ready_duration,
     thres,
+    window_duration,
     record_path,
     record_interval,
 ):
@@ -309,6 +315,7 @@ def main(
         # Stop the runners if no clients are connected
         if num_clients == 0:
             # Wait a bit for reconnection (skip for now)
+            # reconnect_wait_time = 5
             # print(f"Stop runners if no clients are connected in {reconnect_wait_time} seconds.")
             # await asyncio.sleep(reconnect_wait_time)
 
@@ -353,8 +360,9 @@ def main(
             )
 
             model = get_model(num_classes, thres, baselines)
-            window_size = input_freq * window_duration
-            window_step = window_size // 2
+            window_size = int(input_freq * window_duration)
+            # window_step = window_size // 2
+            window_step = None  # no overlap
             decoder = Decoder(input_observable, model, window_size, window_step)
             decoder.set_socket(sio)
             runners.append(decoder)
