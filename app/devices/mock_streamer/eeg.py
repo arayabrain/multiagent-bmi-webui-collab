@@ -186,7 +186,8 @@ if __name__ == "__main__":
     raw = xdf2raw(data_path / filename, min_n_ch=min_n_ch, need_filter=need_filter, start_sec=start_sec, plot=plot)
     with MockLSLStream("MockEMG", raw, "EEG", time_dilation=1, report_status=True) as stream:
         try:
-            time.sleep(1000)
+            while True:
+                time.sleep(60)
         except KeyboardInterrupt:
             print("Interrupted")
         finally:
