@@ -1,8 +1,8 @@
 import asyncio
-import random
 from contextlib import asynccontextmanager
 
 import click
+import numpy as np
 import socketio
 import uvicorn
 from fastapi import FastAPI
@@ -10,24 +10,30 @@ from fastapi.middleware.cors import CORSMiddleware
 
 is_running = True
 num_clients = 0
-focus: int | None = None
+samp_rate = 30  # Hz
 
-num_agents = 4  # TODO: receive from the server
+
+def gaze_generator():
+    # TODO: make this more realistic
+    pos = np.array([0.5, 0.5])  # (x, y)
+    step_size = 0.05
+    while True:
+        yield {"x": pos[0], "y": pos[1]}
+        step = np.random.uniform(-step_size, step_size, size=2)
+        # pos = np.clip(pos + step, 0, 1)
+        pos = np.clip(pos + step, 0.3, 0.7)  # limit gaze range
 
 
 async def gaze_worker(sio: socketio.AsyncServer):
-    global focus
     print("Gaze stream started")
+    gaze_gen = gaze_generator()
     while is_running:
         if num_clients == 0:
             await asyncio.sleep(1)
             continue
-        new_focus = random.randint(0, num_agents - 1)
-        if new_focus != focus:
-            focus = new_focus
-            await sio.emit("gaze", {"focusId": focus})
-            print(f"Sent focus: {focus}")
-        await asyncio.sleep(5)
+        gaze = next(gaze_gen)
+        await sio.emit("gaze", gaze)
+        await asyncio.sleep(1 / samp_rate)
 
 
 @click.command()
@@ -63,6 +69,8 @@ def main(env_ip):
 
         yield
 
+        global is_running
+        is_running = False
         gaze_task.cancel()
         try:
             await gaze_task

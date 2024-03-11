@@ -10,8 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 is_running = True
 num_clients = 0
-focus: int | None = None
-
+samp_rate = 30  # Hz
 
 # TODO: compute focus on the browser side
 
@@ -25,8 +24,6 @@ def connect_to_pupil(address: str, port: int):
 
 
 async def gaze_worker(pupil, sio: socketio.AsyncServer):
-    global is_running, focus
-
     with pupil.subscribe_in_background("surface", buffer_size=1) as sub:
         while is_running:
             if num_clients == 0:
@@ -37,34 +34,13 @@ async def gaze_worker(pupil, sio: socketio.AsyncServer):
                 continue
             assert message.payload["name"] == "Surface 1"  # default name
             gaze = message.payload["gaze_on_surfaces"]
-            if not gaze:
+            if not gaze:  # TODO
                 continue
-            x, y = gaze[-1]["norm_pos"]  # use only the latest gaze
-            # print(f"({x}, {y})")
-            new_focus = compute_focus_area(x, y)
-            # TODO: limit the range of focus index to the number of agents?
-            if new_focus != focus:
-                focus = new_focus
-                await sio.emit("gaze", {"focusId": focus})
-                print(f"Sent focus: {focus}")
-            await asyncio.sleep(0.1)
-
-
-def compute_focus_area(x, y):
-    # (0, 0) is the bottom-left corner
-    margin_vert = 0.3  # TODO: adjust margin
-    if 0 <= x < 0.5:
-        if 0.5 <= y <= 1 + margin_vert:
-            return 0
-        elif 0 - margin_vert <= y < 0.5:
-            return 2
-    elif 0.5 <= x <= 1:
-        if 0.5 <= y <= 1 + margin_vert:
-            return 1
-        elif 0 - margin_vert <= y < 0.5:
-            return 3
-
-    return None
+            # use only the latest gaze
+            # (x, y) in [0, 1]^2; origin is at the bottom-left
+            x, y = gaze[-1]["norm_pos"]
+            await sio.emit("gaze", {"x": x, "y": 1 - y})  # convert origin to top-left
+            await asyncio.sleep(1 / samp_rate)
 
 
 @click.command()
@@ -103,6 +79,8 @@ def main(env_ip):
 
         yield
 
+        global is_running
+        is_running = False
         gaze_task.cancel()
         try:
             await gaze_task

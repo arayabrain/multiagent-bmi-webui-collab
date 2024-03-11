@@ -1,10 +1,11 @@
-import { getFocusId, setSockEnv, updateAndNotifyFocus, updateCursorAndFocus } from './cursor.js';
+import { getFocusId, setSockEnv, updateCursorAndFocus } from './cursor.js';
 import { setGamepadHandler } from './gamepad.js';
+import { hideAprilTags, mapGazeToSurface, showAprilTags } from './gaze.js';
 import { binStr2Rgba, scaleRgba } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 let sockEnv, sockGaze, sockEEG;
-let videos, toggleGaze, toggleEEG, aprilTags;
+let videos, toggleGaze, toggleEEG;
 let numClasses, command, nextAcceptableCommands;  // info from the env server
 let barColors, barBorderColors;
 const charts = [];
@@ -13,7 +14,6 @@ document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
     toggleGaze = document.getElementById('toggle-gaze');
     toggleEEG = document.getElementById('toggle-eeg');
-    aprilTags = document.getElementsByClassName("apriltag");
 
     connectEnv();
     toggleGaze.addEventListener('change', () => onToggleGaze(toggleGaze.checked));
@@ -97,9 +97,9 @@ const onToggleGaze = (checked) => {
         sockGaze.on('reconnect_attempt', () => {  // TODO: not working
             console.log("Gaze server reconnecting...");
         });
-        sockGaze.on('gaze', (data) => {
-            console.log("Gaze data received: ", data);
-            updateAndNotifyFocus(data.focusId);
+        sockGaze.on('gaze', (gaze) => {
+            const mappedGaze = mapGazeToSurface(gaze.x, gaze.y);
+            updateCursorAndFocus(...mappedGaze);
         });
         showAprilTags();
     } else {
@@ -145,19 +145,6 @@ const onToggleEEG = (checked) => {
         removeCharts(charts);
     }
 }
-
-const showAprilTags = () => {
-    [...aprilTags].forEach((tag) => {
-        tag.style.display = 'block';
-    });
-}
-
-const hideAprilTags = () => {
-    [...aprilTags].forEach((tag) => {
-        tag.style.display = 'none';
-    });
-}
-
 
 const updateConnectionStatusElement = (status, statusElementId) => {
     var statusElement = document.getElementById(statusElementId);
