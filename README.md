@@ -26,11 +26,11 @@ Web UI for the multi-agent robot arm environment
 5. Install
     ```bash
     # server only
-    pip install -e .[server]
+    pip install -e '.[server]'
     # user only
-    pip install -e .[user]
+    pip install -e '.[user]'
     # both
-    pip install -e .[server,user]
+    pip install -e '.[server,user]'
     ```
 6. (If you launch a server) Generate a self-signed certificate for the server  
     If you're using a machine other than `localhost` (the same machine to start the UI/browser) as the server, please add the IP to `.keys/san.cnf`.

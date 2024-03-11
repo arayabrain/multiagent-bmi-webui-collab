@@ -1,5 +1,6 @@
 import asyncio
 import os
+import platform
 import subprocess
 
 import custom_robohive_design.env_init  # noqa: F401 # type: ignore
@@ -15,14 +16,17 @@ from custom_robohive_design.multiagent_motion_planner_policy import (  # noqa: F
     simulate_action,
 )
 
-# check if display is available
-print("Checking display...")
-try:
-    subprocess.check_call(["xdpyinfo"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    print("Display is available")
-except subprocess.CalledProcessError:
-    print("Display is not available, using egl rendering")
-    os.environ["MUJOCO_GL"] = "egl"
+# check if display is available on Linux
+if platform.system() == "Linux":
+    print("Checking display...")
+    try:
+        subprocess.check_call(["xdpyinfo"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("Display is available")
+    except subprocess.CalledProcessError:
+        print("Display is not available, using egl rendering")
+        os.environ["MUJOCO_GL"] = "egl"
+
+# TODO: slow rendering on Mac with XQuartz?
 
 
 class EnvRunner:
