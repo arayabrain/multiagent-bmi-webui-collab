@@ -1,3 +1,21 @@
+export const updateConnectionStatusElement = (status, statusElementId) => {
+    var statusElement = document.getElementById(statusElementId);
+    statusElement.classList.remove('connected', 'disconnected', 'connecting');
+    switch (status) {
+        case 'connected':
+            statusElement.classList.add('connected');
+            break;
+        case 'disconnected':
+            statusElement.classList.add('disconnected');
+            break;
+        case 'connecting':
+            statusElement.classList.add('connecting');
+            break;
+        default:
+            console.error("Unknown status: ", status);
+    }
+}
+
 export const binStr2Rgba = (str, alpha = 0.3) => {
     // input should be like '010'
     if (str.length !== 3 || !/^[01]{3}$/.test(str)) {

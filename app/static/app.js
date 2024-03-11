@@ -1,10 +1,10 @@
 import { getFocusId, setSockEnv, updateCursorAndFocus } from './cursor.js';
 import { setGamepadHandler } from './gamepad.js';
-import { hideAprilTags, mapGazeToSurface, showAprilTags } from './gaze.js';
-import { binStr2Rgba, scaleRgba } from './utils.js';
+import { onToggleGaze } from './gaze.js';
+import { binStr2Rgba, scaleRgba, updateConnectionStatusElement } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
-let sockEnv, sockGaze, sockEEG;
+let sockEnv, sockEEG;
 let videos, toggleGaze, toggleEEG;
 let numClasses, command, nextAcceptableCommands;  // info from the env server
 let barColors, barBorderColors;
@@ -82,32 +82,6 @@ const connectEnv = () => {
     setSockEnv(sockEnv);
 }
 
-const onToggleGaze = (checked) => {
-    if (checked) {
-        updateConnectionStatusElement('connecting', 'toggle-gaze');
-        sockGaze = io.connect(`http://localhost:8001`, { transports: ['websocket'] });  // TODO: https?
-        sockGaze.on('connect', () => {
-            updateConnectionStatusElement('connected', 'toggle-gaze');
-            console.log("Gaze server connected");
-        });
-        sockGaze.on('disconnect', () => {
-            updateConnectionStatusElement('disconnected', 'toggle-gaze');
-            console.log("Gaze server disconnected");
-        });
-        sockGaze.on('reconnect_attempt', () => {  // TODO: not working
-            console.log("Gaze server reconnecting...");
-        });
-        sockGaze.on('gaze', (gaze) => {
-            const mappedGaze = mapGazeToSurface(gaze.x, gaze.y);
-            updateCursorAndFocus(...mappedGaze);
-        });
-        showAprilTags();
-    } else {
-        if (sockGaze.connected) sockGaze.disconnect();
-        hideAprilTags();
-    }
-}
-
 const onToggleEEG = (checked) => {
     if (checked) {
         updateConnectionStatusElement('connecting', 'toggle-eeg');
@@ -143,24 +117,6 @@ const onToggleEEG = (checked) => {
     } else {
         if (sockEEG.connected) sockEEG.disconnect();
         removeCharts(charts);
-    }
-}
-
-const updateConnectionStatusElement = (status, statusElementId) => {
-    var statusElement = document.getElementById(statusElementId);
-    statusElement.classList.remove('connected', 'disconnected', 'connecting');
-    switch (status) {
-        case 'connected':
-            statusElement.classList.add('connected');
-            break;
-        case 'disconnected':
-            statusElement.classList.add('disconnected');
-            break;
-        case 'connecting':
-            statusElement.classList.add('connecting');
-            break;
-        default:
-            console.error("Unknown status: ", status);
     }
 }
 
