@@ -43,8 +43,9 @@ class EnvRunner:
         self.sio = sio
 
         # states
-        command, acceptable_commands, focus_id = self._get_init_states()
+        command, prev_action_command, acceptable_commands, focus_id = self._get_init_states()
         self.command: list[int | None] = command  # command from user
+        self.prev_action_command: list[int | None] = prev_action_command  # command at the previous action
         self.next_acceptable_commands: list[list[int | None]] = (
             acceptable_commands  # next acceptable commands for each agent
         )
@@ -58,6 +59,9 @@ class EnvRunner:
         # horizon = 10
         horizon = 2  # TODO
         self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
+        for policy in self.policies:
+            policy.target_obj_idxs = []
+            # TODO: move this to MotionPlannerPolicy?
 
     @property
     def class2color(self):
@@ -69,11 +73,14 @@ class EnvRunner:
 
     def _get_init_states(self):
         command = [None] * self.num_agents
+        prev_action_command = [None] * self.num_agents
         next_acceptable_commands = list(map(self._get_next_acceptable_commands, command))
         focus_id = None
-        return command, next_acceptable_commands, focus_id
+        return command, prev_action_command, next_acceptable_commands, focus_id
 
     def _get_next_acceptable_commands(self, current_command):
+        """Return next acceptable commands for the given command."""
+        # Commands identical to the current one are unacceptable.
         if current_command is None:
             # If command is not set, all commands are acceptable
             return list(range(self.num_classes))
@@ -85,7 +92,7 @@ class EnvRunner:
             return [0]
 
     def _reset(self):
-        self.command, self.next_acceptable_commands, _ = self._get_init_states()
+        self.command, self.prev_action_command, self.next_acceptable_commands, _ = self._get_init_states()
         # we don't reset focus_id
 
         obs = self.env.reset()
@@ -111,20 +118,16 @@ class EnvRunner:
         obs = self._reset()
 
         while self.is_running:
-            # action = self._get_random_action(obs, self.command)
+            action, subtask_dones = self._get_policy_action(obs, self.command, norm=False)
 
-            # action = self._get_policy_action(obs, self.command)
-            # obs, _, done, _ = env.step(action)
-
-            # action = self._get_policy_action(obs, self.command, norm=False)
-
-            action, dones = self._get_policy_action(obs, self.command, norm=False)
-            # reset command to None if policy is done
-            if any(dones):
-                for i, done in enumerate(dones):
+            # reset policy if subtask is done
+            if any(subtask_dones):
+                for i, done in enumerate(subtask_dones):
                     if done:
                         self.policies[i].reset(self.env)
                         await self._update_and_notify_command(None, i)
+
+            # obs, _, done, _ = env.step(action)
 
             action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
             simulate_action(env.sim, action[np.newaxis, :], action_indices, render=False)
@@ -143,6 +146,7 @@ class EnvRunner:
             await asyncio.sleep(0.03)
 
     def _get_random_action(self, obs, command):
+        # TODO: remove this?
         action = self.env.action_space.sample()
         # zero actions for agents with command 0
         for i in range(self.num_agents):
@@ -153,65 +157,69 @@ class EnvRunner:
 
     def _get_policy_action(self, obs, command, norm=True):
         actions = []
-        dones = []
-        for c, policy in zip(command, self.policies):
+        subtask_dones = []
+        for idx_policy, policy in enumerate(self.policies):
+            c = command[idx_policy]
             if c is None:
                 # command not set
                 # TODO: is zero the initial state?
                 a = np.zeros(self.a_dim_per_agent)
-                done = False
+                subtask_done = False
             elif c == 0:
                 # cancel command
                 policy.reset(self.env)
                 a = np.zeros(self.a_dim_per_agent)
                 # TODO: check if robot posture has been reset
-                done = True
+                subtask_done = True
             else:
                 # manipulation command
-                target_color_idx = c - 1  # -1 because 0 is cancel command
+                if self.prev_action_command[idx_policy] != c:
+                    # command changed since the previous action
+                    self.prev_action_command[idx_policy] = c
 
-                # find target index
-                target_idx = None
-                for i, (_, target_name) in enumerate(policy.obj_target_pairs):
-                    # target_name: "drop_target{robot_idx}_{color_idx + 1}"
-                    if target_name[-1] == str(target_color_idx + 1):
-                        target_idx = i
-                        break
-                if target_idx is None:
-                    # ignore command
-                    # TODO: this should not happen if the number of classes == the number of target colors
+                    target_color_idx = c - 1  # -1 because 0 is cancel command
+
+                    # find target object indices
+                    target_obj_idxs = []
+                    for idx_obj, (_, target_name) in enumerate(policy.obj_target_pairs):
+                        # target_name: "drop_target{robot_idx}_{color_idx + 1}"
+                        if target_name[-1] == str(target_color_idx + 1):
+                            target_obj_idxs.append(idx_obj)
+
+                    # update target object indices
+                    assert not np.array_equal(target_obj_idxs, policy.target_obj_idxs)  # since command changed
+                    policy.target_obj_idxs = target_obj_idxs
+
+                if len(policy.target_obj_idxs) == 0:
+                    # invalid command
                     policy.reset(self.env)
                     a = np.zeros(self.a_dim_per_agent)
-                    done = True
-
-                # TODO: check if the target is already done
-
+                    subtask_done = True
                 else:
-                    if target_idx != policy.current_target_indx:
-                        # new target
-                        # TODO: initial current_target_indx is 0, but -1 or None is better?
-                        policy.current_target_indx = target_idx
-
-                    # TODO: modify policy.get_action not to reset internally
-                    # a = policy.get_action()
-                    # done = policy.done
-
-                    # custom policy.get_action
+                    policy.current_target_indx = policy.target_obj_idxs[0]
+                    # TODO: initial current_target_indx is 0, but -1 or None is better?
+                    # TODO: use policy.get_action, after modifying it not to reset internally
                     box_name, target_name = policy.obj_target_pairs[policy.current_target_indx]
                     policy.planner.box_name = box_name
                     policy.planner.target_name = target_name
+
                     a = policy.planner.get_action()
-                    done = policy.planner.done
+                    if policy.planner.done:
+                        # manipulation of the target object is done
+                        policy.target_obj_idxs.pop(0)
+                        subtask_done = len(policy.target_obj_idxs) == 0
+                    else:
+                        subtask_done = False
 
             actions.append(a)
-            dones.append(done)
+            subtask_dones.append(subtask_done)
 
         action = np.concatenate(actions)
         if norm:
             action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
             action = self.policies[0].norm_act(action[action_indices])
 
-        return action, dones
+        return action, subtask_dones
 
     async def update_command(self, event, data):
         if self.focus_id is None:
@@ -231,6 +239,7 @@ class EnvRunner:
             await self._update_and_notify_command(command, self.focus_id)
 
     async def _update_and_notify_command(self, command, agent_id):
+        # self.command should be updated only by this method
         self.command[agent_id] = command
         self.next_acceptable_commands[agent_id] = self._get_next_acceptable_commands(command)
         await self.sio.emit(
