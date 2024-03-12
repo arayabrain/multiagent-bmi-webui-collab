@@ -20,13 +20,13 @@ from custom_robohive_design.multiagent_motion_planner_policy import (  # noqa: F
 if platform.system() == "Linux":
     print("Checking display...")
     try:
-        subprocess.check_call(["xdpyinfo"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["xdpyinfo"], check=True, timeout=1, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print("Display is available")
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         print("Display is not available, using egl rendering")
         os.environ["MUJOCO_GL"] = "egl"
 
-# TODO: slow rendering on Mac with XQuartz?
+# NOTE: rendering is slow without GPU
 
 
 class EnvRunner:
