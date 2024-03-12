@@ -67,6 +67,12 @@ const connectEnv = () => {
         console.log(`Command of agent ${agentId} updated: ${command[agentId]}, ${nextAcceptableCommands[agentId]}`);
         updateChartColor(charts[agentId], command[agentId], nextAcceptableCommands[agentId]);
     });
+    sockEnv.on('subtaskDone', (agentId) => {
+        console.log(`Subtask done: ${agentId}`);
+    });
+    sockEnv.on('taskDone', () => {
+        console.log('All tasks done');
+    });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
         pc = setupPeerConnection(sockEnv, videos);

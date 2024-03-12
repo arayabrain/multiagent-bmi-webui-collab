@@ -59,9 +59,6 @@ class EnvRunner:
         # horizon = 10
         horizon = 2  # TODO
         self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
-        for policy in self.policies:
-            policy.target_obj_idxs = []
-            # TODO: move this to MotionPlannerPolicy?
 
     @property
     def class2color(self):
@@ -95,6 +92,14 @@ class EnvRunner:
         self.command, self.prev_action_command, self.next_acceptable_commands, _ = self._get_init_states()
         # we don't reset focus_id
 
+        # reset policies
+        # TODO: move this to MotionPlannerPolicy to reset internally?
+        for policy in self.policies:
+            policy.reset(self.env)
+            policy.done_obj_idxs = []
+            policy.subtask_target_obj_idxs = []
+            policy.task_done = False
+
         obs = self.env.reset()
         for policy in self.policies:
             policy.reset(self.env)
@@ -120,12 +125,26 @@ class EnvRunner:
         while self.is_running:
             action, subtask_dones = self._get_policy_action(obs, self.command, norm=False)
 
-            # reset policy if subtask is done
+            # check if subtask is done
             if any(subtask_dones):
-                for i, done in enumerate(subtask_dones):
-                    if done:
-                        self.policies[i].reset(self.env)
-                        await self._update_and_notify_command(None, i)
+                for idx_agent, done in enumerate(subtask_dones):
+                    if not done:
+                        continue
+
+                    policy = self.policies[idx_agent]
+                    policy.reset(self.env)  # TODO: is this correct?
+                    await self.sio.emit("subtaskDone", idx_agent)
+                    # check task done
+                    # TODO: sync with policy.done?
+                    policy.task_done = len(policy.done_obj_idxs) == len(policy.obj_target_pairs)
+                    # reset command
+                    await self._update_and_notify_command(None, idx_agent)
+
+            # check if all tasks are done
+            if all([policy.task_done for policy in self.policies]):
+                await self.sio.emit("taskDone")
+                obs = self._reset()
+                continue
 
             # obs, _, done, _ = env.step(action)
 
@@ -167,7 +186,7 @@ class EnvRunner:
                 subtask_done = False
             elif c == 0:
                 # cancel command
-                policy.reset(self.env)
+                policy.reset(self.env)  # TODO: is this correct?
                 a = np.zeros(self.a_dim_per_agent)
                 # TODO: check if robot posture has been reset
                 subtask_done = True
@@ -180,23 +199,25 @@ class EnvRunner:
                     target_color_idx = c - 1  # -1 because 0 is cancel command
 
                     # find target object indices
-                    target_obj_idxs = []
+                    subtask_target_obj_idxs = []
                     for idx_obj, (_, target_name) in enumerate(policy.obj_target_pairs):
                         # target_name: "drop_target{robot_idx}_{color_idx + 1}"
                         if target_name[-1] == str(target_color_idx + 1):
-                            target_obj_idxs.append(idx_obj)
+                            subtask_target_obj_idxs.append(idx_obj)
 
                     # update target object indices
-                    assert not np.array_equal(target_obj_idxs, policy.target_obj_idxs)  # since command changed
-                    policy.target_obj_idxs = target_obj_idxs
+                    assert not np.array_equal(
+                        subtask_target_obj_idxs, policy.subtask_target_obj_idxs
+                    )  # since command changed
+                    policy.subtask_target_obj_idxs = subtask_target_obj_idxs
 
-                if len(policy.target_obj_idxs) == 0:
+                if len(policy.subtask_target_obj_idxs) == 0:
                     # invalid command
-                    policy.reset(self.env)
+                    policy.reset(self.env)  # TODO: is this correct?
                     a = np.zeros(self.a_dim_per_agent)
                     subtask_done = True
                 else:
-                    policy.current_target_indx = policy.target_obj_idxs[0]
+                    policy.current_target_indx = policy.subtask_target_obj_idxs[0]
                     # TODO: initial current_target_indx is 0, but -1 or None is better?
                     # TODO: use policy.get_action, after modifying it not to reset internally
                     box_name, target_name = policy.obj_target_pairs[policy.current_target_indx]
@@ -206,8 +227,9 @@ class EnvRunner:
                     a = policy.planner.get_action()
                     if policy.planner.done:
                         # manipulation of the target object is done
-                        policy.target_obj_idxs.pop(0)
-                        subtask_done = len(policy.target_obj_idxs) == 0
+                        done_obj_idx = policy.subtask_target_obj_idxs.pop(0)
+                        policy.done_obj_idxs.append(done_obj_idx)
+                        subtask_done = len(policy.subtask_target_obj_idxs) == 0
                     else:
                         subtask_done = False
 
