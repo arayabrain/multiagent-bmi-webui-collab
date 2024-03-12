@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 is_running = True
 num_clients = 0
-samp_rate = 30  # Hz
+# samp_rate = 30  # Hz
+samp_rate = 10  # TODO
 
 # TODO: compute focus on the browser side
 
@@ -39,6 +40,9 @@ async def gaze_worker(pupil, sio: socketio.AsyncServer):
             # use only the latest gaze
             # (x, y) in [0, 1]^2; origin is at the bottom-left
             x, y = gaze[-1]["norm_pos"]
+
+            # TODO: noise reduction and smoothing?
+
             await sio.emit("gaze", {"x": x, "y": 1 - y})  # convert origin to top-left
             await asyncio.sleep(1 / samp_rate)
 
@@ -86,8 +90,8 @@ def main(env_ip):
             await gaze_task
         except asyncio.CancelledError:
             print("Gaze task cancelled")
-        pupil.close()
-        print("Pupil Core connection closed")
+        pupil.disconnect()
+        print("Pupil Core disconnected")
 
     app = FastAPI(lifespan=lifespan)
     app.add_middleware(
