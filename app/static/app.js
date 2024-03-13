@@ -8,6 +8,7 @@ let sockEnv, sockEEG;
 let videos, toggleGaze, toggleEEG;
 let numClasses, command, nextAcceptableCommands;  // info from the env server
 let barColors, barBorderColors;
+let startTime;
 const charts = [];
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -58,6 +59,15 @@ const connectEnv = () => {
         const numAgents = data.numAgents;
         command = Array(numAgents).fill(null);
         nextAcceptableCommands = Array(numAgents).fill([]);
+
+        console.log(`Environment: ${numClasses} classes, ${numAgents} agents`);
+    });
+    sockEnv.on('reset', () => {
+        console.log("Environment reset");
+
+        // Start the timer
+        // TODO: add a button to start the task?
+        startTime = performance.now();
     });
     sockEnv.on('command', (data) => {
         // this event should be emitted only after the 'init' event
@@ -71,7 +81,8 @@ const connectEnv = () => {
         console.log(`Subtask done: ${agentId}`);
     });
     sockEnv.on('taskDone', () => {
-        console.log('All tasks done');
+        const taskCompletionTime = performance.now() - startTime;
+        console.log(`All tasks done. Task completion time: ${taskCompletionTime / 1000} s`);
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");

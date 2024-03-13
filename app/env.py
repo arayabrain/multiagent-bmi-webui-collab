@@ -43,13 +43,12 @@ class EnvRunner:
         self.sio = sio
 
         # states
-        command, prev_action_command, acceptable_commands, focus_id = self._get_init_states()
-        self.command: list[int | None] = command  # command from user
-        self.prev_action_command: list[int | None] = prev_action_command  # command at the previous action
-        self.next_acceptable_commands: list[list[int | None]] = (
-            acceptable_commands  # next acceptable commands for each agent
-        )
-        self.focus_id: int | None = focus_id  # user focus
+        self.command: list[int | None] = [None] * self.num_agents  # command from user
+        self.prev_action_command: list[int | None] = [None] * self.num_agents  # command at the previous action
+        self.next_acceptable_commands: list[list[int | None]] = list(
+            map(self._get_next_acceptable_commands, self.command)
+        )  # next acceptable commands for each agent
+        self.focus_id: int | None = None  # user focus
 
         # placeholders for frames to stream
         self.frames: list[np.ndarray | None] = [None] * self.num_agents
@@ -68,13 +67,6 @@ class EnvRunner:
         dic[0] = "000"  # cancel action
         return dic
 
-    def _get_init_states(self):
-        command = [None] * self.num_agents
-        prev_action_command = [None] * self.num_agents
-        next_acceptable_commands = list(map(self._get_next_acceptable_commands, command))
-        focus_id = None
-        return command, prev_action_command, next_acceptable_commands, focus_id
-
     def _get_next_acceptable_commands(self, current_command):
         """Return next acceptable commands for the given command."""
         # Commands identical to the current one are unacceptable.
@@ -88,8 +80,14 @@ class EnvRunner:
             # If manipulation command is set, only cancel command is acceptable
             return [0]
 
-    def _reset(self):
-        self.command, self.prev_action_command, self.next_acceptable_commands, _ = self._get_init_states()
+    async def _reset(self):
+        # notify reset
+        await self.sio.emit("reset")
+
+        # reset states
+        for idx_agent in range(self.num_agents):
+            await self._update_and_notify_command(None, idx_agent)
+        self.prev_action_command = [None] * self.num_agents
         # we don't reset focus_id
 
         # reset policies
@@ -103,6 +101,7 @@ class EnvRunner:
         obs = self.env.reset()
         for policy in self.policies:
             policy.reset(self.env)
+
         return obs
 
     def start(self):
@@ -120,7 +119,7 @@ class EnvRunner:
     async def _run(self):
         print("env_process started")
         env = self.env
-        obs = self._reset()
+        obs = await self._reset()
 
         while self.is_running:
             action, subtask_dones = self._get_policy_action(obs, self.command, norm=False)
@@ -143,14 +142,14 @@ class EnvRunner:
             # check if all tasks are done
             if all([policy.task_done for policy in self.policies]):
                 await self.sio.emit("taskDone")
-                obs = self._reset()
+                obs = await self._reset()
                 continue
 
             # obs, _, done, _ = env.step(action)
 
             action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
             simulate_action(env.sim, action[np.newaxis, :], action_indices, render=False)
-            done = False
+            # done = False
 
             visuals = env.get_visuals()
 
@@ -159,8 +158,8 @@ class EnvRunner:
                     self.frames[i] = visuals[f"rgb:franka{i}_front_cam:256x256:1d"].reshape((256, 256, 3))
                 self.frame_update_cond.notify_all()
 
-            if done or all([policy.done for policy in self.policies]):
-                obs = self._reset()
+            # if done or all([policy.done for policy in self.policies]):
+            #     obs = self._reset()
 
             await asyncio.sleep(0.03)
 
@@ -206,9 +205,6 @@ class EnvRunner:
                             subtask_target_obj_idxs.append(idx_obj)
 
                     # update target object indices
-                    assert not np.array_equal(
-                        subtask_target_obj_idxs, policy.subtask_target_obj_idxs
-                    )  # since command changed
                     policy.subtask_target_obj_idxs = subtask_target_obj_idxs
 
                 if len(policy.subtask_target_obj_idxs) == 0:
@@ -271,28 +267,6 @@ class EnvRunner:
                 "command": self.command[agent_id],
                 "nextAcceptableCommands": self.next_acceptable_commands[agent_id],
             },
-        )
-
-    async def notify_commands(self, agent_ids: list[int], sid=None):
-        # notify client of the command of the specified agents
-        # separate this method to be called from connect event
-        if self.sio is None:
-            print("Socket is not set")
-            return
-
-        await asyncio.gather(
-            *[
-                self.sio.emit(
-                    "command",
-                    {
-                        "agentId": agent_id,
-                        "command": self.command[agent_id],
-                        "nextAcceptableCommands": self.next_acceptable_commands[agent_id],
-                    },
-                    to=sid,
-                )
-                for agent_id in agent_ids
-            ]
         )
 
 

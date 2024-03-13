@@ -52,7 +52,6 @@ async def connect(sid, environ):
         },
         to=sid,
     )
-    await env.notify_commands(range(env.num_agents), sid)
 
 
 @sio.event
