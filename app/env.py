@@ -40,7 +40,7 @@ class EnvRunner:
         self.num_classes = len(self.class2color)
         self.command_keys = [str(i) for i in range(self.num_classes)]  # ["0", "1", ...]
 
-        self.sio = sio
+        self._sio = sio
 
         # states
         self.command: list[int | None] = [None] * self.num_agents  # command from user
@@ -54,6 +54,10 @@ class EnvRunner:
         self.frames: list[np.ndarray | None] = [None] * self.num_agents
         self.frame_update_cond = asyncio.Condition()
 
+        # env-side flag for reset request
+        self.reset_request = False
+        self.reset_cond = asyncio.Condition()
+
         # init policies
         # horizon = 10
         horizon = 2  # TODO
@@ -66,6 +70,11 @@ class EnvRunner:
         dic = {v + 1: k for k, v in self.env.color_dict.items()}
         dic[0] = "000"  # cancel action
         return dic
+
+    async def _notify(self, event, data=None):
+        if self._sio is None:
+            return
+        await self._sio.emit(event, data)
 
     def _get_next_acceptable_commands(self, current_command):
         """Return next acceptable commands for the given command."""
@@ -81,10 +90,9 @@ class EnvRunner:
             return [0]
 
     async def _reset(self):
-        # notify reset
-        await self.sio.emit("reset")
+        # TODO: separate env/policy-side reset and interface-side reset
 
-        # reset states
+        # reset interface states
         for idx_agent in range(self.num_agents):
             await self._update_and_notify_command(None, idx_agent)
         self.prev_action_command = [None] * self.num_agents
@@ -104,6 +112,13 @@ class EnvRunner:
 
         return obs
 
+    async def reset(self):
+        """Request env to reset, and wait for the reset to be done."""
+        self.reset_request = True  # env-side flag
+        async with self.reset_cond:
+            await self.reset_cond.wait()
+        print("env reset")
+
     def start(self):
         self.is_running = True
         self.task = asyncio.create_task(self._run())
@@ -122,6 +137,14 @@ class EnvRunner:
         obs = await self._reset()
 
         while self.is_running:
+            # check reset request
+            if self.reset_request:
+                # TODO: don't reset if already reset
+                obs = await self._reset()
+                async with self.reset_cond:
+                    self.reset_cond.notify_all()
+                self.reset_request = False
+
             action, subtask_dones = self._get_policy_action(obs, self.command, norm=False)
 
             # check if subtask is done
@@ -132,7 +155,7 @@ class EnvRunner:
 
                     policy = self.policies[idx_agent]
                     policy.reset(self.env)  # TODO: is this correct?
-                    await self.sio.emit("subtaskDone", idx_agent)
+                    await self._notify("subtaskDone", idx_agent)
                     # check task done
                     # TODO: sync with policy.done?
                     policy.task_done = len(policy.done_obj_idxs) == len(policy.obj_target_pairs)
@@ -141,9 +164,9 @@ class EnvRunner:
 
             # check if all tasks are done
             if all([policy.task_done for policy in self.policies]):
-                await self.sio.emit("taskDone")
-                obs = await self._reset()
-                continue
+                await self._notify("taskDone")
+                for policy in self.policies:
+                    policy.task_done = False
 
             # obs, _, done, _ = env.step(action)
 
@@ -151,12 +174,7 @@ class EnvRunner:
             simulate_action(env.sim, action[np.newaxis, :], action_indices, render=False)
             # done = False
 
-            visuals = env.get_visuals()
-
-            async with self.frame_update_cond:
-                for i in range(self.num_agents):
-                    self.frames[i] = visuals[f"rgb:franka{i}_front_cam:256x256:1d"].reshape((256, 256, 3))
-                self.frame_update_cond.notify_all()
+            await self._update_frame()
 
             # if done or all([policy.done for policy in self.policies]):
             #     obs = self._reset()
@@ -239,6 +257,13 @@ class EnvRunner:
 
         return action, subtask_dones
 
+    async def _update_frame(self):
+        visuals = self.env.get_visuals()
+        async with self.frame_update_cond:
+            for i in range(self.num_agents):
+                self.frames[i] = visuals[f"rgb:franka{i}_front_cam:256x256:1d"].reshape((256, 256, 3))
+            self.frame_update_cond.notify_all()
+
     async def update_command(self, event, data):
         if self.focus_id is None:
             return
@@ -260,7 +285,7 @@ class EnvRunner:
         # self.command should be updated only by this method
         self.command[agent_id] = command
         self.next_acceptable_commands[agent_id] = self._get_next_acceptable_commands(command)
-        await self.sio.emit(
+        await self._notify(
             "command",
             {
                 "agentId": agent_id,

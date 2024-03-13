@@ -8,8 +8,13 @@ let sockEnv, sockEEG;
 let videos, toggleGaze, toggleEEG;
 let numClasses, command, nextAcceptableCommands;  // info from the env server
 let barColors, barBorderColors;
-let startTime;
 const charts = [];
+const taskCompletionTimer = new easytimer.Timer();
+const countdownSec = 4;
+const countdownTimer = new easytimer.Timer();
+countdownTimer.addEventListener('secondsUpdated', () => {
+    updateTaskStatusMsg(`Start in ${countdownTimer.getTimeValues().seconds} sec...`);
+});
 
 document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
@@ -33,7 +38,64 @@ document.addEventListener("DOMContentLoaded", () => {
         if (sockEnv.connected) sockEnv.emit('keyup', event.key);
     });
     setGamepadHandler();
+
+    // buttons
+    document.getElementById('start-button').addEventListener('click', startTask);
+    document.getElementById('reset-button').addEventListener('click', resetTask);
+    document.getElementById('stop-button').addEventListener('click', stopTask);
+
+    // TODO: set initial state of buttons and task status message according to the task status
+    document.getElementById('start-button').disabled = false;
+    document.getElementById('reset-button').disabled = false;
+    document.getElementById('stop-button').disabled = false;
 });
+
+const updateTaskStatusMsg = (msg) => {
+    document.getElementById('task-status-message').textContent = msg;
+}
+
+const updateTaskTimerMsg = (msg) => {
+    document.getElementById('task-timer-message').textContent = msg;
+}
+
+const startTask = async () => {
+    document.getElementById('start-button').disabled = true;
+    document.getElementById('reset-button').disabled = true;
+
+    // countdown
+    countdownTimer.start({ countdown: true, startValues: { seconds: countdownSec } });
+    await new Promise(resolve => countdownTimer.addEventListener('targetAchieved', resolve));
+    countdownTimer.stop();
+    updateTaskStatusMsg('Running...');
+
+    // start the timer
+    taskCompletionTimer.start();
+}
+
+const stopTask = () => {
+    let taskCompletionSec = null;
+    if (taskCompletionTimer.isRunning()) {
+        taskCompletionSec = taskCompletionTimer.getTimeValues().seconds;
+        taskCompletionTimer.stop();
+    }
+    if (countdownTimer.isRunning()) countdownTimer.stop();
+
+    sockEnv.emit('taskStop', () => {
+        updateTaskStatusMsg("Stopped.")
+        // document.getElementById('start-button').disabled = false;
+        document.getElementById('reset-button').disabled = false;
+    });
+
+    return taskCompletionSec;
+}
+
+const resetTask = async () => {
+    sockEnv.emit('taskReset', () => {
+        updateTaskStatusMsg('Environment reset. Ready.');
+        updateTaskTimerMsg('');
+        document.getElementById('start-button').disabled = false;
+    });
+}
 
 const connectEnv = () => {
     // sockEnv: socket for communication with the environment server
@@ -62,13 +124,6 @@ const connectEnv = () => {
 
         console.log(`Environment: ${numClasses} classes, ${numAgents} agents`);
     });
-    sockEnv.on('reset', () => {
-        console.log("Environment reset");
-
-        // Start the timer
-        // TODO: add a button to start the task?
-        startTime = performance.now();
-    });
     sockEnv.on('command', (data) => {
         // this event should be emitted only after the 'init' event
         const agentId = data.agentId;
@@ -81,8 +136,8 @@ const connectEnv = () => {
         console.log(`Subtask done: ${agentId}`);
     });
     sockEnv.on('taskDone', () => {
-        const taskCompletionTime = performance.now() - startTime;
-        console.log(`All tasks done. Task completion time: ${taskCompletionTime / 1000} s`);
+        const taskCompletionSec = stopTask();
+        updateTaskTimerMsg(`Task completed! Time: ${taskCompletionSec} sec`);
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");

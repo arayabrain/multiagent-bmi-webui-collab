@@ -45,6 +45,11 @@
                 <input class="form-check-input" type="checkbox" id="toggle-eeg">
                 <label class="form-check-label" for="toggle-eeg">EEG</label>
             </div>
+            <div id="task-status-message"></div>
+            <div id="task-timer-message"></div>
+            <button type="button" class="btn btn-primary" id="start-button" disabled>Start</button>
+            <button type="button" class="btn btn-danger" id="stop-button" disabled>Stop</button>
+            <button type="button" class="btn btn-warning" id="reset-button" disabled>Reset</button>
         </div>
     </div>
 
@@ -53,6 +58,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/easytimer.js@4.6.0/dist/easytimer.min.js"></script>
     <script type="module" src="/static/app.js"></script>
 </body>
 

@@ -105,3 +105,13 @@ video {
     background-color: grey;
     border-color: grey;
 }
+
+.status-message {
+    width: 100%;
+    /* margin-top: 10px; */
+}
+
+.controls-container>button {
+    width: 100%;
+    /* margin-top: 10px; */
+}

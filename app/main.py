@@ -64,6 +64,21 @@ async def disconnect(sid):
         pc = None
 
 
+@sio.on("taskReset")
+async def task_reset(sid):
+    await env.reset()
+    return True
+
+
+@sio.on("taskStop")
+async def task_stop(sid):
+    # just reset the command
+    # TODO: capsulate this in env
+    for idx_agent in range(env.num_agents):
+        await env._update_and_notify_command(None, idx_agent)
+    return True
+
+
 @sio.on("keyup")
 async def keyup(sid, key):
     print(f"keyup: received {key}")
