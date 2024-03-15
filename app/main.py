@@ -21,7 +21,9 @@ templates = Jinja2Templates(directory=app_dir / "templates")
 
 # env_id = "FrankaReachFixedMulti-v0"
 # env_id = "FrankaPickPlaceMulti-v0"
-env_id = "FrankaPickPlaceMulti4-v0"
+# env_id = "FrankaPickPlaceMulti4-v0"
+env_id = "FrankaPickPlaceMulti4Robots4Col-v0"
+
 env = EnvRunner(env_id, sio)
 
 pc: RTCPeerConnection | None = None
