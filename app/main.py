@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import argparse
 import socketio
 import uvicorn
 from aiortc import RTCPeerConnection
@@ -22,8 +21,7 @@ templates = Jinja2Templates(directory=app_dir / "templates")
 
 # env_id = "FrankaReachFixedMulti-v0"
 # env_id = "FrankaPickPlaceMulti-v0"
-# env_id = "FrankaPickPlaceMulti4-v0"
-env_id = "FrankaPickPlaceMulti4Robots4Col-v0" # TODO: CLI parameterized
+env_id = "FrankaPickPlaceMulti4-v0"
 env = EnvRunner(env_id, sio)
 
 pc: RTCPeerConnection | None = None
@@ -130,22 +128,13 @@ async def webrtc_ice(sid, data):
 
 
 if __name__ == "__main__":
-    # CLI parameterization
-    parser = argparse.ArgumentParser(
-        prog="Multiagent HRI WebUI"
-    )
-    parser.add_argument("--port",
-                        type=int,
-                        default=8000,
-                        help="Specify port to listen to for the WebUI server.")
-    args = parser.parse_args()
-
     # for HTTPS
     key_dir = app_dir / "../.keys"
+
     uvicorn.run(
         socket_app,
         host="0.0.0.0",
-        port=args.port,
+        port=8000,
         ssl_keyfile=str(key_dir / "server.key"),
         ssl_certfile=str(key_dir / "server.crt"),
     )
