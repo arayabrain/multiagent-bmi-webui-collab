@@ -3,18 +3,13 @@ import os
 import platform
 import subprocess
 
-import custom_robohive_design.env_init  # noqa: F401 # type: ignore
+import robohive_multi # Makes the environments accessible
 import gym
 import numpy as np
-import robohive  # noqa: F401 # type: ignore
 import socketio
 from aiortc import VideoStreamTrack
 from av import VideoFrame
-from custom_robohive_design.multiagent_motion_planner_policy import (  # noqa: F401 # type: ignore
-    MotionPlannerPolicy,
-    gen_robot_names,
-    simulate_action,
-)
+from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names, simulate_action
 
 # check if display is available on Linux
 if platform.system() == "Linux":
@@ -318,6 +313,6 @@ class ImageStreamTrack(VideoStreamTrack):
 
 
 if __name__ == "__main__":
-    runner = EnvRunner("FrankaPickPlaceMulti4-v0")
+    runner = EnvRunner("FrankaPickPlaceMulti4Robots4Col-v0")
     runner.is_running = True
     asyncio.run(runner._run())

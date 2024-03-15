@@ -7,23 +7,19 @@ Web UI for the multi-agent robot arm environment
 
 ## Installation
 1. Create and activate a virtual environment. Tested with Python 3.10.
-2. Install [robohive](https://github.com/dosssman/robohive/tree/multi-robot)  
-    (If you use the `custom_robohive_design` environment, the original robohive may also work, but it's not verified)
+2. Install [robohive-multi](https://github.com/araybrain/robohive-multi) companion repository.
+This might require getting reading permission to the repository.
+
     ```bash
-    git clone --recursive https://github.com/dosssman/robohive.git
-    cd robohive
-    git checkout multi-robot
-    pip install -e .
+    git clone --recurse-submodules -j8 \
+    git@github.com:arayabrain/robohive-multi.git
+    pip install -e robohive-multi/.
+    pip install -e robohive-multi/robohive/.
+    pip install -e robohive-multi/vtils/.
     ```
-3. Install [custom_robohive_design](https://github.com/shivakanthsujit/custom_robohive_design) (Ask Shiva to add you to collaborators)
-    ```bash
-    git clone https://github.com/shivakanthsujit/custom_robohive_design.git
-    cd custom_robohive_design
-    git checkout use-from-webui  # temporary
-    pip install -e .
-    ```
-4. Clone this repository
-5. Install
+
+3. Clone this repository
+4. Install
     ```bash
     # server only
     pip install -e '.[server]'
@@ -32,7 +28,7 @@ Web UI for the multi-agent robot arm environment
     # both
     pip install -e '.[server,user]'
     ```
-6. (If you launch a server) Generate a self-signed certificate for the server  
+5. (If you launch a server) Generate a self-signed certificate for the server  
     If you're using a machine other than `localhost` (the same machine to start the UI/browser) as the server, please add the IP to `.keys/san.cnf`.
     ```cnf
     [ alt_names ]
