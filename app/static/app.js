@@ -42,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('stop-button').addEventListener('click', stopTask);
 
     // TODO: set initial state of buttons and task status message according to the task status
+    updateTaskStatusMsg('Ready.');
     document.getElementById('start-button').disabled = false;
     document.getElementById('reset-button').disabled = false;
     document.getElementById('stop-button').disabled = false;
@@ -51,8 +52,10 @@ const updateTaskStatusMsg = (msg) => {
     document.getElementById('task-status-message').innerText = msg;
 }
 
-const updateTaskTimerMsg = (msg) => {
-    document.getElementById('task-timer-message').innerText = msg;
+const updateLog = (msg, numSpace = 0) => {
+    const log = document.getElementById('log');
+    log.innerHTML += '&nbsp;'.repeat(numSpace) + msg + "<br>";
+    log.scrollTop = log.scrollHeight;
 }
 
 const startTask = async () => {
@@ -76,8 +79,7 @@ const startTask = async () => {
 const stopTask = () => {
     let taskCompletionSec = null;
     if (taskCompletionTimer.isRunning()) {
-        const val = taskCompletionTimer.getTimeValues();
-        taskCompletionSec = val.seconds + val.secondTenths / 10;
+        taskCompletionSec = taskCompletionTimer.getTotalTimeValues().secondTenths / 10;
         taskCompletionTimer.stop();
     }
     if (countdownTimer.isRunning()) countdownTimer.stop();
@@ -94,7 +96,6 @@ const stopTask = () => {
 const resetTask = async () => {
     sockEnv.emit('taskReset', () => {
         updateTaskStatusMsg('Environment reset. Ready.');
-        updateTaskTimerMsg('');
         document.getElementById('start-button').disabled = false;
     });
     resetInteractionTimeHistory();
@@ -108,7 +109,7 @@ const connectEnv = () => {
     let pc;
 
     sockEnv.on('connect', () => {
-        console.log("Env Server connected");
+        updateLog("Env server connected");
         // request WebRTC offer to the server
         sockEnv.emit('webrtc-offer-request');
     });
@@ -125,44 +126,60 @@ const connectEnv = () => {
         command = Array(numAgents).fill(null);
         nextAcceptableCommands = Array(numAgents).fill([]);
 
-        console.log(`Environment: ${numClasses} classes, ${numAgents} agents`);
+        updateLog(`Env: ${numClasses} classes, ${numAgents} agents`);
     });
     sockEnv.on('command', (data) => {
         // this event should be emitted only after the 'init' event
 
-        if (data.command !== null) {
+        // TODO: rename global vars and replace "data"
+        const agentId = data.agentId;
+        const _command = data.command;
+        const _nextAcceptableCommands = data.nextAcceptableCommands;
+        const isNowAcceptable = data.isNowAcceptable;
+        const hasSubtaskNotDone = data.hasSubtaskNotDone;
+
+        if (_command !== null) {
             // record the interaction if the command is now acceptable
             // regardless of whether the command is "valid" subtask selection (data.hasSubtaskNotDone)
-            if (data.isNowAcceptable) {
-                recordInteraction();
-                console.log("Interaction recorded");
+            if (isNowAcceptable) {
+                const sec = recordInteraction();
+                updateLog(`Agent ${agentId}: Interaction recorded, ${sec.toFixed(1)}s`);
             }
 
             // reassign the robot selection (to reset the interaction timer)
             updateCursorAndFocus(0, 0, true);
         }
 
-        if (data.isNowAcceptable && data.hasSubtaskNotDone) {  // command updated
-            const agentId = data.agentId;
-            command[agentId] = data.command;
-            nextAcceptableCommands[agentId] = data.nextAcceptableCommands;
+        if (!isNowAcceptable) {
+            // agent is executing an action
+            updateLog(`Agent ${agentId}: Command update failed`);
+            updateLog(`The agent is executing an action`, 15);
+        } else if (!hasSubtaskNotDone) {
+            // subtask has already been done
+            updateLog(`Agent ${agentId}: Command update failed`);
+            updateLog(`The subtask ${_command} has already been done`, 15);
+        } else {
+            // command is valid and updated
+            command[agentId] = _command;
+            nextAcceptableCommands[agentId] = _nextAcceptableCommands;
 
             updateChartColor(charts[agentId], command[agentId], nextAcceptableCommands[agentId]);
-            console.log(`Command of agent ${agentId} updated: ${command[agentId]}`)
-            console.log(`Next acceptable commands: ${nextAcceptableCommands[agentId].map(c => c === null ? 'null' : c)}`)
+
+            if (_command !== null) {
+                updateLog(`Agent ${agentId}: Command updated to ${_command}`);
+                // console.log(`Next acceptable commands: ${_nextAcceptableCommands.map(c => c === null ? 'null' : c)}`)
+            }
         }
     });
-    sockEnv.on('subtaskDone', (agentId) => {
-        console.log(`Subtask done: ${agentId}`);
+    sockEnv.on('subtaskDone', ({ agentId, subtaskId }) => {
+        updateLog(`Agent ${agentId}: Subtask ${subtaskId} done`);
     });
     sockEnv.on('taskDone', () => {
         const taskCompletionSec = stopTask();
         const { len, mean, std } = getInteractionTimeStats();
-        updateTaskTimerMsg(
-            `Task completed!`
-            + `\nTask completion time: ${taskCompletionSec.toFixed(1)} sec`
-            + `\nAverage time for ${len} interactions: ${mean.toFixed(1)} ± ${std.toFixed(1)} sec`
-        );
+        updateLog(`<br>Task completed!`);
+        updateLog(`Task completion time: ${taskCompletionSec.toFixed(1)} sec`);
+        updateLog(`Average time for ${len} interactions: ${mean.toFixed(1)} ± ${std.toFixed(1)} sec<br>`);
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");

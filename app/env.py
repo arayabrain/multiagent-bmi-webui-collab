@@ -151,7 +151,7 @@ class EnvRunner:
 
                     policy = self.policies[idx_agent]
                     policy.reset(self.env)  # TODO: is this correct?
-                    await self._notify("subtaskDone", idx_agent)
+                    await self._notify("subtaskDone", {"agentId": idx_agent, "subtaskId": self.command[idx_agent]})
                     # reset command
                     await self._update_and_notify_command(None, idx_agent)
 
@@ -291,18 +291,20 @@ class EnvRunner:
         has_subtask_not_done = command not in self.policies[agent_id].done_subtasks
         is_valid = is_now_acceptable and has_subtask_not_done
 
+        next_acceptable_commands = self._get_next_acceptable_commands(command)
+
         # update command only if it is valid
         if is_valid:
             self.command[agent_id] = command
-            self.next_acceptable_commands[agent_id] = self._get_next_acceptable_commands(command)
+            self.next_acceptable_commands[agent_id] = next_acceptable_commands
 
-        # notify the command regardless of validity
+        # notify the given command regardless of validity
         await self._notify(
             "command",
             {
                 "agentId": agent_id,
-                "command": self.command[agent_id],
-                "nextAcceptableCommands": self.next_acceptable_commands[agent_id],
+                "command": command,
+                "nextAcceptableCommands": next_acceptable_commands,
                 "isNowAcceptable": is_now_acceptable,
                 "hasSubtaskNotDone": has_subtask_not_done,
             },

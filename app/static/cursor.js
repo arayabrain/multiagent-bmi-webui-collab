@@ -1,3 +1,4 @@
+
 let sockEnv;
 let cursor, videos;
 let focusId = null;
@@ -72,9 +73,9 @@ const _updateAndNotifyFocus = (newId) => {
 
 export const recordInteraction = () => {
     interactionTimer.pause();
-    const val = interactionTimer.getTimeValues();
-    const sec = val.seconds + val.secondTenths / 10;
+    const sec = interactionTimer.getTotalTimeValues().secondTenths / 10;
     interactionTimeHistory.push(sec);
+    return sec;
 }
 
 export const getInteractionTimeStats = () => {
