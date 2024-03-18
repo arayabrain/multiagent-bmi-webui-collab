@@ -81,7 +81,8 @@ video {
 }
 
 .controls-container {
-    min-width: 200px;
+    min-width: 370px;
+    /* to show messages without wrapping */
     gap: 20px;
     /* Space between each switch */
     display: flex;
@@ -112,6 +113,7 @@ video {
 }
 
 .controls-container>button {
-    width: 100%;
+    /* width: 100%; */
+    min-width: 75%;
     /* margin-top: 10px; */
 }

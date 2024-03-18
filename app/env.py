@@ -3,9 +3,9 @@ import os
 import platform
 import subprocess
 
-import robohive_multi # Makes the environments accessible
 import gym
 import numpy as np
+import robohive_multi  # Makes the environments accessible
 import socketio
 from aiortc import VideoStreamTrack
 from av import VideoFrame
@@ -33,6 +33,7 @@ class EnvRunner:
         self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
 
         self.num_classes = len(self.class2color)
+        self.num_subtasks = self.num_classes - 1  # cancel command is not a subtask
         self.command_keys = [str(i) for i in range(self.num_classes)]  # ["0", "1", ...]
 
         self._sio = sio
@@ -76,34 +77,34 @@ class EnvRunner:
         # Commands identical to the current one are unacceptable.
         if current_command is None:
             # If command is not set, all commands are acceptable
-            return list(range(self.num_classes))
+            return [None, *range(self.num_classes)]
         elif current_command == 0:
             # If cancel command is set, no command is acceptable until cancel is done
-            return []
+            return [None]
         else:
             # If manipulation command is set, only cancel command is acceptable
-            return [0]
+            return [None, 0]
 
     async def _reset(self):
         # TODO: separate env/policy-side reset and interface-side reset
+
+        # reset policies
+        # TODO: move this to MotionPlannerPolicy to reset internally?
+        for policy in self.policies:
+            policy.reset(self.env)
+            policy.subtask_target_obj_idxs = []
+            policy.done_obj_idxs = []
+            policy.done_subtasks = []
+
+        obs = self.env.reset()
+        for policy in self.policies:
+            policy.reset(self.env)
 
         # reset interface states
         for idx_agent in range(self.num_agents):
             await self._update_and_notify_command(None, idx_agent)
         self.prev_action_command = [None] * self.num_agents
         # we don't reset focus_id
-
-        # reset policies
-        # TODO: move this to MotionPlannerPolicy to reset internally?
-        for policy in self.policies:
-            policy.reset(self.env)
-            policy.done_obj_idxs = []
-            policy.subtask_target_obj_idxs = []
-            policy.task_done = False
-
-        obs = self.env.reset()
-        for policy in self.policies:
-            policy.reset(self.env)
 
         return obs
 
@@ -151,17 +152,15 @@ class EnvRunner:
                     policy = self.policies[idx_agent]
                     policy.reset(self.env)  # TODO: is this correct?
                     await self._notify("subtaskDone", idx_agent)
-                    # check task done
-                    # TODO: sync with policy.done?
-                    policy.task_done = len(policy.done_obj_idxs) == len(policy.obj_target_pairs)
                     # reset command
                     await self._update_and_notify_command(None, idx_agent)
 
             # check if all tasks are done
-            if all([policy.task_done for policy in self.policies]):
+            # TODO: sync with policy.done?
+            if all([len(policy.done_subtasks) == self.num_subtasks for policy in self.policies]):
                 await self._notify("taskDone")
                 for policy in self.policies:
-                    policy.task_done = False
+                    policy.done_subtasks = []  # TODO: not intuitive
 
             # obs, _, done, _ = env.step(action)
 
@@ -203,7 +202,7 @@ class EnvRunner:
                 # TODO: check if robot posture has been reset
                 subtask_done = True
             else:
-                # manipulation command
+                # manipulation (subtask) command
                 if self.prev_action_command[idx_policy] != c:
                     # command changed since the previous action
                     self.prev_action_command[idx_policy] = c
@@ -242,6 +241,10 @@ class EnvRunner:
                     else:
                         subtask_done = False
 
+            if subtask_done and c not in [0, None]:
+                # command and subtask are 1:1 relation for now
+                policy.done_subtasks.append(c)
+
             actions.append(a)
             subtask_dones.append(subtask_done)
 
@@ -261,10 +264,11 @@ class EnvRunner:
 
     async def update_command(self, event, data):
         if self.focus_id is None:
+            # if no robot is selected, ignore the command
+            # TODO: is this correct?
             return
 
         # convert data to command
-        command = None
         if event == "eeg":
             # assume data is a command
             command = data
@@ -272,20 +276,35 @@ class EnvRunner:
             # assume data is a key
             if data in self.command_keys:
                 command = int(data)
+            else:
+                return
+        else:
+            return
 
-        if command in self.next_acceptable_commands[self.focus_id]:
-            await self._update_and_notify_command(command, self.focus_id)
+        await self._update_and_notify_command(command, self.focus_id)
 
     async def _update_and_notify_command(self, command, agent_id):
         # self.command should be updated only by this method
-        self.command[agent_id] = command
-        self.next_acceptable_commands[agent_id] = self._get_next_acceptable_commands(command)
+
+        # check if the command is valid
+        is_now_acceptable = command in self.next_acceptable_commands[agent_id]
+        has_subtask_not_done = command not in self.policies[agent_id].done_subtasks
+        is_valid = is_now_acceptable and has_subtask_not_done
+
+        # update command only if it is valid
+        if is_valid:
+            self.command[agent_id] = command
+            self.next_acceptable_commands[agent_id] = self._get_next_acceptable_commands(command)
+
+        # notify the command regardless of validity
         await self._notify(
             "command",
             {
                 "agentId": agent_id,
                 "command": self.command[agent_id],
                 "nextAcceptableCommands": self.next_acceptable_commands[agent_id],
+                "isNowAcceptable": is_now_acceptable,
+                "hasSubtaskNotDone": has_subtask_not_done,
             },
         )
 

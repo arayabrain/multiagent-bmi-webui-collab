@@ -1,6 +1,12 @@
 let sockEnv;
 let cursor, videos;
 let focusId = null;
+const interactionTimer = new easytimer.Timer();
+const interactionTimeHistory = [];
+
+// initialize the timer config
+interactionTimer.start({ precision: 'secondTenths' });
+interactionTimer.stop();
 
 document.addEventListener("DOMContentLoaded", () => {
     cursor = document.getElementById('cursor');
@@ -35,13 +41,13 @@ export const updateCursorAndFocus = (x, y, isDelta = false) => {
     for (const [i, video] of videos.entries()) {
         const rect = video.getBoundingClientRect();
         if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-            updateAndNotifyFocus(i);
+            _updateAndNotifyFocus(i);
             break;
         }
     }
 }
 
-export const updateAndNotifyFocus = (newId) => {  // FIXME: use only updateCursorAndFocus
+const _updateAndNotifyFocus = (newId) => {
     if (newId == focusId) return;
     // remove border of the previous focused image
     if (focusId != null) {
@@ -59,4 +65,25 @@ export const updateAndNotifyFocus = (newId) => {  // FIXME: use only updateCurso
         return;
     }
     if (sockEnv.connected) sockEnv.emit('focus', focusId);
+
+    // start the timer
+    interactionTimer.reset();
+}
+
+export const recordInteraction = () => {
+    interactionTimer.pause();
+    const val = interactionTimer.getTimeValues();
+    const sec = val.seconds + val.secondTenths / 10;
+    interactionTimeHistory.push(sec);
+}
+
+export const getInteractionTimeStats = () => {
+    const len = interactionTimeHistory.length;
+    const mean = math.mean(interactionTimeHistory);
+    const std = math.std(interactionTimeHistory);
+    return { len, mean, std };
+}
+
+export const resetInteractionTimeHistory = () => {
+    interactionTimeHistory.length = 0;
 }

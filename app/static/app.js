@@ -1,4 +1,4 @@
-import { getFocusId, setSockEnv, updateCursorAndFocus } from './cursor.js';
+import { getFocusId, getInteractionTimeStats, recordInteraction, resetInteractionTimeHistory, setSockEnv, updateCursorAndFocus } from './cursor.js';
 import { setGamepadHandler } from './gamepad.js';
 import { onToggleGaze } from './gaze.js';
 import { binStr2Rgba, scaleRgba, updateConnectionStatusElement } from './utils.js';
@@ -10,11 +10,8 @@ let numClasses, command, nextAcceptableCommands;  // info from the env server
 let barColors, barBorderColors;
 const charts = [];
 const taskCompletionTimer = new easytimer.Timer();
-const countdownSec = 4;
+const countdownSec = 3;
 const countdownTimer = new easytimer.Timer();
-countdownTimer.addEventListener('secondsUpdated', () => {
-    updateTaskStatusMsg(`Start in ${countdownTimer.getTimeValues().seconds} sec...`);
-});
 
 document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
@@ -51,11 +48,11 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 const updateTaskStatusMsg = (msg) => {
-    document.getElementById('task-status-message').textContent = msg;
+    document.getElementById('task-status-message').innerText = msg;
 }
 
 const updateTaskTimerMsg = (msg) => {
-    document.getElementById('task-timer-message').textContent = msg;
+    document.getElementById('task-timer-message').innerText = msg;
 }
 
 const startTask = async () => {
@@ -63,19 +60,24 @@ const startTask = async () => {
     document.getElementById('reset-button').disabled = true;
 
     // countdown
+    const _updateCountdownMsg = () => updateTaskStatusMsg(`Start in ${countdownTimer.getTimeValues().seconds} sec...`);
     countdownTimer.start({ countdown: true, startValues: { seconds: countdownSec } });
+    _updateCountdownMsg();
+    countdownTimer.addEventListener('secondsUpdated', _updateCountdownMsg);
     await new Promise(resolve => countdownTimer.addEventListener('targetAchieved', resolve));
     countdownTimer.stop();
+    countdownTimer.removeEventListener('secondsUpdated', _updateCountdownMsg);
     updateTaskStatusMsg('Running...');
 
     // start the timer
-    taskCompletionTimer.start();
+    taskCompletionTimer.start({ precision: 'secondTenths' });
 }
 
 const stopTask = () => {
     let taskCompletionSec = null;
     if (taskCompletionTimer.isRunning()) {
-        taskCompletionSec = taskCompletionTimer.getTimeValues().seconds;
+        const val = taskCompletionTimer.getTimeValues();
+        taskCompletionSec = val.seconds + val.secondTenths / 10;
         taskCompletionTimer.stop();
     }
     if (countdownTimer.isRunning()) countdownTimer.stop();
@@ -95,6 +97,7 @@ const resetTask = async () => {
         updateTaskTimerMsg('');
         document.getElementById('start-button').disabled = false;
     });
+    resetInteractionTimeHistory();
 }
 
 const connectEnv = () => {
@@ -126,18 +129,40 @@ const connectEnv = () => {
     });
     sockEnv.on('command', (data) => {
         // this event should be emitted only after the 'init' event
-        const agentId = data.agentId;
-        command[agentId] = data.command;
-        nextAcceptableCommands[agentId] = data.nextAcceptableCommands;
-        console.log(`Command of agent ${agentId} updated: ${command[agentId]}, ${nextAcceptableCommands[agentId]}`);
-        updateChartColor(charts[agentId], command[agentId], nextAcceptableCommands[agentId]);
+
+        if (data.command !== null) {
+            // record the interaction if the command is now acceptable
+            // regardless of whether the command is "valid" subtask selection (data.hasSubtaskNotDone)
+            if (data.isNowAcceptable) {
+                recordInteraction();
+                console.log("Interaction recorded");
+            }
+
+            // reassign the robot selection (to reset the interaction timer)
+            updateCursorAndFocus(0, 0, true);
+        }
+
+        if (data.isNowAcceptable && data.hasSubtaskNotDone) {  // command updated
+            const agentId = data.agentId;
+            command[agentId] = data.command;
+            nextAcceptableCommands[agentId] = data.nextAcceptableCommands;
+
+            updateChartColor(charts[agentId], command[agentId], nextAcceptableCommands[agentId]);
+            console.log(`Command of agent ${agentId} updated: ${command[agentId]}`)
+            console.log(`Next acceptable commands: ${nextAcceptableCommands[agentId].map(c => c === null ? 'null' : c)}`)
+        }
     });
     sockEnv.on('subtaskDone', (agentId) => {
         console.log(`Subtask done: ${agentId}`);
     });
     sockEnv.on('taskDone', () => {
         const taskCompletionSec = stopTask();
-        updateTaskTimerMsg(`Task completed! Time: ${taskCompletionSec} sec`);
+        const { len, mean, std } = getInteractionTimeStats();
+        updateTaskTimerMsg(
+            `Task completed!`
+            + `\nTask completion time: ${taskCompletionSec.toFixed(1)} sec`
+            + `\nAverage time for ${len} interactions: ${mean.toFixed(1)} ± ${std.toFixed(1)} sec`
+        );
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
