@@ -7,7 +7,7 @@ Web UI for the multi-agent robot arm environment
 
 ## Installation
 1. Create and activate a virtual environment. Tested with Python 3.10.
-2. Install [robohive-multi](https://github.com/araybrain/robohive-multi) companion repository.
+2. Install [robohive-multi](https://github.com/arayabrain/robohive-multi) companion repository.
 This might require getting reading permission to the repository.
 
     ```bash
