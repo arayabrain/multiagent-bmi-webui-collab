@@ -77,13 +77,13 @@ class EnvRunner:
         # Commands identical to the current one are unacceptable.
         if current_command is None:
             # If command is not set, all commands are acceptable
-            return [None, *range(self.num_classes)]
+            return list(range(self.num_classes))
         elif current_command == 0:
             # If cancel command is set, no command is acceptable until cancel is done
-            return [None]
+            return []
         else:
             # If manipulation command is set, only cancel command is acceptable
-            return [None, 0]
+            return [0]
 
     async def _reset(self):
         # TODO: separate env/policy-side reset and interface-side reset
@@ -153,6 +153,7 @@ class EnvRunner:
                     policy.reset(self.env)  # TODO: is this correct?
                     await self._notify("subtaskDone", {"agentId": idx_agent, "subtaskId": self.command[idx_agent]})
                     # reset command
+                    self.next_acceptable_commands[idx_agent].append(None)  # temporary
                     await self._update_and_notify_command(None, idx_agent)
 
             # check if all tasks are done
