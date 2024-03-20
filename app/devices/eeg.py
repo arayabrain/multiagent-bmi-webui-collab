@@ -268,7 +268,7 @@ class Recorder:
 @click.option(
     "--window-duration",
     "-wdur",
-    default=0.2,  # long window can cause delay
+    default=0.1,  # long window can cause delay
     type=click.FloatRange(min=0),
     help="Window duration in seconds",
 )
