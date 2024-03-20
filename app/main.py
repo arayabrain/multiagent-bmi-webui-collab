@@ -49,7 +49,8 @@ async def connect(sid, environ):
     await sio.emit(
         "init",
         {
-            "class2color": env.class2color,
+            "commandLabels": env.command_labels,
+            "commandColors": env.command_colors,
             "numAgents": env.num_agents,
         },
         to=sid,
@@ -100,8 +101,8 @@ async def focus(sid, focus_id):
 
 
 @sio.on("eeg")
-async def eeg(sid, command):
-    print(f"eeg: received {command}")
+async def eeg(sid, command: str):
+    print(f'eeg: received "{command}"')
     await env.update_command("eeg", command)
 
 

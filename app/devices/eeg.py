@@ -50,10 +50,10 @@ def get_model(num_classes: int, thres: float, baselines: dict):
 
         max_ch = int(np.argmax(rms))
         if rms[max_ch] > thres:
-            command = max_ch  # channel index
+            cls = max_ch  # output the channel index as class
         else:
-            command = None  # no command
-        return command, rms  # rms as likelihoods
+            cls = None  # no output class
+        return cls, rms  # rms as likelihoods
 
     return model
 
@@ -108,17 +108,17 @@ class Decoder:
         if self.loop.is_closed():
             return
 
-        command, likelihoods = data
+        cls, likelihoods = data
 
-        async def emit(command: int | None, likelihoods: np.ndarray):
+        async def emit(cls: int | None, likelihoods: np.ndarray):
             assert isinstance(self.sio, socketio.AsyncServer), "Socket is not set."
-            await self.sio.emit("eeg", {"command": command, "likelihoods": likelihoods.tolist()})
+            await self.sio.emit("eeg", {"cls": cls, "likelihoods": likelihoods.tolist()})
 
-        self.loop.create_task(emit(command, likelihoods))
+        self.loop.create_task(emit(cls, likelihoods))
 
-        command_str = f"{command:>4}" if command is not None else "None"
+        cls_str = f"{cls:>4}" if cls is not None else "None"
         likelihoods_str = array2str(likelihoods)
-        print(f"EEG command: {command_str}, likelihoods: {likelihoods_str}")
+        print(f"EEG class: {cls_str}, likelihoods: {likelihoods_str}")
 
     def stop(self):
         if self.subscription is not None:

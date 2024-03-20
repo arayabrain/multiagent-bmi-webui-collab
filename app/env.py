@@ -25,23 +25,37 @@ if platform.system() == "Linux":
 
 
 class EnvRunner:
-    def __init__(self, env_id: str, sio: socketio.AsyncServer = None) -> None:
+    def __init__(
+        self,
+        env_id: str,
+        sio: socketio.AsyncServer = None,
+        use_cancel_command: bool = False,
+    ) -> None:
         self.is_running = False
+        self._sio = sio
 
         self.env = gym.make(env_id)
         self.num_agents = self.env.nrobots
         self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
 
-        self.num_classes = len(self.class2color)
-        self.num_subtasks = self.num_classes - 1  # cancel command is not a subtask
-        self.command_keys = [str(i) for i in range(self.num_classes)]  # ["0", "1", ...]
-
-        self._sio = sio
+        # self.env.color_dict: {"100": 0, "010": 1, ...}
+        # key digits correspond to "rgb", values correspond to the rgb index in Mujoco?
+        self.command_colors = list(self.env.color_dict.keys())
+        self.num_subtasks = len(self.command_colors)
+        self.num_commands = self.num_subtasks
+        self.command_keys = list(map(str, range(1, self.num_commands + 1)))  # keyboard input: ["1", "2", ...]
+        self.command_labels = [f"color{i + 1}" for i in range(self.num_commands)]  # ["color1", "color2", ...]
+        if use_cancel_command:
+            # add cancel command
+            self.command_colors.append("000")
+            self.command_keys.append("0")
+            self.command_labels.append("cancel")
+            self.num_commands += 1
 
         # states
-        self.command: list[int | None] = [None] * self.num_agents  # command from user
-        self.prev_action_command: list[int | None] = [None] * self.num_agents  # command at the previous action
-        self.next_acceptable_commands: list[list[int | None]] = list(
+        self.command: list[str] = [""] * self.num_agents  # command from user
+        self.prev_action_command: list[str] = [""] * self.num_agents  # command at the previous action
+        self.next_acceptable_commands: list[list[str]] = list(
             map(self._get_next_acceptable_commands, self.command)
         )  # next acceptable commands for each agent
         self.focus_id: int | None = None  # user focus
@@ -59,14 +73,6 @@ class EnvRunner:
         horizon = 2  # TODO
         self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
 
-    @property
-    def class2color(self):
-        # {0: "000", 1: "001", ...}
-        # digits correspond to rgb
-        dic = {v + 1: k for k, v in self.env.color_dict.items()}
-        dic[0] = "000"  # cancel action
-        return dic
-
     async def _notify(self, event, data=None):
         if self._sio is None:
             return
@@ -75,15 +81,15 @@ class EnvRunner:
     def _get_next_acceptable_commands(self, current_command):
         """Return next acceptable commands for the given command."""
         # Commands identical to the current one are unacceptable.
-        if current_command is None:
+        if current_command == "":
             # If command is not set, all commands are acceptable
-            return list(range(self.num_classes))
-        elif current_command == 0:
+            return ["", *self.command_labels]
+        elif current_command == "cancel":
             # If cancel command is set, no command is acceptable until cancel is done
             return []
         else:
             # If manipulation command is set, only cancel command is acceptable
-            return [0]
+            return ["cancel"]
 
     async def _reset(self):
         # TODO: separate env/policy-side reset and interface-side reset
@@ -102,8 +108,8 @@ class EnvRunner:
 
         # reset interface states
         for idx_agent in range(self.num_agents):
-            await self._update_and_notify_command(None, idx_agent)
-        self.prev_action_command = [None] * self.num_agents
+            await self._update_and_notify_command("", idx_agent)
+        self.prev_action_command = [""] * self.num_agents
         # we don't reset focus_id
 
         return obs
@@ -151,10 +157,10 @@ class EnvRunner:
 
                     policy = self.policies[idx_agent]
                     policy.reset(self.env)  # TODO: is this correct?
-                    await self._notify("subtaskDone", {"agentId": idx_agent, "subtaskId": self.command[idx_agent]})
+                    await self._notify("subtaskDone", {"agentId": idx_agent, "subtask": self.command[idx_agent]})
                     # reset command
-                    self.next_acceptable_commands[idx_agent].append(None)  # temporary
-                    await self._update_and_notify_command(None, idx_agent)
+                    self.next_acceptable_commands[idx_agent].append("")  # temporary
+                    await self._update_and_notify_command("", idx_agent)
 
             # check if all tasks are done
             # TODO: sync with policy.done?
@@ -176,49 +182,39 @@ class EnvRunner:
 
             await asyncio.sleep(0.03)
 
-    def _get_random_action(self, obs, command):
-        # TODO: remove this?
-        action = self.env.action_space.sample()
-        # zero actions for agents with command 0
-        for i in range(self.num_agents):
-            if command[i] == 0:
-                action[i * self.a_dim_per_agent : (i + 1) * self.a_dim_per_agent] = 0
-
-        return action
-
     def _get_policy_action(self, obs, command, norm=True):
         actions = []
         subtask_dones = []
         for idx_policy, policy in enumerate(self.policies):
             c = command[idx_policy]
-            if c is None:
+            if c == "":
                 # command not set
                 # TODO: is zero the initial state?
                 a = np.zeros(self.a_dim_per_agent)
                 subtask_done = False
-            elif c == 0:
+            elif c == "cancel":
                 # cancel command
                 policy.reset(self.env)  # TODO: is this correct?
                 a = np.zeros(self.a_dim_per_agent)
                 # TODO: check if robot posture has been reset
                 subtask_done = True
             else:
-                # manipulation (subtask) command
+                # subtask command
                 if self.prev_action_command[idx_policy] != c:
                     # command changed since the previous action
                     self.prev_action_command[idx_policy] = c
 
-                    target_color_idx = c - 1  # -1 because 0 is cancel command
+                    # from command label to rgb index in Mujoco
+                    # TODO: make a dict for this?
+                    target_color_idx = self.env.color_dict[self.command_colors[self.command_labels.index(c)]]
 
                     # find target object indices
-                    subtask_target_obj_idxs = []
-                    for idx_obj, (_, target_name) in enumerate(policy.obj_target_pairs):
-                        # target_name: "drop_target{robot_idx}_{color_idx + 1}"
-                        if target_name[-1] == str(target_color_idx + 1):
-                            subtask_target_obj_idxs.append(idx_obj)
-
-                    # update target object indices
-                    policy.subtask_target_obj_idxs = subtask_target_obj_idxs
+                    policy.subtask_target_obj_idxs = [
+                        idx_obj
+                        for idx_obj, (_, target_name) in enumerate(policy.obj_target_pairs)
+                        if target_name[-1] == str(target_color_idx + 1)
+                        # target_name is in the form "drop_target{robot_idx}_{color_idx + 1}"
+                    ]
 
                 if len(policy.subtask_target_obj_idxs) == 0:
                     # invalid command
@@ -242,7 +238,7 @@ class EnvRunner:
                     else:
                         subtask_done = False
 
-            if subtask_done and c not in [0, None]:
+            if subtask_done and c not in ["", "cancel"]:
                 # command and subtask are 1:1 relation for now
                 policy.done_subtasks.append(c)
 
@@ -271,12 +267,12 @@ class EnvRunner:
 
         # convert data to command
         if event == "eeg":
-            # assume data is a command
+            # data is command
             command = data
         elif event == "keydown":
-            # assume data is a key
+            # data is key name
             if data in self.command_keys:
-                command = int(data)
+                command = self.command_labels[self.command_keys.index(data)]
             else:
                 return
         else:

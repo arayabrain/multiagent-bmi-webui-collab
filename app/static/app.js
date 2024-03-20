@@ -6,12 +6,14 @@ import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 let sockEnv, sockEEG;
 let videos, toggleGaze, toggleEEG;
-let numClasses, command, nextAcceptableCommands;  // info from the env server
+let numClasses, commandLabels, commandColors;  // info from the env server
+let command, nextAcceptableCommands;
 let barColors, barBorderColors;
 const charts = [];
 const taskCompletionTimer = new easytimer.Timer();
 const countdownSec = 3;
 const countdownTimer = new easytimer.Timer();
+const chartAnimationDuration = 100;  // ms
 
 document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
@@ -113,17 +115,13 @@ const connectEnv = () => {
         // request WebRTC offer to the server
         sockEnv.emit('webrtc-offer-request');
     });
-    sockEnv.on('init', (data) => {
-        // data.class2color: {0: "001", ...}
-        // class2color: {0: "rgba(0, 0, 255, 0.3)", ...}
-        const class2color = Object.fromEntries(Object.entries(data.class2color)
-            .map(([classId, colorBinStr]) => [classId, binStr2Rgba(colorBinStr)])
-        );  // TODO: receive colors directly
-        barColors = Object.keys(class2color).sort().map(key => class2color[key]);
-        barBorderColors = barColors.map(rgba => scaleRgba(rgba, 0.7, 1));  // 70% darkened colors
-        numClasses = Object.keys(class2color).length;
-        const numAgents = data.numAgents;
-        command = Array(numAgents).fill(null);
+    sockEnv.on('init', ({ commandLabels: labels, commandColors: colors, numAgents }) => {
+        // commandColors: ["001", "010", ...]
+        commandColors = colors.map(c => binStr2Rgba(c, 0.3));
+        numClasses = labels.length;
+        commandLabels = labels;
+
+        command = Array(numAgents).fill('');
         nextAcceptableCommands = Array(numAgents).fill([]);
 
         updateLog(`Env: ${numClasses} classes, ${numAgents} agents`);
@@ -138,7 +136,7 @@ const connectEnv = () => {
         const isNowAcceptable = data.isNowAcceptable;
         const hasSubtaskNotDone = data.hasSubtaskNotDone;
 
-        if (_command !== null) {
+        if (_command !== '') {
             // record the interaction if the command is now acceptable
             // regardless of whether the command is "valid" subtask selection (data.hasSubtaskNotDone)
             if (isNowAcceptable) {
@@ -157,7 +155,7 @@ const connectEnv = () => {
         } else if (!hasSubtaskNotDone) {
             // subtask has already been done
             updateLog(`Agent ${agentId}: Command update failed`);
-            updateLog(`The subtask ${_command} has already been done`, 15);
+            updateLog(`The subtask "${_command}" has already been done`, 15);
         } else {
             // command is valid and updated
             command[agentId] = _command;
@@ -165,14 +163,14 @@ const connectEnv = () => {
 
             updateChartColor(charts[agentId], command[agentId], nextAcceptableCommands[agentId]);
 
-            if (_command !== null) {
-                updateLog(`Agent ${agentId}: Command updated to ${_command}`);
+            if (_command !== '') {
+                updateLog(`Agent ${agentId}: Command updated to "${_command}"`);
                 // console.log(`Next acceptable commands: ${_nextAcceptableCommands.map(c => c === null ? 'null' : c)}`)
             }
         }
     });
-    sockEnv.on('subtaskDone', ({ agentId, subtaskId }) => {
-        updateLog(`Agent ${agentId}: Subtask ${subtaskId} done`);
+    sockEnv.on('subtaskDone', ({ agentId, subtask }) => {
+        updateLog(`Agent ${agentId}: Subtask "${subtask}" done`);
     });
     sockEnv.on('taskDone', () => {
         const taskCompletionSec = stopTask();
@@ -217,12 +215,11 @@ const onToggleEEG = (checked) => {
             if (charts.length > 0) removeCharts(charts);
             createCharts(data.threshold);
         });
-        sockEEG.on('eeg', (data) => {
+        sockEEG.on('eeg', ({ cls, likelihoods }) => {
             // forward the command to the env server
-            const command = data.command;
+            const command = cls === null ? "" : commandLabels[cls];
             sockEnv.emit('eeg', command);
-            const likelihoods = data.likelihoods;
-            console.log(`EEG data received:\n command ${command}\n likelihoods ${likelihoods.map(l => l.toFixed(2))}`);
+            console.log(`EEG data received:\n command "${command}"\n likelihoods ${likelihoods.map(l => l.toFixed(2))}`);
 
             // update the chart data
             const focusId = getFocusId();
@@ -241,8 +238,8 @@ const createCharts = (thres) => {
             labels: Array(numClasses).fill(''),  // neccesary
             datasets: [{
                 data: Array(numClasses).fill(0.4),
-                backgroundColor: barColors,
-                borderColor: barBorderColors,
+                backgroundColor: commandColors,
+                borderColor: commandColors.map(rgba => scaleRgba(rgba, 0.7, 1)),
                 borderWidth: 1,
             }]
         },
@@ -287,6 +284,9 @@ const createCharts = (thres) => {
                     }
                 },
             },
+            animation: {
+                duration: chartAnimationDuration,
+            },
             maintainAspectRatio: false,
             backgroundColor: 'white',
         },
@@ -315,8 +315,8 @@ const updateChartData = (agentId, likelihoods) => {
     if (chart === undefined) return;
 
     // update only the likelihood of acceptable commands
-    chart.data.datasets[0].data = likelihoods.map((likelihood, command) =>
-        nextAcceptableCommands[agentId].includes(command) ? likelihood : chart.data.datasets[0].data[command]
+    chart.data.datasets[0].data = likelihoods.map((likelihood, i) =>
+        nextAcceptableCommands[agentId].includes(commandLabels[i]) ? likelihood : chart.data.datasets[0].data[i]
     );
     chart.update();
 }
@@ -326,14 +326,15 @@ const updateChartColor = (chart, currentCommand, nextAcceptableCommands) => {
 
     const modBg = (barId) => {
         // highlight the current command bar
-        if (barId === currentCommand) return scaleRgba(barColors[barId], 1, 1);
-        return barColors[barId];
+        if (commandLabels[barId] === currentCommand) return scaleRgba(commandColors[barId], 1, 1);
+        // nothing for border color
+        return commandColors[barId];
     }
     const modBorder = (barId) => {
         // add black border to the current command bar
-        if (barId === currentCommand) return 'rgba(0, 0, 0, 1)';
+        if (commandLabels[barId] === currentCommand) return 'rgba(0, 0, 0, 1)';
         // remove border from the unacceptable command bars
-        if (nextAcceptableCommands.includes(barId)) return barBorderColors[barId];
+        if (nextAcceptableCommands.includes(commandLabels[barId])) return scaleRgba(commandColors[barId], 0.7, 1);
         return 'rgba(255, 255, 255, 1)';
     }
     chart.data.datasets[0].backgroundColor = [...Array(numClasses).keys()].map(modBg);
