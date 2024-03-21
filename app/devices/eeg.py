@@ -34,28 +34,29 @@ def root_mean_square(data: np.ndarray) -> np.ndarray:
     return np.sqrt(np.mean(np.square(data), axis=0))
 
 
-def get_model(num_classes: int, thres: float, baselines: dict):
-    def model(
-        data: np.ndarray,  # (time, channels)
-    ) -> tuple[int | None, np.ndarray]:
-        norm_data = (data - baselines["average"]) / baselines["rms"]
+class Model:
+    def __init__(self, num_classes: int, thres: float, baselines: dict):
+        self.num_classes = num_classes
+        self.thres = thres
+        self.baselines = baselines
+
+    def __call__(self, data: np.ndarray) -> tuple[int | None, np.ndarray]:
+        norm_data = (data - self.baselines["average"]) / self.baselines["rms"]
         rms = root_mean_square(norm_data)
 
-        if len(rms) < num_classes:
+        if len(rms) < self.num_classes:
             # zero-padding at the end
-            rms = np.pad(rms, (0, num_classes - len(rms)))
-        elif len(rms) > num_classes:
+            rms = np.pad(rms, (0, self.num_classes - len(rms)))
+        elif len(rms) > self.num_classes:
             # truncate
-            rms = rms[:num_classes]
+            rms = rms[: self.num_classes]
 
         max_ch = int(np.argmax(rms))
-        if rms[max_ch] > thres:
+        if rms[max_ch] > self.thres:
             cls = max_ch  # output the channel index as class
         else:
             cls = None  # no output class
         return cls, rms  # rms as likelihoods
-
-    return model
 
 
 def _extract_buffer(buf: list) -> tuple:
@@ -359,7 +360,7 @@ def main(
                 input_observable, baseline_duration, baseline_ready_duration, input_freq, auto_start=auto_baseline
             )
 
-            model = get_model(num_classes, thres, baselines)
+            model = Model(num_classes, thres, baselines)
             window_size = int(input_freq * window_duration)
             # window_step = window_size // 2
             window_step = None  # no overlap
