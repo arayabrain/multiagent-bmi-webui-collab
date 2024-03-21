@@ -61,7 +61,9 @@ async def connect(sid, environ):
 async def disconnect(sid):
     global pc
     print("Client disconnected:", sid)
-    # env does not stop
+    # reset env
+    await env.reset()
+    # close peer connection
     if pc:
         await pc.close()
         pc = None
