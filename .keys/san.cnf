@@ -6,7 +6,7 @@ x509_extensions    = v3_req
 prompt             = no
 
 [ req_distinguished_name ]
-C  = JP
+O  = Araya
 
 [ req_ext ]
 subjectAltName = @alt_names
@@ -16,4 +16,3 @@ subjectAltName = @alt_names
 
 [ alt_names ]
 IP.1 = 127.0.0.1
-IP.2 = 10.10.0.137

@@ -33,8 +33,7 @@ This might require getting reading permission to the repository.
     ```cnf
     [ alt_names ]
     IP.1 = 127.0.0.1  # localhost
-    IP.2 = 10.10.0.137  # vector
-    IP.3 = <your server ip>
+    IP.2 = <your server ip>
     ```
     Then run the following commands to generate the certificate and keys:
     ```bash
