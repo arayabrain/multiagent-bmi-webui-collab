@@ -6,14 +6,22 @@ import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 let sockEnv, sockEEG;
 let videos, toggleGaze, toggleEEG;
+
 let numClasses, commandLabels, commandColors;  // info from the env server
 let command, nextAcceptableCommands;
-let barColors, barBorderColors;
+
 const charts = [];
+
 const taskCompletionTimer = new easytimer.Timer();
+
 const countdownSec = 3;
 const countdownTimer = new easytimer.Timer();
+
 const chartAnimationDuration = 100;  // ms
+
+// error rate
+let numSubtaskSelections, numInvalidSubtaskSelections;
+
 
 document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
@@ -74,11 +82,16 @@ const startTask = async () => {
     countdownTimer.removeEventListener('secondsUpdated', _updateCountdownMsg);
     updateTaskStatusMsg('Running...');
 
+    // reset the subtask selection error rate
+    numSubtaskSelections = 0;
+    numInvalidSubtaskSelections = 0;
+
     // start the timer
     taskCompletionTimer.start({ precision: 'secondTenths' });
 }
 
 const stopTask = () => {
+    // task completion time
     let taskCompletionSec = null;
     if (taskCompletionTimer.isRunning()) {
         taskCompletionSec = taskCompletionTimer.getTotalTimeValues().secondTenths / 10;
@@ -86,13 +99,16 @@ const stopTask = () => {
     }
     if (countdownTimer.isRunning()) countdownTimer.stop();
 
+    // error rate
+    const errorRate = numSubtaskSelections === 0 ? 0 : numInvalidSubtaskSelections / numSubtaskSelections;
+
     sockEnv.emit('taskStop', () => {
         updateTaskStatusMsg("Stopped.")
         // document.getElementById('start-button').disabled = false;
         document.getElementById('reset-button').disabled = false;
     });
 
-    return taskCompletionSec;
+    return { taskCompletionSec, errorRate };
 }
 
 const resetTask = async () => {
@@ -150,12 +166,19 @@ const connectEnv = () => {
 
         if (!isNowAcceptable) {
             // agent is executing an action
+            // Currently we do not count this as a subtask selection
             updateLog(`Agent ${agentId}: Command update failed`);
             updateLog(`The agent is executing an action`, 15);
         } else if (!hasSubtaskNotDone) {
             // subtask has already been done
             updateLog(`Agent ${agentId}: Command update failed`);
             updateLog(`The subtask "${_command}" has already been done`, 15);
+
+            if (_command !== '') {  // _command==='' should not happen actually
+                // This case is considered an "invalid" command
+                numInvalidSubtaskSelections++;
+                numSubtaskSelections++;
+            }
         } else {
             // command is valid and updated
             command[agentId] = _command;
@@ -164,6 +187,8 @@ const connectEnv = () => {
             updateChartColor(charts[agentId], command[agentId], nextAcceptableCommands[agentId]);
 
             if (_command !== '') {
+                numSubtaskSelections++;
+
                 updateLog(`Agent ${agentId}: Command updated to "${_command}"`);
                 // console.log(`Next acceptable commands: ${_nextAcceptableCommands.map(c => c === null ? 'null' : c)}`)
             }
@@ -173,11 +198,12 @@ const connectEnv = () => {
         updateLog(`Agent ${agentId}: Subtask "${subtask}" done`);
     });
     sockEnv.on('taskDone', () => {
-        const taskCompletionSec = stopTask();
+        const { taskCompletionSec, errorRate } = stopTask();
         const { len, mean, std } = getInteractionTimeStats();
         updateLog(`<br>Task completed!`);
         updateLog(`Task completion time: ${taskCompletionSec.toFixed(1)} sec`);
-        updateLog(`Average time for ${len} interactions: ${mean.toFixed(1)} ± ${std.toFixed(1)} sec<br>`);
+        updateLog(`Average time for ${len} interactions: ${mean.toFixed(1)} ± ${std.toFixed(1)} sec`);
+        updateLog(`Error rate: ${numInvalidSubtaskSelections}/${numSubtaskSelections} = ${errorRate.toFixed(2)}<br>`);
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
