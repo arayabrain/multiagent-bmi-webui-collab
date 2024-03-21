@@ -24,7 +24,7 @@
             "name": "EEG Server",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/app/devices/eeg.py",
+            "program": "${workspaceFolder}/app/devices/eeg/main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
