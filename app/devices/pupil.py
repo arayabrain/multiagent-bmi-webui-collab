@@ -10,10 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 is_running = True
 num_clients = 0
-# samp_rate = 30  # Hz
-samp_rate = 10  # TODO
-
-# TODO: compute focus on the browser side
+# samp_rate = 30  # Hz; too fast, causing delays
+samp_rate = 10
+# samp_rate = 5
+confidence_threshold = 0.7
 
 
 def connect_to_pupil(address: str, port: int):
@@ -35,11 +35,20 @@ async def gaze_worker(pupil, sio: socketio.AsyncServer):
                 continue
             assert message.payload["name"] == "Surface 1"  # default name
             gaze = message.payload["gaze_on_surfaces"]
-            if not gaze:  # TODO
+            # gaze = message.payload["fixations_on_surfaces"]
+            if not gaze:
                 continue
+
             # use only the latest gaze
             # (x, y) in [0, 1]^2; origin is at the bottom-left
             x, y = gaze[-1]["norm_pos"]
+            conf = gaze[-1]["confidence"]
+
+            print(f"confidence={conf:.02f}, x={gaze[-1]['norm_pos'][0]:.02f}, y={gaze[-1]['norm_pos'][1]:.02f}")
+            if conf < confidence_threshold:
+                continue
+            if x < 0 or x > 1 or y < 0 or y > 1:
+                continue
 
             # TODO: noise reduction and smoothing?
 
