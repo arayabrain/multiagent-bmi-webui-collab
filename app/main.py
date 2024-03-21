@@ -78,7 +78,8 @@ async def task_stop(sid):
     # just reset the command
     # TODO: capsulate this in env
     for idx_agent in range(env.num_agents):
-        await env._update_and_notify_command(None, idx_agent)
+        env.next_acceptable_commands[idx_agent].append("")  # TODO
+        await env._update_and_notify_command("", idx_agent)
     return True
 
 

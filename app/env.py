@@ -108,6 +108,7 @@ class EnvRunner:
 
         # reset interface states
         for idx_agent in range(self.num_agents):
+            self.next_acceptable_commands[idx_agent].append("")  # TODO
             await self._update_and_notify_command("", idx_agent)
         self.prev_action_command = [""] * self.num_agents
         # we don't reset focus_id
@@ -159,7 +160,7 @@ class EnvRunner:
                     policy.reset(self.env)  # TODO: is this correct?
                     await self._notify("subtaskDone", {"agentId": idx_agent, "subtask": self.command[idx_agent]})
                     # reset command
-                    self.next_acceptable_commands[idx_agent].append("")  # temporary
+                    self.next_acceptable_commands[idx_agent].append("")  # TODO
                     await self._update_and_notify_command("", idx_agent)
 
             # check if all tasks are done
