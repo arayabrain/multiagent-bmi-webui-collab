@@ -31,8 +31,8 @@ export const updateCursorAndFocus = (x, y, isDelta = false) => {
     // Limit the cursor position within the window
     const hw = cursor.offsetWidth / 2;
     const hh = cursor.offsetHeight / 2;
-    x = Math.max(hw, Math.min(x, window.innerWidth - hw));
-    y = Math.max(hh, Math.min(y, window.innerHeight - hh));
+    x = Math.max(hw, Math.min(x, window.innerWidth - hw - 1));  // -hw-1 so that scroll bars do not appear
+    y = Math.max(hh, Math.min(y, window.innerHeight - hh - 1));
 
     cursor.style.left = `${x}px`;
     cursor.style.top = `${y}px`;
