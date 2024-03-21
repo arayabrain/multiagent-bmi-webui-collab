@@ -12,6 +12,8 @@ let command, nextAcceptableCommands;
 
 const charts = [];
 
+let isStarted = false;
+
 const taskCompletionTimer = new easytimer.Timer();
 
 const countdownSec = 3;
@@ -39,9 +41,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Send pressed/released keys to the server
     document.addEventListener('keydown', (event) => {
+        if (!isStarted) {
+            updateLog("Task not started yet");
+            return;
+        }
         if (sockEnv.connected) sockEnv.emit('keydown', event.key);
     });
     document.addEventListener('keyup', (event) => {
+        if (!isStarted) return;
         if (sockEnv.connected) sockEnv.emit('keyup', event.key);
     });
     setGamepadHandler();
@@ -88,9 +95,14 @@ const startTask = async () => {
 
     // start the timer
     taskCompletionTimer.start({ precision: 'secondTenths' });
+
+    isStarted = true;
 }
 
 const stopTask = () => {
+    // if (!isStarted) return;  // TODO
+    isStarted = false;
+
     // task completion time
     let taskCompletionSec = null;
     if (taskCompletionTimer.isRunning()) {
@@ -242,6 +254,8 @@ const onToggleEEG = (checked) => {
             createCharts(data.threshold);
         });
         sockEEG.on('eeg', ({ cls, likelihoods }) => {
+            if (!isStarted) return;
+
             // forward the command to the env server
             const command = cls === null ? "" : commandLabels[cls];
             sockEnv.emit('eeg', command);
