@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 is_running = True
 num_clients = 0
-samp_rate = 30  # Hz
+# samp_rate = 30  # Hz
+samp_rate = 10  # Hz
 
 
 def gaze_generator():

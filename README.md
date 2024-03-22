@@ -71,21 +71,9 @@ Activate your virtual environment, then:
     - Mouse
     - Gamepad
     - Pupil Core
-        - If you have the device,
-            1. set it up and run Pupil Capture
-            2. Run gaze websocket server:
-                ```bash
-                python app/devices/pupil.py \
-                    [-e <your environment server ip> (default: localhost)]
-                ```
-        - If you don't have the device, run dummy one:
-            ```bash
-            python app/devices/pupil_dummy.py \
-                [-e <your environment server ip> (default: localhost)]
-            ```
-        Toggle the "Eye Tracker" switch on your browser.
+        - Please see the [README](app/devices/eye/README.md).
 3. Run devices for selecting commands
     - Keyboard
-        Use the number keys to enter commands.
+        - Use the number keys (1, 2, 3, 4) to enter commands.
     - EEG/EMG
-        Please see the [README in that directory](app/devices/eeg/README.md).
+        - Please see the [README](app/devices/eeg/README.md).
