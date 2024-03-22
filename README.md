@@ -88,27 +88,4 @@ Activate your virtual environment, then:
     - Keyboard
         Use the number keys to enter commands.
     - EEG/EMG
-        - If you have the device, set it up and start LSL streaming
-        - If you don't have the device, run the mock EEG stream
-            (there is only one channel currently)
-            ```bash
-            python app/devices/mock_streamer/eeg.py
-            ```
-        - Run the decoder script
-            ```bash
-            python app/devices/eeg.py \
-                [-e <your environment server ip> (default: localhost)] \
-                [-p <recorded data path> (default: logs/data.hdf5)]
-            ```
-        Toggle the "EEG" switch on your browser.  
-        Then follow the prompts to take a baseline measurement.  
-        The classification results are then sent to the environment and used as commands for the focused robot.  
-
-        You can also use audio signals using [LSL AudioCapture](https://github.com/labstreaminglayer/App-AudioCapture). Set `--input Audio` and adjust the decoder threshold e.g. `--thres 5`.
-
-### List of commands
-- None: no command
-- 0: cancel manipulation (key `0`)
-- 1: manipulate target 1 (key `1`)
-- 2: manipulate target 2 (key `2`)
-- 3: manipulate target 3 (key `3`); currently not used
+        Please see the [README in that directory](app/devices/eeg/README.md).
