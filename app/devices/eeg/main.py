@@ -100,7 +100,9 @@ def main(
 
     @sio.on("init")
     async def init(sid: str, data: dict) -> None:
-        """Event handler for the "init" event, which happens after the client is connected."""
+        """Event handler for the "init" event, which happens when the client sends initialization info
+        after connecting.
+        """
 
         print(f"Received initialization info: {data}")
         num_classes = data["numClasses"]
