@@ -71,7 +71,7 @@
             "name": "Mock EEG Streamer",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/app/devices/mock_eeg_streamer/main.py",
+            "program": "${workspaceFolder}/app/devices/eeg/mock_streamer/main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         },

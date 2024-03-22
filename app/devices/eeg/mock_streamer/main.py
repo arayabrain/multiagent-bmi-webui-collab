@@ -11,7 +11,7 @@ from mne.io import constants
 from pyxdf import resolve_streams
 from tqdm import tqdm
 
-from app.devices.mock_eeg_streamer.mnelab_io import read_raw_xdf
+from app.devices.eeg.mock_streamer.mnelab_io import read_raw_xdf
 
 
 def xdf2raw(
@@ -172,7 +172,7 @@ class MockLSLStream(object):
 
 
 if __name__ == "__main__":
-    data_path = Path("app/devices/mock_eeg_streamer/data")
+    data_path = Path(__file__).parent / "data"
     # filename = "emg-marina-20240215.xdf"
     # need_filter = True
     # start_sec = 13
