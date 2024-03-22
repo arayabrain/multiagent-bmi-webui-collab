@@ -41,7 +41,7 @@ class Decoder:
             print("Decoder is already running.")
             return
 
-        self.subscription = self.input_observable.pipe(
+        self.subscription = self.input_observable.pipe(  # type: ignore
             ops.buffer_with_count(self.window_size, self.window_step),  # list of (time, channels)
             ops.map(lambda buf: extract_buffer(buf)[0]),  # (time, channels)
             ops.map(self._decode),

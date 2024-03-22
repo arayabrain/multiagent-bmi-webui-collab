@@ -31,7 +31,7 @@ It is executed on the user's PC.
 - If you have an EEG device, set it up and start LSL streaming.
 - If you do not have a device, run a mock EEG stream.
     ```bash
-    python app/devices/mock_eeg_streamer/main.py
+    python app/devices/eeg/mock_streamer/main.py
     ```
 - Launch the decoder server.
     ```bash
