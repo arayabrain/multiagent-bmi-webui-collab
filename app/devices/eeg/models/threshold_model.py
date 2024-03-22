@@ -25,4 +25,5 @@ class ThresholdModel:
             cls = max_ch  # output the channel index as class
         else:
             cls = None  # no output class
+
         return cls, rms  # rms as likelihoods

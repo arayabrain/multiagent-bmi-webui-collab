@@ -1,9 +1,3 @@
-"""
-- Receives EEG data from LSL Stream
-- Decodes EEG data
-- Sends decoding result to the server via SocketIO
-"""
-
 from contextlib import asynccontextmanager
 
 import click
@@ -24,7 +18,7 @@ from app.utils.networking import create_observable_from_stream_inlet, get_stream
 @click.option("--input", "-i", default="EEG", type=click.Choice(["EEG", "Audio"]), help="Input type")
 @click.option("--no-decode", flag_value=True, type=bool, help="Disable decoding")
 @click.option("--no-record", flag_value=True, type=bool, help="Disable recording")
-# decoder only
+# options for decoder
 @click.option("--auto-baseline", flag_value=True, help="Automatically start baseline measurement")
 @click.option(
     "--baseline-duration",
@@ -48,7 +42,7 @@ from app.utils.networking import create_observable_from_stream_inlet, get_stream
     type=click.FloatRange(min=0),
     help="Window duration in seconds",
 )
-# recorder only
+# options for recorder
 @click.option("--record-path", "-p", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
 @click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
 def main(
@@ -63,7 +57,7 @@ def main(
     window_duration,
     record_path,
     record_interval,
-):
+) -> None:
     host = "localhost"
     port = 8002
     origins = [
@@ -76,14 +70,18 @@ def main(
     runners = []
 
     @sio.event
-    async def connect(sid, environ):
+    async def connect(sid: str, environ: dict) -> None:
+        """Event handler for the "connect" event, which happens when a client is connected."""
+
         nonlocal num_clients
         num_clients += 1
         print("Client connected:", sid)
         await sio.emit("init", {"threshold": thres}, to=sid)
 
     @sio.event
-    async def disconnect(sid):
+    async def disconnect(sid) -> None:
+        """Event handler for the "disconnect" event, which happens when a client is disconnected."""
+
         nonlocal num_clients
         num_clients -= 1
         print("Client disconnected:", sid)
@@ -101,7 +99,9 @@ def main(
             runners.clear()
 
     @sio.on("init")
-    async def init(sid, data):
+    async def init(sid: str, data: dict) -> None:
+        """Event handler for the "init" event, which happens after the client is connected."""
+
         print(f"Received initialization info: {data}")
         num_classes = data["numClasses"]
 
@@ -148,8 +148,10 @@ def main(
             runner.start()
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> None:
+        """Code executed at server startup and shutdown."""
         yield
+        # post process
         for runner in runners:
             if runner.is_running:
                 runner.stop()

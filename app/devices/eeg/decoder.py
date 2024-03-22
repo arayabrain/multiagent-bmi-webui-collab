@@ -4,6 +4,7 @@ import time
 
 import click
 import numpy as np
+import reactivex as rx
 import socketio
 from reactivex import operators as ops
 
@@ -12,13 +13,15 @@ from app.devices.utils import array2str
 
 
 class Decoder:
+    """Decode the EEG signal using a model."""
+
     def __init__(
         self,
-        input_observable,
-        model,
+        input_observable: rx.Observable,
+        model: callable[[np.ndarray], tuple[int | None, np.ndarray]],
         window_size: int,
         window_step: int | None = None,
-    ):
+    ) -> None:
         self.input_observable = input_observable
         self.subscription = None
         self.is_running = False
@@ -29,10 +32,10 @@ class Decoder:
         self.loop = asyncio.get_event_loop()
         self.sio: socketio.AsyncServer | None = None
 
-    def set_socket(self, sio: socketio.AsyncServer):
+    def set_socket(self, sio: socketio.AsyncServer) -> None:
         self.sio = sio
 
-    def start(self):
+    def start(self) -> None:
         if self.is_running:
             print("Decoder is already running.")
             return
@@ -47,26 +50,25 @@ class Decoder:
         )
         self.is_running = True
 
-    def _decode(self, data: np.ndarray):
+    def _decode(self, data: np.ndarray) -> tuple[int | None, np.ndarray]:
         return self.model(data)
 
-    def _publish(self, data: tuple[int | None, np.ndarray]):
+    def _publish(self, data: tuple[int | None, np.ndarray]) -> None:
         if self.loop.is_closed():
             return
 
         cls, likelihoods = data
-
-        async def emit(cls: int | None, likelihoods: np.ndarray):
-            assert isinstance(self.sio, socketio.AsyncServer), "Socket is not set."
-            await self.sio.emit("eeg", {"cls": cls, "likelihoods": likelihoods.tolist()})
-
-        self.loop.create_task(emit(cls, likelihoods))
+        self.loop.create_task(self._emit(cls, likelihoods))
 
         cls_str = f"{cls:>4}" if cls is not None else "None"
         likelihoods_str = array2str(likelihoods)
         print(f"EEG class: {cls_str}, likelihoods: {likelihoods_str}")
 
-    def stop(self):
+    async def _emit(self, cls: int | None, likelihoods: np.ndarray) -> None:
+        assert isinstance(self.sio, socketio.AsyncServer), "Socket is not set."
+        await self.sio.emit("eeg", {"cls": cls, "likelihoods": likelihoods.tolist()})
+
+    def stop(self) -> None:
         if self.subscription is not None:
             self.subscription.dispose()
         self.is_running = False
@@ -74,12 +76,13 @@ class Decoder:
 
 
 def measure_baseline(
-    input_observable,
-    baseline_duration,
-    baseline_ready_duration,
-    input_freq,
-    auto_start=False,
-):
+    input_observable: rx.Observable,
+    baseline_duration: float,
+    baseline_ready_duration: float,
+    input_freq: int,
+    auto_start: bool = False,
+) -> dict[str, np.ndarray]:
+    """Measure the baseline of the signal from the input observable."""
     baselines = None
     baseline_ready = threading.Event()
 

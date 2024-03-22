@@ -2,6 +2,7 @@ import time
 from pathlib import Path
 
 import h5py
+import reactivex as rx
 from reactivex import operators as ops
 
 from app.devices.eeg.utils import extract_buffer
@@ -10,11 +11,11 @@ from app.devices.eeg.utils import extract_buffer
 class Recorder:
     def __init__(
         self,
-        input_observable,
-        input_nch,
-        save_path,
+        input_observable: rx.Observable,
+        input_nch: int,
+        save_path: str,
         chunk_size=5000,
-    ):
+    ) -> None:
         self.input_observable = input_observable
         self.subscription = None
         self.is_running = False
@@ -28,7 +29,7 @@ class Recorder:
         else:
             self.save_path = Path(__file__).parents[2] / save_path  # relative to the workspace root
 
-    def start(self):
+    def start(self) -> None:
         if self.save_path.exists():
             print(f"Appending to existing file: {self.save_path}")
         else:
@@ -50,7 +51,7 @@ class Recorder:
             on_completed=self.stop,
         )
 
-    def _save(self, buf: list):
+    def _save(self, buf: list) -> None:
         elapsed_time = time.time() - self.start_time
         data, timestamps = extract_buffer(buf)
         size = data.shape[0]
@@ -64,7 +65,7 @@ class Recorder:
 
         print(f"{elapsed_time:.1f}s: recorded {size} samples")
 
-    def stop(self):
+    def stop(self) -> None:
         if self.subscription is not None:
             self.subscription.dispose()
         self.is_running = False
