@@ -43,7 +43,7 @@ class Decoder:
 
         self.subscription = self.input_observable.pipe(  # type: ignore
             ops.buffer_with_count(self.window_size, self.window_step),  # list of (time, channels)
-            ops.map(lambda buf: extract_buffer(buf)[0]),  # (time, channels)
+            ops.map(lambda buf: extract_buffer(buf)[0]),  # type: ignore  # (time, channels)
             ops.map(self._decode),
         ).subscribe(
             on_next=self._publish,
@@ -82,21 +82,17 @@ def measure_baseline(
     baseline_ready_duration: float,
     input_freq: int,
     auto_start: bool = False,
-) -> dict[str, np.ndarray]:
+) -> dict[str, np.ndarray | float]:
     """Measure the baseline of the signal from the input observable."""
-    baselines = None
+
+    baselines: dict[str, np.ndarray | float] = {"average": 0, "rms": 1}
     baseline_ready = threading.Event()
 
     def set_baseline(data: np.ndarray):
-        nonlocal baselines
-        baselines = {
-            "average": np.mean(data, axis=0),  # (channels,)
-            "rms": root_mean_square(data),  # (channels,)
-        }
-
+        baselines["average"] = np.mean(data, axis=0)  # (channels,)
+        baselines["rms"] = root_mean_square(data)  # (channels,)
         print(f"Average: {array2str(baselines['average'])}")
         print(f"Root mean square: {array2str(baselines['rms'])}")
-
         baseline_ready.set()
 
     # prompt user to keep still
@@ -107,21 +103,20 @@ def measure_baseline(
     )
     if not confirm:
         print("Baseline measurement cancelled. Using average=0, rms=1 as default.")
-        return {"average": 0, "rms": 1}
+        return baselines
 
     print(f"Starting baseline measurement in {baseline_ready_duration}s...")
     time.sleep(baseline_ready_duration)
 
     print("Measuring baseline...")
-    baseline_subscription = input_observable.pipe(
+    baseline_subscription = input_observable.pipe(  # type: ignore
         ops.buffer_with_count(int(baseline_duration * input_freq)),
         ops.take(1),  # take only the first buffer
-        ops.map(lambda buf: extract_buffer(buf)[0]),  # (time, channels)
+        ops.map(lambda buf: extract_buffer(buf)[0]),  # type: ignore  # (time, channels)
     ).subscribe(
         on_next=set_baseline,
         on_completed=lambda: print("Baseline measurement completed.\n"),
     )
-
     baseline_ready.wait()
     baseline_subscription.dispose()
 

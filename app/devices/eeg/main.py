@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from typing import Any
 
 import click
 import socketio
@@ -69,7 +70,7 @@ def main(
     sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=origins)
     num_clients = 0
 
-    runners = []
+    runners: list[Any] = []
 
     @sio.event
     async def connect(sid: str, environ: dict) -> None:
@@ -152,7 +153,7 @@ def main(
             runner.start()
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI) -> None:
+    async def lifespan(app: FastAPI):
         """Code executed at server startup and shutdown."""
         yield
         # post process
