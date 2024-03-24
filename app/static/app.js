@@ -259,7 +259,7 @@ const onToggleEEG = (checked) => {
             // forward the command to the env server
             const command = cls === null ? "" : commandLabels[cls];
             sockEnv.emit('eeg', command);
-            console.log(`EEG data received:\n command "${command}"\n likelihoods ${likelihoods.map(l => l.toFixed(2))}`);
+            // console.log(`EEG data received:\n command "${command}"\n likelihoods ${likelihoods.map(l => l.toFixed(2))}`);
 
             // update the chart data
             const focusId = getFocusId();
@@ -272,69 +272,67 @@ const onToggleEEG = (checked) => {
 }
 
 const createCharts = (thres) => {
-    const config = {
-        type: 'bar',
-        data: {
-            labels: Array(numClasses).fill(''),  // neccesary
-            datasets: [{
-                data: Array(numClasses).fill(0.4),
-                backgroundColor: commandColors,
-                borderColor: commandColors.map(rgba => scaleRgba(rgba, 0.7, 1)),
-                borderWidth: 1,
-            }]
-        },
-        options: {
-            plugins: {
-                legend: {
-                    display: false,
-                },
-                annotation: {
-                    annotations: {
-                        lineThres: {
-                            type: 'line',
-                            yMin: thres,
-                            yMax: thres,
-                            borderColor: 'black',
-                            borderWidth: 1,
-                            borderDash: [4, 4], // dashed line style
+    [...document.getElementsByClassName('likelihood-chart')].forEach((canvas) => {
+        // create a config for each chart so that they don't share the same data
+        const config = {
+            type: 'bar',
+            data: {
+                labels: Array(numClasses).fill(''),  // neccesary
+                datasets: [{
+                    data: Array(numClasses).fill(0.4),
+                    backgroundColor: commandColors,
+                    borderColor: commandColors.map(rgba => scaleRgba(rgba, 0.7, 1)),
+                    borderWidth: 1,
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+                    annotation: {
+                        annotations: {
+                            lineThres: {
+                                type: 'line',
+                                yMin: thres,
+                                yMax: thres,
+                                borderColor: 'black',
+                                borderWidth: 1,
+                                borderDash: [4, 4], // dashed line style
+                            }
                         }
-                    }
-                },
-            },
-            scales: {
-                x: {
-                    ticks: {
-                        display: false,
                     },
-                    grid: {
-                        display: false,
-                    }
                 },
-                y: {
-                    beginAtZero: true,
-                    max: thres / 0.7,
-                    ticks: {
-                        display: false,
-                        // display: true,
-                        // stepSize: 0.1,
-                        // callback: (value) => [0, 0.3, 1].includes(value) ? value : '',
+                scales: {
+                    x: {
+                        ticks: {
+                            display: false,
+                        },
+                        grid: {
+                            display: false,
+                        }
                     },
-                    grid: {
-                        display: false,
-                    }
+                    y: {
+                        beginAtZero: true,
+                        max: thres / 0.7,
+                        ticks: {
+                            display: false,
+                            // display: true,
+                            // stepSize: 0.1,
+                            // callback: (value) => [0, 0.3, 1].includes(value) ? value : '',
+                        },
+                        grid: {
+                            display: false,
+                        }
+                    },
                 },
+                animation: {
+                    duration: chartAnimationDuration,
+                },
+                maintainAspectRatio: false,
+                backgroundColor: 'white',
             },
-            animation: {
-                duration: chartAnimationDuration,
-            },
-            maintainAspectRatio: false,
-            backgroundColor: 'white',
-        },
-    };
-
-    // Create charts
-    const chartCanvases = document.getElementsByClassName('likelihood-chart');
-    [...chartCanvases].forEach((canvas) => {
+        };
         const chart = new Chart(canvas.getContext('2d'), config);
         chart.update();
         charts.push(chart);
