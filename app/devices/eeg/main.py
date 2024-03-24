@@ -8,9 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pylsl import resolve_streams
 
 from app.devices.eeg.decoder import Decoder, measure_baseline
-from app.devices.eeg.models.threshold_model import ThresholdModel
+from app.devices.eeg.models.threshold_model import ThresholdModel as Model
 from app.devices.eeg.recorder import Recorder
 from app.utils.networking import create_observable_from_stream_inlet, get_stream_inlet
+
+# from app.devices.eeg.models.threshold_model import ThresholdDiffModel as Model
 
 
 @click.command()
@@ -137,7 +139,7 @@ def main(
                 input_observable, baseline_duration, baseline_ready_duration, input_freq, auto_start=auto_baseline
             )
 
-            model = ThresholdModel(num_classes, thres, baselines)
+            model = Model(num_classes, thres, baselines)
             window_size = int(input_freq * window_duration)
             # window_step = window_size // 2
             window_step = None  # no overlap
