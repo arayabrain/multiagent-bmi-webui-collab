@@ -99,6 +99,11 @@ video {
     width: 100%;
 }
 
+.form-check-input,
+.form-check-label {
+    cursor: pointer;
+}
+
 .form-check-input.connected:checked {
     background-color: var(--bs-primary);
     border-color: var(--bs-primary);
