@@ -42,24 +42,24 @@ export const updateCursorAndFocus = (x, y, isDelta = false) => {
     for (const [i, video] of videos.entries()) {
         const rect = video.getBoundingClientRect();
         if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-            _updateAndNotifyFocus(i);
+            if (i != focusId) _updateAndNotifyFocus(i);
             break;
         }
     }
 }
 
 const _updateAndNotifyFocus = (newId) => {
-    if (newId == focusId) return;
     // remove border of the previous focused image
     if (focusId != null) {
         videos[focusId].style.border = "2px solid transparent";
     }
-    // update focusId
-    focusId = newId;
     // set border to the new focused image
     if (focusId != null) {
-        videos[focusId].style.border = "2px solid red";
+        videos[newId].style.border = "2px solid red";
     }
+    // update focusId
+    focusId = newId;
+
     // notify focusId to the server
     if (sockEnv === undefined) {
         console.error("sockEnv is not set. Call setSockEnv first.")
@@ -68,15 +68,17 @@ const _updateAndNotifyFocus = (newId) => {
     if (sockEnv.connected) sockEnv.emit('focus', focusId);
 
     // start the timer
-    interactionTimer.reset();
+    resetInteractionTime();
 }
 
-export const recordInteraction = () => {
+export const recordInteractionTime = () => {
     interactionTimer.pause();
     const sec = interactionTimer.getTotalTimeValues().secondTenths / 10;
     interactionTimeHistory.push(sec);
     return sec;
 }
+
+export const resetInteractionTime = () => interactionTimer.reset();
 
 export const getInteractionTimeStats = () => {
     const len = interactionTimeHistory.length;

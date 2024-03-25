@@ -1,4 +1,4 @@
-import { getFocusId, getInteractionTimeStats, recordInteraction, resetInteractionTimeHistory, setSockEnv, updateCursorAndFocus } from './cursor.js';
+import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTime, resetInteractionTimeHistory, setSockEnv, updateCursorAndFocus } from './cursor.js';
 import { setGamepadHandler } from './gamepad.js';
 import { onToggleGaze } from './gaze.js';
 import { binStr2Rgba, scaleRgba, updateConnectionStatusElement } from './utils.js';
@@ -168,12 +168,12 @@ const connectEnv = () => {
             // record the interaction if the command is now acceptable
             // regardless of whether the command is "valid" subtask selection (data.hasSubtaskNotDone)
             if (isNowAcceptable) {
-                const sec = recordInteraction();
+                const sec = recordInteractionTime();
                 updateLog(`Agent ${agentId}: Interaction recorded, ${sec.toFixed(1)}s`);
             }
 
-            // reassign the robot selection (to reset the interaction timer)
-            updateCursorAndFocus(0, 0, true);
+            // reset interaction time regardless of hasSubtaskNotDone and isNowAcceptable
+            resetInteractionTime();
         }
 
         if (!isNowAcceptable) {
@@ -208,6 +208,7 @@ const connectEnv = () => {
     });
     sockEnv.on('subtaskDone', ({ agentId, subtask }) => {
         updateLog(`Agent ${agentId}: Subtask "${subtask}" done`);
+        if (getFocusId() === agentId) resetInteractionTime();  // reset the timer if the agent is selected so that the time during the subtask is not counted
     });
     sockEnv.on('taskDone', () => {
         const { taskCompletionSec, errorRate } = stopTask();
