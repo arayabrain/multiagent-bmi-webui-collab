@@ -91,6 +91,13 @@ video {
     /* aligns the switches to the left */
 }
 
+.toggle-container {
+    width: 100%;
+}
+
+.toggle-container>.row {
+    width: 100%;
+}
 
 .form-check-input.connected:checked {
     background-color: var(--bs-primary);
@@ -105,6 +112,14 @@ video {
 .form-check-input.connecting:checked {
     background-color: grey;
     border-color: grey;
+}
+
+.button-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    /* Space between each button */
 }
 
 .status-message {
@@ -123,12 +138,4 @@ video {
     /* resize: none; */
     /* Disable resizing */
     font-size: 15px;
-}
-
-.button-container {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    /* Space between each button */
 }

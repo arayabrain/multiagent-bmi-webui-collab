@@ -30,22 +30,54 @@
         </div>
 
         <div class="controls-container">
-            <!-- toggle switches and signal feedbacks -->
-            <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="toggle-gaze">
-                <label class="form-check-label" for="toggle-gaze">Eye Tracker</label>
+            <!-- toggle switches -->
+            <div class="toggle-container">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="toggle-mouse" checked disabled>
+                            <label class="form-check-label" for="toggle-gaze">Mouse</label>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="toggle-keyboard" checked disabled>
+                            <label class="form-check-label" for="toggle-eeg">Keyboard</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="toggle-gamepad" disabled>
+                            <label class="form-check-label" for="toggle-gaze">Gamepad</label>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="toggle-eeg">
+                            <label class="form-check-label" for="toggle-eeg">EEG</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="toggle-gaze">
+                            <label class="form-check-label" for="toggle-gaze">Eye Tracker</label>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="toggle-eeg">
-                <label class="form-check-label" for="toggle-eeg">EEG</label>
-            </div>
-            <div id="task-status-message"></div>
-            <div id="log"></div>
+
             <div class="button-container">
                 <button type="button" class="btn btn-primary" id="start-button" disabled>Start</button>
                 <button type="button" class="btn btn-danger" id="stop-button" disabled>Stop</button>
                 <button type="button" class="btn btn-warning" id="reset-button" disabled>Reset</button>
             </div>
+
+            <div id="task-status-message"></div>
+            <div id="log"></div>
         </div>
 
         <!-- apriltag images -->

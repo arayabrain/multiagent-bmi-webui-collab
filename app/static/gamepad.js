@@ -1,7 +1,6 @@
 import { updateCursorAndFocus } from './cursor.js';
 
 let animationFrameRequest;
-let isGamepadConnected = false;
 const sensitivity = 25;
 
 export const setGamepadHandler = () => {
@@ -17,7 +16,7 @@ const gamepadHandler = (event, connecting) => {
             gamepad.index, gamepad.id, gamepad.buttons.length, gamepad.axes.length
         );
         if (getActiveGamepadsCount() === 1) {
-            isGamepadConnected = true;
+            document.getElementById('toggle-gamepad').checked = true;
             gamepadsLoop();  // start the loop
         }
     } else {
@@ -27,7 +26,7 @@ const gamepadHandler = (event, connecting) => {
         );
         if (getActiveGamepadsCount() === 0) {
             if (animationFrameRequest) cancelAnimationFrame(animationFrameRequest);  // stop the loop
-            isGamepadConnected = false;
+            document.getElementById('toggle-gamepad').checked = false;
         }
     }
 }
