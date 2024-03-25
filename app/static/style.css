@@ -30,6 +30,10 @@ html {
     align-items: center;
     gap: 60px;
     /* Space between the video-grid and toggle-switches */
+
+    /* for apriltags */
+    position: relative;
+    box-sizing: border-box;
 }
 
 .video-grid {
@@ -41,10 +45,6 @@ html {
     /* Grid gap */
     justify-content: center;
     align-items: center;
-
-    /* for apriltags */
-    position: relative;
-    box-sizing: border-box;
 }
 
 .video-container {

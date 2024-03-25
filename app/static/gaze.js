@@ -39,7 +39,7 @@ const showAprilTags = () => {
     const bottomRightTag = document.querySelector('.apriltag.bottom-right');
     const { top, left } = topLeftTag.getBoundingClientRect();
     const { bottom, right } = bottomRightTag.getBoundingClientRect();
-    const margin = topLeftTag.width / 10;  // width of white area around the tag
+    const margin = topLeftTag.width * 0.2;  // width of white margin + black border of apriltag
     const [left_, top_] = [left + margin, top + margin];
     const [right_, bottom_] = [right - margin, bottom - margin];
     surfaceOrigin = [left_, top_];
