@@ -1,6 +1,6 @@
 import numpy as np
 
-from app.devices.eeg.utils import root_mean_square
+from app.devices.utils.utils import root_mean_square
 
 
 class ThresholdModel:

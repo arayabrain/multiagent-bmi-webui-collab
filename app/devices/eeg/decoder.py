@@ -8,8 +8,8 @@ import reactivex as rx
 import socketio
 from reactivex import operators as ops
 
-from app.devices.eeg.utils import extract_buffer, root_mean_square
-from app.devices.utils import array2str
+from app.devices.utils.networking import extract_buffer
+from app.devices.utils.utils import array2str, root_mean_square
 
 
 class Decoder:

@@ -11,7 +11,7 @@ from pylsl import resolve_streams
 from app.devices.eeg.decoder import Decoder, measure_baseline
 from app.devices.eeg.models.threshold_model import ThresholdModel as Model
 from app.devices.eeg.recorder import Recorder
-from app.utils.networking import create_observable_from_stream_inlet, get_stream_inlet
+from app.devices.utils.networking import create_observable_from_stream_inlet, get_stream_inlet
 
 # from app.devices.eeg.models.threshold_model import ThresholdDiffModel as Model
 

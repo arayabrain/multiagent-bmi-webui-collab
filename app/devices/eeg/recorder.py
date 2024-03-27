@@ -5,7 +5,7 @@ import h5py
 import reactivex as rx
 from reactivex import operators as ops
 
-from app.devices.eeg.utils import extract_buffer
+from app.devices.utils.networking import extract_buffer
 
 
 class Recorder:
@@ -43,7 +43,7 @@ class Recorder:
         self.start_time = time.time()
         self.is_running = True
 
-        self.subscription = self.input_observable.pipe(
+        self.subscription = self.input_observable.pipe(  # type: ignore
             ops.buffer_with_count(self.chunk_size),
         ).subscribe(
             on_next=self._save,

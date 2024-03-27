@@ -5,6 +5,7 @@ from https://github.com/arayabrain/human-robot-interface/blob/main/src/networkin
 import threading
 from typing import Callable
 
+import numpy as np
 import pylsl
 import reactivex
 from pylsl import LostError, StreamInfo, StreamInlet, StreamOutlet
@@ -80,3 +81,18 @@ def create_observable_from_stream_inlet(stream: StreamInlet) -> reactivex.Observ
         return dispose
 
     return reactivex.create(push_chunks).pipe(ops.share())
+
+
+def extract_buffer(buf: list) -> tuple:
+    """Extract data and timestamps from the buffer.
+    Args:
+        buf: list of tuple (data, timestamp)
+            data: list of float, shape (channels,)
+            timestamp: float
+    Returns:
+        data: np.ndarray, shape (time, channels)  # time = len(buf)
+        timestamps: list of float, shape (time,)
+    """
+    data, timestamps = zip(*buf)
+    data = np.array(data, dtype=float)  # TODO: float32 or 64?
+    return data, timestamps
