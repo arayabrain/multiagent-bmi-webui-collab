@@ -7,7 +7,7 @@ from typing import Callable
 
 import numpy as np
 import pylsl
-import reactivex
+import reactivex as rx
 from pylsl import LostError, StreamInfo, StreamInlet, StreamOutlet
 from reactivex import operators as ops
 
@@ -47,11 +47,11 @@ def create_stream_outlet(
 
 
 # Creates a hot observable that forwards data from an LSL stream, using threading to run asynchronously
-def create_observable_from_stream_inlet(stream: StreamInlet) -> reactivex.Observable:
+def create_observable_from_stream_inlet(stream: StreamInlet) -> rx.Observable:
 
     def push_chunks(
-        observer: reactivex.Observer,
-        scheduler: reactivex.scheduler.scheduler.Scheduler,
+        observer: rx.Observer,
+        scheduler: rx.scheduler.scheduler.Scheduler,
     ) -> Callable[[], None]:
         stop_event = threading.Event()  # Create signal that can be used to stop thread when done
 
@@ -64,23 +64,20 @@ def create_observable_from_stream_inlet(stream: StreamInlet) -> reactivex.Observ
                         for value, timestamp in zip(chunk, timestamps):
                             observer.on_next((value, timestamp))
                 except LostError:
-                    observer.on_error("Stream lost")
                     # If the LSL stream is lost then catch the error and raise it in the observer
-                    # TODO: What about stream recovery?
+                    observer.on_error("Stream lost")
                     break
 
         # Disposal function for subscription cleanup (called automatically once subscription is over)
         def dispose():
             stop_event.set()  # Signal to stop loop in thread
-            # thread.join()  # Wait for thread to complete
-            # TODO: RuntimeError: cannot join current thread; return thread for manual joining?
 
         thread = threading.Thread(target=push_chunks_thread)
         thread.start()  # Start thread that forwards LSL stream data to the subscribed observer
 
         return dispose
 
-    return reactivex.create(push_chunks).pipe(ops.share())
+    return rx.create(push_chunks).pipe(ops.share())
 
 
 def extract_buffer(buf: list) -> tuple:

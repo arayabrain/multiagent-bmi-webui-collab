@@ -160,6 +160,7 @@ def main(
         for runner in runners:
             if runner.is_running:
                 runner.stop()
+        # TODO: close stream inlets?
 
     app = FastAPI(lifespan=lifespan)
     app.add_middleware(
