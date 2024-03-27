@@ -1,16 +1,15 @@
+import { createCharts, removeCharts, updateChartColor, updateChartData } from './chart.js';
 import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTime, resetInteractionTimeHistory, setSockEnv, updateCursorAndFocus } from './cursor.js';
 import { setGamepadHandler } from './gamepad.js';
 import { onToggleGaze } from './gaze.js';
-import { binStr2Rgba, scaleRgba, updateConnectionStatusElement } from './utils.js';
+import { binStr2Rgba, updateConnectionStatusElement } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 let sockEnv, sockEEG;
 let videos, toggleGaze, toggleEEG;
 
-let numClasses, commandLabels, commandColors;  // info from the env server
+let commandLabels, commandColors;  // info from the env server
 let command, nextAcceptableCommands;
-
-const charts = [];
 
 let isStarted = false;
 
@@ -18,8 +17,6 @@ const taskCompletionTimer = new easytimer.Timer();
 
 const countdownSec = 3;
 const countdownTimer = new easytimer.Timer();
-
-const chartAnimationDuration = 100;  // ms
 
 // error rate
 let numSubtaskSelections, numInvalidSubtaskSelections;
@@ -146,13 +143,12 @@ const connectEnv = () => {
     sockEnv.on('init', ({ commandLabels: labels, commandColors: colors, numAgents }) => {
         // commandColors: ["001", "010", ...]
         commandColors = colors.map(c => binStr2Rgba(c, 0.3));
-        numClasses = labels.length;
         commandLabels = labels;
 
         command = Array(numAgents).fill('');
         nextAcceptableCommands = Array(numAgents).fill([]);
 
-        updateLog(`Env: ${numClasses} classes, ${numAgents} agents`);
+        updateLog(`Env: ${labels.length} classes, ${numAgents} agents`);
     });
     sockEnv.on('command', (data) => {
         // this event should be emitted only after the 'init' event
@@ -196,7 +192,7 @@ const connectEnv = () => {
             command[agentId] = _command;
             nextAcceptableCommands[agentId] = _nextAcceptableCommands;
 
-            updateChartColor(charts[agentId], command[agentId], nextAcceptableCommands[agentId]);
+            updateChartColor(agentId, command[agentId], nextAcceptableCommands[agentId]);
 
             if (_command !== '') {
                 numSubtaskSelections++;
@@ -238,21 +234,20 @@ const onToggleEEG = (checked) => {
         updateConnectionStatusElement('connecting', 'toggle-eeg');
         sockEEG = io.connect(`http://localhost:8002`, { transports: ['websocket'] });  // TODO: https?
         sockEEG.on('connect', () => {
-            sockEEG.emit('init', { numClasses: numClasses });
+            sockEEG.emit('init', { numClasses: commandLabels.length });
             updateConnectionStatusElement('connected', 'toggle-eeg');
             console.log("EEG server connected");
         });
         sockEEG.on('disconnect', () => {
             updateConnectionStatusElement('disconnected', 'toggle-eeg');
-            removeCharts(charts);
+            removeCharts();
             console.log("EEG server disconnected");
         });
         sockEEG.on('reconnect_attempt', () => {  // TODO: not working
             console.log("EEG server reconnecting...");
         });
         sockEEG.on('init', (data) => {
-            if (charts.length > 0) removeCharts(charts);
-            createCharts(data.threshold);
+            createCharts(data.threshold, commandColors, commandLabels);
         });
         sockEEG.on('eeg', ({ cls, likelihoods }) => {
             if (!isStarted) return;
@@ -264,119 +259,11 @@ const onToggleEEG = (checked) => {
 
             // update the chart data
             const focusId = getFocusId();
-            updateChartData(focusId, likelihoods);
+            updateChartData(focusId, likelihoods, nextAcceptableCommands[focusId]);
         });
     } else {
         if (sockEEG.connected) sockEEG.disconnect();
-        removeCharts(charts);
+        removeCharts();
     }
 }
 
-const createCharts = (thres) => {
-    [...document.getElementsByClassName('likelihood-chart')].forEach((canvas) => {
-        // create a config for each chart so that they don't share the same data
-        const config = {
-            type: 'bar',
-            data: {
-                labels: Array(numClasses).fill(''),  // neccesary
-                datasets: [{
-                    data: Array(numClasses).fill(0.4),
-                    backgroundColor: commandColors,
-                    borderColor: commandColors.map(rgba => scaleRgba(rgba, 0.7, 1)),
-                    borderWidth: 1,
-                }]
-            },
-            options: {
-                plugins: {
-                    legend: {
-                        display: false,
-                    },
-                    annotation: {
-                        annotations: {
-                            lineThres: {
-                                type: 'line',
-                                yMin: thres,
-                                yMax: thres,
-                                borderColor: 'black',
-                                borderWidth: 1,
-                                borderDash: [4, 4], // dashed line style
-                            }
-                        }
-                    },
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            display: false,
-                        },
-                        grid: {
-                            display: false,
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        max: thres / 0.7,
-                        ticks: {
-                            display: false,
-                            // display: true,
-                            // stepSize: 0.1,
-                            // callback: (value) => [0, 0.3, 1].includes(value) ? value : '',
-                        },
-                        grid: {
-                            display: false,
-                        }
-                    },
-                },
-                animation: {
-                    duration: chartAnimationDuration,
-                },
-                maintainAspectRatio: false,
-                backgroundColor: 'white',
-            },
-        };
-        const chart = new Chart(canvas.getContext('2d'), config);
-        chart.update();
-        charts.push(chart);
-        canvas.parentElement.style.display = 'block';  // show the parent container
-    });
-}
-
-const removeCharts = () => {
-    while (charts.length > 0) {
-        const chart = charts.pop();
-        chart.canvas.parentElement.style.display = 'none';
-        chart.destroy();
-    }
-};
-
-const updateChartData = (agentId, likelihoods) => {
-    const chart = charts[agentId];
-    if (chart === undefined) return;
-
-    // update only the likelihood of acceptable commands
-    chart.data.datasets[0].data = likelihoods.map((likelihood, i) =>
-        nextAcceptableCommands[agentId].includes(commandLabels[i]) ? likelihood : chart.data.datasets[0].data[i]
-    );
-    chart.update();
-}
-
-const updateChartColor = (chart, currentCommand, nextAcceptableCommands) => {
-    if (chart === undefined) return;
-
-    const modBg = (barId) => {
-        // highlight the current command bar
-        if (commandLabels[barId] === currentCommand) return scaleRgba(commandColors[barId], 1, 1);
-        // nothing for border color
-        return commandColors[barId];
-    }
-    const modBorder = (barId) => {
-        // add black border to the current command bar
-        if (commandLabels[barId] === currentCommand) return 'rgba(0, 0, 0, 1)';
-        // remove border from the unacceptable command bars
-        if (nextAcceptableCommands.includes(commandLabels[barId])) return scaleRgba(commandColors[barId], 0.7, 1);
-        return 'rgba(255, 255, 255, 1)';
-    }
-    chart.data.datasets[0].backgroundColor = [...Array(numClasses).keys()].map(modBg);
-    chart.data.datasets[0].borderColor = [...Array(numClasses).keys()].map(modBorder);
-    chart.update();
-}
