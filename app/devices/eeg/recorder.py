@@ -17,12 +17,11 @@ class Recorder:
         chunk_size=5000,
     ) -> None:
         self.input_observable = input_observable
-        self.subscription = None
+        self.subscription: rx.abc.DisposableBase | None = None
         self.is_running = False
 
         self.input_nch = input_nch
         self.chunk_size = chunk_size
-        self.start_time = None
 
         if Path(save_path).is_absolute():
             self.save_path = Path(save_path)
@@ -56,7 +55,6 @@ class Recorder:
         data, timestamps = extract_buffer(buf)
         size = data.shape[0]
 
-        # TODO: save as xdf?
         with h5py.File(self.save_path, "a") as f:
             f["data"].resize(f["data"].shape[0] + size, axis=0)
             f["data"][-size:] = data

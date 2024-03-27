@@ -21,6 +21,7 @@ def xdf2raw(
     start_sec=0,
     plot=False,
     fs_new=None,  # XXX: workaround to avoid mismatch between the info and the data
+    fs_resamp=None,
 ):
     xdf_path = Path(xdf_path)
     stream_info = resolve_streams(xdf_path)
@@ -36,6 +37,8 @@ def xdf2raw(
     raw.set_channel_types({ch: ch_type for ch, ch_type in zip(raw.info["ch_names"], ch_types)})
 
     # preprocessing
+    if fs_resamp is not None:
+        raw.resample(fs_resamp)
     if need_filter:
         raw.filter(1, 40, picks=["misc"])
     if start_sec > 0:
@@ -44,7 +47,7 @@ def xdf2raw(
     # increase the number of channels to min_n_ch
     n_ch = raw.info["nchan"]
     if min_n_ch is not None and n_ch < min_n_ch:
-        offset_samp = int(5 * fs_new)  # shift the data by 5 seconds (* channel index)
+        offset_samp = int(5 * raw.info["sfreq"])  # shift the data by 5 seconds (* channel index)
         data = raw.get_data()
         new_ch_data_ls = []
         new_ch_name_ls = []
@@ -53,7 +56,7 @@ def xdf2raw(
             new_ch_data_ls.append(ch_data)
             new_ch_name_ls.append(f"dummy_{i}")
 
-        new_info = mne.create_info(new_ch_name_ls, fs_new, ch_types="eeg")
+        new_info = mne.create_info(new_ch_name_ls, raw.info["sfreq"], ch_types="eeg")
         new_raw = mne.io.RawArray(np.array(new_ch_data_ls), new_info)
         raw.add_channels([new_raw], force_update_info=True)
 
@@ -180,10 +183,20 @@ if __name__ == "__main__":
     min_n_ch = 4
     need_filter = False
     start_sec = 0
+    # fs_resamp = 10
+    fs_resamp = None
+
     # plot = True
     plot = False
 
-    raw = xdf2raw(data_path / filename, min_n_ch=min_n_ch, need_filter=need_filter, start_sec=start_sec, plot=plot)
+    raw = xdf2raw(
+        data_path / filename,
+        min_n_ch=min_n_ch,
+        need_filter=need_filter,
+        start_sec=start_sec,
+        plot=plot,
+        fs_resamp=fs_resamp,
+    )
     with MockLSLStream("MockEMG", raw, "EEG", time_dilation=1, report_status=True) as stream:
         try:
             while True:

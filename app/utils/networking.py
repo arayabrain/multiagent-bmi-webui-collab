@@ -71,6 +71,7 @@ def create_observable_from_stream_inlet(stream: StreamInlet) -> reactivex.Observ
         def dispose():
             stop_event.set()  # Signal to stop loop in thread
             # thread.join()  # Wait for thread to complete
+            # TODO: RuntimeError: cannot join current thread; return thread for manual joining?
 
         thread = threading.Thread(target=push_chunks_thread)
         thread.start()  # Start thread that forwards LSL stream data to the subscribed observer

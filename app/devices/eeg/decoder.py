@@ -1,7 +1,6 @@
 import asyncio
 import threading
 import time
-from typing import Callable
 
 import click
 import numpy as np
@@ -19,7 +18,7 @@ class Decoder:
     def __init__(
         self,
         input_observable: rx.Observable,
-        model: Callable[[np.ndarray], tuple[int | None, np.ndarray]],
+        model,
         window_size: int,
         window_step: int | None = None,
     ) -> None:
