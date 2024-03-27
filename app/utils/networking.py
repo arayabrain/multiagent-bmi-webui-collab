@@ -8,6 +8,7 @@ from typing import Callable
 import pylsl
 import reactivex
 from pylsl import LostError, StreamInfo, StreamInlet, StreamOutlet
+from reactivex import operators as ops
 
 
 # Gets a specified stream from stream information and creates a stream inlet
@@ -78,4 +79,4 @@ def create_observable_from_stream_inlet(stream: StreamInlet) -> reactivex.Observ
 
         return dispose
 
-    return reactivex.create(push_chunks)
+    return reactivex.create(push_chunks).pipe(ops.share())
