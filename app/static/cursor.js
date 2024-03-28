@@ -39,13 +39,15 @@ export const updateCursorAndFocus = (x, y, isDelta = false) => {
 
     // Focus the camera when the cursor is over it
     // TODO: optimize this process
+    let newId = null;
     for (const [i, video] of videos.entries()) {
         const rect = video.getBoundingClientRect();
         if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-            if (i != focusId) _updateAndNotifyFocus(i);
+            newId = i;
             break;
         }
     }
+    if (newId != focusId) _updateAndNotifyFocus(newId);
 }
 
 const _updateAndNotifyFocus = (newId) => {
@@ -54,7 +56,7 @@ const _updateAndNotifyFocus = (newId) => {
         videos[focusId].style.border = "2px solid transparent";
     }
     // set border to the new focused image
-    if (focusId != null) {
+    if (newId != null) {
         videos[newId].style.border = "2px solid red";
     }
     // update focusId
