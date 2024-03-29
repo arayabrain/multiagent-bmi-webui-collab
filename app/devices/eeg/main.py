@@ -79,7 +79,6 @@ def main(
         nonlocal num_clients
         num_clients += 1
         print("Client connected:", sid)
-        await sio.emit("init", {"threshold": thres}, to=sid)
 
     @sio.event
     async def disconnect(sid) -> None:

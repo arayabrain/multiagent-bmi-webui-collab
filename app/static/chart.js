@@ -4,7 +4,7 @@ const charts = [];
 const chartAnimationDuration = 100;  // ms
 let commandColors, commandLabels;
 
-export const createCharts = (thres, _commandColors, _commandLabels) => {
+export const createCharts = (_commandColors, _commandLabels) => {
     if (charts.length > 0) removeCharts(); // remove existing charts
 
     commandColors = _commandColors;
@@ -17,7 +17,7 @@ export const createCharts = (thres, _commandColors, _commandLabels) => {
             data: {
                 labels: Array(commandLabels.length).fill(''),  // neccesary
                 datasets: [{
-                    data: Array(commandLabels.length).fill(0.4),
+                    data: Array(commandLabels.length).fill(0.2),
                     backgroundColor: commandColors,
                     borderColor: commandColors.map(rgba => scaleRgba(rgba, 0.7, 1)),
                     borderWidth: 1,
@@ -32,8 +32,8 @@ export const createCharts = (thres, _commandColors, _commandLabels) => {
                         annotations: {
                             lineThres: {
                                 type: 'line',
-                                yMin: thres,
-                                yMax: thres,
+                                yMin: 1,
+                                yMax: 1,
                                 borderColor: 'black',
                                 borderWidth: 1,
                                 borderDash: [4, 4], // dashed line style
@@ -52,7 +52,7 @@ export const createCharts = (thres, _commandColors, _commandLabels) => {
                     },
                     y: {
                         beginAtZero: true,
-                        max: thres / 0.7,
+                        max: 1.4,
                         ticks: {
                             display: false,
                             // display: true,
@@ -78,7 +78,7 @@ export const createCharts = (thres, _commandColors, _commandLabels) => {
     });
 }
 
-export const removeCharts = () => {
+const removeCharts = () => {
     while (charts.length > 0) {
         const chart = charts.pop();
         chart.canvas.parentElement.style.display = 'none';

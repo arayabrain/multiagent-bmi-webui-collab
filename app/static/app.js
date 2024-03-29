@@ -1,4 +1,4 @@
-import { createCharts, removeCharts, updateChartColor, updateChartData } from './chart.js';
+import { createCharts, updateChartColor, updateChartData } from './chart.js';
 import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTime, resetInteractionTimeHistory, setSockEnv, updateCursorAndFocus } from './cursor.js';
 import { setGamepadHandler } from './gamepad.js';
 import { onToggleGaze } from './gaze.js';
@@ -139,6 +139,7 @@ const connectEnv = () => {
         // commandColors: ["001", "010", ...]
         commandColors = colors.map(c => binStr2Rgba(c, 0.3));
         commandLabels = labels;
+        updateLog(`Env: ${labels.length} classes, ${numAgents} agents`);
 
         command = Array(numAgents).fill('');
         nextAcceptableCommands = Array(numAgents).fill([]);
@@ -150,7 +151,8 @@ const connectEnv = () => {
             keyMap[(idx + 1).toString()] = label;
         });
 
-        updateLog(`Env: ${labels.length} classes, ${numAgents} agents`);
+        // if video is ready, create charts
+        videos[0].addEventListener('canplay', () => createCharts(commandColors, commandLabels));
     });
     sockEnv.on('command', (data) => {
         // this event should be emitted only after the 'init' event
@@ -242,19 +244,14 @@ const onToggleEEG = (checked) => {
         });
         sockEEG.on('disconnect', () => {
             updateConnectionStatusElement('disconnected', 'toggle-eeg');
-            removeCharts();
             console.log("EEG server disconnected");
         });
         sockEEG.on('reconnect_attempt', () => {  // TODO: not working
             console.log("EEG server reconnecting...");
         });
-        sockEEG.on('init', (data) => {
-            createCharts(data.threshold, commandColors, commandLabels);
-        });
         sockEEG.on('eeg', ({ cls, likelihoods }) => onSubtaskSelectionEvent(cls, likelihoods));
     } else {
         if (sockEEG.connected) sockEEG.disconnect();
-        removeCharts();
     }
 }
 

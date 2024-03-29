@@ -26,7 +26,8 @@ class ThresholdModel:
         else:
             cls = None  # no output class
 
-        return cls, rms_ratio  # rms ratio as likelihoods
+        likelihoods = rms_ratio / self.thres
+        return cls, likelihoods
 
 
 class ThresholdDiffModel:
@@ -54,5 +55,5 @@ class ThresholdDiffModel:
         else:
             cls = None  # no output class
 
-        likelihoods = np.maximum(rms_ratio_diff, 0)  # ignore negative values
+        likelihoods = np.maximum(rms_ratio_diff, 0) / self.thres  # ignore negative values
         return cls, likelihoods
