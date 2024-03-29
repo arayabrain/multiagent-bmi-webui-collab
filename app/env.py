@@ -257,7 +257,7 @@ class EnvRunner:
         visuals = self.env.get_visuals()
         async with self.frame_update_cond:
             for i in range(self.num_agents):
-                self.frames[i] = visuals[f"rgb:franka{i}_front_cam:256x256:1d"].reshape((256, 256, 3))
+                self.frames[i] = visuals[f"rgb:franka{i}_front_cam:256x256:2d"]
             self.frame_update_cond.notify_all()
 
     async def update_command(self, event, data):
