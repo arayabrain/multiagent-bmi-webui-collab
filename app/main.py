@@ -81,20 +81,8 @@ async def task_stop(sid):
     # TODO: capsulate this in env
     for idx_agent in range(env.num_agents):
         env.next_acceptable_commands[idx_agent].append("")  # TODO
-        await env._update_and_notify_command("", idx_agent)
+        await env.update_and_notify_command("", idx_agent)
     return True
-
-
-@sio.on("keyup")
-async def keyup(sid, key):
-    print(f"keyup: received {key}")
-    await env.update_command("keyup", key)
-
-
-@sio.on("keydown")
-async def keydown(sid, key):
-    print(f"keydown: received {key}")
-    await env.update_command("keydown", key)
 
 
 @sio.on("focus")
@@ -103,10 +91,12 @@ async def focus(sid, focus_id):
     env.focus_id = focus_id
 
 
-@sio.on("eeg")
-async def eeg(sid, command: str):
-    print(f'eeg: received "{command}"')
-    await env.update_command("eeg", command)
+@sio.on("command")
+async def command(sid, data: dict):
+    agent_id = data["agentId"]
+    command_label = data["command"]
+    print(f"command: {command_label} for agent {agent_id}")
+    await env.update_and_notify_command(command_label, agent_id)
 
 
 @sio.on("webrtc-offer-request")

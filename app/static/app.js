@@ -10,6 +10,7 @@ let videos, toggleGaze, toggleEEG;
 
 let commandLabels, commandColors;  // info from the env server
 let command, nextAcceptableCommands;
+let keyMap;
 
 let isStarted = false;
 
@@ -31,24 +32,18 @@ document.addEventListener("DOMContentLoaded", () => {
     toggleGaze.addEventListener('change', () => onToggleGaze(toggleGaze.checked));
     toggleEEG.addEventListener('change', () => onToggleEEG(toggleEEG.checked));
 
-    // Move the cursor to the mouse position
+    // Move the cursor by mouse
     document.addEventListener('mousemove', (event) => {
         updateCursorAndFocus(event.clientX, event.clientY);
     });
-
-    // Send pressed/released keys to the server
-    document.addEventListener('keydown', (event) => {
-        if (!isStarted) {
-            updateLog("Task not started yet");
-            return;
-        }
-        if (sockEnv.connected) sockEnv.emit('keydown', event.key);
-    });
-    document.addEventListener('keyup', (event) => {
-        if (!isStarted) return;
-        if (sockEnv.connected) sockEnv.emit('keyup', event.key);
-    });
+    // Move the cursor by gamepad
     setGamepadHandler();
+
+    // subtask selection by keyboard
+    document.addEventListener('keydown', (event) => {
+        if (keyMap === undefined) return;
+        onSubtaskSelectionEvent(keyMap[event.key]);
+    });
 
     // buttons
     document.getElementById('start-button').addEventListener('click', startTask);
@@ -147,6 +142,13 @@ const connectEnv = () => {
 
         command = Array(numAgents).fill('');
         nextAcceptableCommands = Array(numAgents).fill([]);
+
+        keyMap = {};
+        // cancel: 0, others: 1, 2, ...
+        if (commandLabels.includes('cancel')) keyMap['0'] = 'cancel';
+        commandLabels.filter(label => label !== 'cancel').forEach((label, idx) => {
+            keyMap[(idx + 1).toString()] = label;
+        });
 
         updateLog(`Env: ${labels.length} classes, ${numAgents} agents`);
     });
@@ -249,21 +251,33 @@ const onToggleEEG = (checked) => {
         sockEEG.on('init', (data) => {
             createCharts(data.threshold, commandColors, commandLabels);
         });
-        sockEEG.on('eeg', ({ cls, likelihoods }) => {
-            if (!isStarted) return;
-
-            // forward the command to the env server
-            const command = cls === null ? "" : commandLabels[cls];
-            sockEnv.emit('eeg', command);
-            // console.log(`EEG data received:\n command "${command}"\n likelihoods ${likelihoods.map(l => l.toFixed(2))}`);
-
-            // update the chart data
-            const focusId = getFocusId();
-            updateChartData(focusId, likelihoods, nextAcceptableCommands[focusId]);
-        });
+        sockEEG.on('eeg', ({ cls, likelihoods }) => onSubtaskSelectionEvent(cls, likelihoods));
     } else {
         if (sockEEG.connected) sockEEG.disconnect();
         removeCharts();
     }
 }
 
+const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
+    if (!isStarted) return;
+    if (!sockEnv.connected) return;
+
+    const agentId = getFocusId();
+
+    let commandLabel;
+    if (typeof command === "int") {
+        commandLabel = commandLabels[command];
+    } else if (typeof command === "string") {
+        commandLabel = command;
+    } else {
+        console.error("Invalid command type");
+        return;
+    }
+    sockEnv.emit('command', { agentId: agentId, command: commandLabel });
+
+    if (likelihoods === undefined) {
+        likelihoods = commandLabels.map(label => label === commandLabel ? 1 : 0);
+    }
+    // update the chart data
+    updateChartData(agentId, likelihoods, nextAcceptableCommands[agentId]);
+}

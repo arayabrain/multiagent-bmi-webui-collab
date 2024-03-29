@@ -109,7 +109,7 @@ class EnvRunner:
         # reset interface states
         for idx_agent in range(self.num_agents):
             self.next_acceptable_commands[idx_agent].append("")  # TODO
-            await self._update_and_notify_command("", idx_agent)
+            await self.update_and_notify_command("", idx_agent)
         self.prev_action_command = [""] * self.num_agents
         # we don't reset focus_id
 
@@ -161,7 +161,7 @@ class EnvRunner:
                     await self._notify("subtaskDone", {"agentId": idx_agent, "subtask": self.command[idx_agent]})
                     # reset command
                     self.next_acceptable_commands[idx_agent].append("")  # TODO
-                    await self._update_and_notify_command("", idx_agent)
+                    await self.update_and_notify_command("", idx_agent)
 
             # check if all tasks are done
             # TODO: sync with policy.done?
@@ -260,28 +260,7 @@ class EnvRunner:
                 self.frames[i] = visuals[f"rgb:franka{i}_front_cam:256x256:2d"]
             self.frame_update_cond.notify_all()
 
-    async def update_command(self, event, data):
-        if self.focus_id is None:
-            # if no robot is selected, ignore the command
-            # TODO: is this correct?
-            return
-
-        # convert data to command
-        if event == "eeg":
-            # data is command
-            command = data
-        elif event == "keydown":
-            # data is key name
-            if data in self.command_keys:
-                command = self.command_labels[self.command_keys.index(data)]
-            else:
-                return
-        else:
-            return
-
-        await self._update_and_notify_command(command, self.focus_id)
-
-    async def _update_and_notify_command(self, command, agent_id):
+    async def update_and_notify_command(self, command, agent_id):
         # self.command should be updated only by this method
 
         # check if the command is valid
