@@ -262,7 +262,9 @@ const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
     const agentId = getFocusId();
 
     let commandLabel;
-    if (typeof command === "int") {
+    if (command === null) {
+        commandLabel = '';
+    } else if (typeof command === "number") {
         commandLabel = commandLabels[command];
     } else if (typeof command === "string") {
         commandLabel = command;
