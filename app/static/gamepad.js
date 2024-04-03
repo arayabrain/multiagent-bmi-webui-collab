@@ -1,7 +1,7 @@
 import { updateCursorAndFocus } from './cursor.js';
 
 let animationFrameRequest;
-const sensitivity = 25;
+const sensitivity = 60;
 
 export const setGamepadHandler = () => {
     window.addEventListener("gamepadconnected", (event) => gamepadHandler(event, true));
