@@ -26,8 +26,8 @@ env_id = "FrankaPickPlaceMulti4Robots4Col-v0"
 
 env = EnvRunner(env_id, sio)
 
-pc: RTCPeerConnection | None = None
 relay = MediaRelay()  # use the same instance for all connections
+peer_connections = {}  # RTCPeerConnections for each client
 
 
 @app.get("/")
@@ -55,18 +55,18 @@ async def connect(sid, environ):
         },
         to=sid,
     )
+    peer_connections[sid] = createPeerConnection(sio)
 
 
 @sio.event
 async def disconnect(sid):
-    global pc
     print("Client disconnected:", sid)
     # reset env
     await env.reset()
     # close peer connection
-    if pc:
-        await pc.close()
-        pc = None
+    if sid in peer_connections:
+        await peer_connections[sid].close()
+        del peer_connections[sid]
 
 
 @sio.on("taskReset")
@@ -101,9 +101,7 @@ async def command(sid, data: dict):
 
 @sio.on("webrtc-offer-request")
 async def webrtc_offer_request(sid):
-    global pc
-    pc = createPeerConnection(sio)
-
+    pc = peer_connections[sid]
     # add stream tracks
     for i in range(env.num_agents):
         track = relay.subscribe(ImageStreamTrack(env, i))
@@ -115,12 +113,12 @@ async def webrtc_offer_request(sid):
 
 @sio.on("webrtc-answer")
 async def webrtc_answer(sid, data):
-    await handle_answer(pc, data)
+    await handle_answer(peer_connections[sid], data)
 
 
 @sio.on("webrtc-ice")
 async def webrtc_ice(sid, data):
-    await handle_candidate(pc, data)
+    await handle_candidate(peer_connections[sid], data)
 
 
 if __name__ == "__main__":
