@@ -260,19 +260,23 @@ const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
     if (!sockEnv.connected) return;
 
     const agentId = getFocusId();
+    if (agentId === null) return;
 
     let commandLabel;
     if (command === null) {
         commandLabel = '';
-    } else if (typeof command === "number") {
+    } else if (typeof command === 'number') {
         commandLabel = commandLabels[command];
-    } else if (typeof command === "string") {
+    } else if (typeof command === 'string' && commandLabels.includes(command)) {
         commandLabel = command;
     } else {
-        console.error("Invalid command type");
+        console.error(`Invalid command: ${command}`);
         return;
     }
-    sockEnv.emit('command', { agentId: agentId, command: commandLabel });
+
+    if (commandLabel !== '') {
+        sockEnv.emit('command', { agentId: agentId, command: commandLabel });
+    }
 
     if (likelihoods === undefined) {
         likelihoods = commandLabels.map(label => label === commandLabel ? 1 : 0);
