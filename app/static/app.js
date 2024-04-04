@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // subtask selection by keyboard
     document.addEventListener('keydown', (event) => {
-        if (keyMap === undefined) return;
+        if (keyMap === undefined || !keyMap.hasOwnProperty(event.key)) return;
         onSubtaskSelectionEvent(keyMap[event.key]);
     });
 
