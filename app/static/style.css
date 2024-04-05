@@ -27,6 +27,7 @@ html {
 
 .container {
     display: flex;
+    height: 90vh;
     align-items: center;
     gap: 60px;
     /* Space between the video-grid and toggle-switches */
@@ -36,11 +37,12 @@ html {
     box-sizing: border-box;
 }
 
+/* video */
 .video-grid {
+    height: 100%;
     display: grid;
     grid-template-columns: repeat(2, auto);
     grid-template-rows: repeat(2, auto);
-    height: 90vh;
     gap: 5px;
     /* Grid gap */
     justify-content: center;
@@ -80,8 +82,11 @@ video {
     overflow: hidden;
 }
 
+/* controls */
 .controls-container {
+    height: 100%;
     min-width: 370px;
+    /* TODO */
     /* to show messages without wrapping */
     gap: 20px;
     /* Space between each switch */
@@ -89,8 +94,11 @@ video {
     flex-direction: column;
     align-items: flex-start;
     /* aligns the switches to the left */
+    justify-content: center;
+    /* align vertically */
 }
 
+/* toggle switches */
 .toggle-container {
     width: 100%;
 }
@@ -119,6 +127,7 @@ video {
     border-color: grey;
 }
 
+/* buttons */
 .button-container {
     width: 100%;
     display: flex;
@@ -127,20 +136,8 @@ video {
     /* Space between each button */
 }
 
-.status-message {
+/* task status message */
+#task-status-message {
     width: 100%;
     /* margin-top: 10px; */
-}
-
-#log {
-    width: 100%;
-    height: 200px;
-    overflow-y: auto;
-    background-color: #f0f0f0;
-    border: 1px solid #ccc;
-    padding: 10px;
-    /* padding inside the log box */
-    /* resize: none; */
-    /* Disable resizing */
-    font-size: 15px;
 }

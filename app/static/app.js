@@ -61,7 +61,7 @@ const updateTaskStatusMsg = (msg) => {
 
 const updateLog = (msg, numSpace = 0) => {
     const log = document.getElementById('log');
-    log.innerHTML += '&nbsp;'.repeat(numSpace) + msg + "<br>";
+    log.textContent += ' '.repeat(numSpace) + msg + '\n';
     log.scrollTop = log.scrollHeight;
 }
 

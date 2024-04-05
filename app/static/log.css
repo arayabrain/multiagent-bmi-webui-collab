@@ -1,0 +1,36 @@
+.btn-extra-sm {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.25rem;
+    border-radius: 0.2rem;
+}
+
+.card {
+    border: none;
+}
+
+.card-body {
+    padding: 0;
+}
+
+#log-collapse {
+    width: 100%;
+    margin-top: -20px;
+    /* remove the gap between the log and the button */
+}
+
+#log-collapse.show {
+    /* Set flex to apply flex-grow */
+    /* If set by default, the collapse will be expanded from the beginning. */
+    display: flex;
+    flex-direction: column;
+}
+
+#log {
+    width: 100%;
+    overflow-y: auto;
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    padding: 10px;
+    /* padding inside the log box */
+    font-size: 15px;
+}
