@@ -27,7 +27,7 @@ env_id = "FrankaPickPlaceMulti4Robots4Col-v0"
 env = EnvRunner(env_id, sio)
 
 relay = MediaRelay()  # use the same instance for all connections
-peer_connections = {}  # RTCPeerConnections for each client
+peer_connections: dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
 
 
 @app.get("/")
