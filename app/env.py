@@ -54,7 +54,7 @@ class EnvRunner:
 
         # states
         self.command: list[str] = [""] * self.num_agents  # command from user
-        self.prev_action_command: list[str] = [""] * self.num_agents  # command at the previous action
+        self.prev_executed_command: list[str] = [""] * self.num_agents  # command at the previous action
         self.next_acceptable_commands: list[list[str]] = list(
             map(self._get_next_acceptable_commands, self.command)
         )  # next acceptable commands for each agent
@@ -107,13 +107,16 @@ class EnvRunner:
             policy.reset(self.env)
 
         # reset interface states
-        for idx_agent in range(self.num_agents):
-            self.next_acceptable_commands[idx_agent].append("")  # TODO
-            await self.update_and_notify_command("", idx_agent)
-        self.prev_action_command = [""] * self.num_agents
+        await self.clear_commands()
+        self.prev_executed_command = [""] * self.num_agents
         # we don't reset focus_id
 
         return obs
+
+    async def clear_commands(self):
+        for idx_agent in range(self.num_agents):
+            self.next_acceptable_commands[idx_agent].append("")  # TODO: force=True?
+            await self.update_and_notify_command("", idx_agent)
 
     async def reset(self):
         """Request env to reset, and wait for the reset to be done."""
@@ -201,9 +204,9 @@ class EnvRunner:
                 subtask_done = True
             else:
                 # subtask command
-                if self.prev_action_command[idx_policy] != c:
+                if self.prev_executed_command[idx_policy] != c:
                     # command changed since the previous action
-                    self.prev_action_command[idx_policy] = c
+                    self.prev_executed_command[idx_policy] = c
 
                     # from command label to rgb index in Mujoco
                     # TODO: make a dict for this?

@@ -47,14 +47,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // buttons
     document.getElementById('start-button').addEventListener('click', startTask);
-    document.getElementById('reset-button').addEventListener('click', resetTask);
-    document.getElementById('stop-button').addEventListener('click', stopTask);
+    document.getElementById('reset-button').addEventListener('click', () => {
+        stopTask();
+        resetTask();
+    });
 
-    // TODO: set initial state of buttons and task status message according to the task status
-    updateTaskStatusMsg('Ready.');
-    document.getElementById('start-button').disabled = false;
-    document.getElementById('reset-button').disabled = false;
-    document.getElementById('stop-button').disabled = false;
+    resetTask();
 });
 
 const updateTaskStatusMsg = (msg) => {
@@ -69,7 +67,7 @@ const updateLog = (msg, numSpace = 0) => {
 
 const startTask = async () => {
     document.getElementById('start-button').disabled = true;
-    document.getElementById('reset-button').disabled = true;
+    document.getElementById('reset-button').disabled = false;
 
     // countdown
     const _updateCountdownMsg = () => updateTaskStatusMsg(`Start in ${countdownTimer.getTimeValues().seconds} sec...`);
@@ -92,7 +90,6 @@ const startTask = async () => {
 }
 
 const stopTask = () => {
-    // if (!isStarted) return;  // TODO
     isStarted = false;
 
     // task completion time
@@ -106,11 +103,7 @@ const stopTask = () => {
     // error rate
     const errorRate = numSubtaskSelections === 0 ? 0 : numInvalidSubtaskSelections / numSubtaskSelections;
 
-    sockEnv.emit('taskStop', () => {
-        updateTaskStatusMsg("Stopped.")
-        // document.getElementById('start-button').disabled = false;
-        document.getElementById('reset-button').disabled = false;
-    });
+    sockEnv.emit('taskStop', () => updateTaskStatusMsg("Stopped."));
 
     return { taskCompletionSec, errorRate };
 }
@@ -119,6 +112,7 @@ const resetTask = async () => {
     sockEnv.emit('taskReset', () => {
         updateTaskStatusMsg('Environment reset. Ready.');
         document.getElementById('start-button').disabled = false;
+        document.getElementById('reset-button').disabled = true;
     });
     resetInteractionTimeHistory();
 }
