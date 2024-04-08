@@ -3,6 +3,7 @@ import { scaleRgba } from './utils.js';
 const charts = [];
 const chartAnimationDuration = 100;  // ms
 let commandColors, commandLabels;
+const initVal = 0.2;
 
 export const createCharts = (_commandColors, _commandLabels) => {
     if (charts.length > 0) removeCharts(); // remove existing charts
@@ -17,7 +18,7 @@ export const createCharts = (_commandColors, _commandLabels) => {
             data: {
                 labels: Array(commandLabels.length).fill(''),  // neccesary
                 datasets: [{
-                    data: Array(commandLabels.length).fill(0.2),
+                    data: Array(commandLabels.length).fill(initVal),
                     backgroundColor: commandColors,
                     borderColor: commandColors.map(rgba => scaleRgba(rgba, 0.7, 1)),
                     borderWidth: 1,
@@ -97,6 +98,13 @@ export const updateChartData = (agentId, likelihoods, nextAcceptableCommands) =>
         nextAcceptableCommands.includes(commandLabels[i]) ? likelihood : chart.data.datasets[0].data[i]
     );
     chart.update();
+}
+
+export const resetChartData = () => {
+    charts.forEach(chart => {
+        chart.data.datasets[0].data = Array(commandLabels.length).fill(initVal);
+        chart.update();
+    });
 }
 
 export const updateChartColor = (agentId, currentCommand, nextAcceptableCommands) => {

@@ -1,4 +1,4 @@
-import { createCharts, updateChartColor, updateChartData } from './chart.js';
+import { createCharts, resetChartData, updateChartColor, updateChartData } from './chart.js';
 import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTime, resetInteractionTimeHistory, setSockEnv, updateCursorAndFocus } from './cursor.js';
 import { setGamepadHandler } from './gamepad.js';
 import { onToggleGaze } from './gaze.js';
@@ -115,6 +115,7 @@ const resetTask = async () => {
         document.getElementById('reset-button').disabled = true;
     });
     resetInteractionTimeHistory();
+    resetChartData();
 }
 
 const connectEnv = () => {
