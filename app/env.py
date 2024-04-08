@@ -94,6 +94,8 @@ class EnvRunner:
     async def _reset(self):
         # TODO: separate env/policy-side reset and interface-side reset
 
+        obs = self.env.reset()
+
         # reset policies
         # TODO: move this to MotionPlannerPolicy to reset internally?
         for policy in self.policies:
@@ -101,10 +103,6 @@ class EnvRunner:
             policy.subtask_target_obj_idxs = []
             policy.done_obj_idxs = []
             policy.done_subtasks = []
-
-        obs = self.env.reset()
-        for policy in self.policies:
-            policy.reset(self.env)
 
         # reset interface states
         await self.clear_commands()

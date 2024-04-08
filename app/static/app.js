@@ -108,7 +108,7 @@ const stopTask = () => {
     return { taskCompletionSec, errorRate };
 }
 
-const resetTask = async () => {
+const resetTask = () => {
     sockEnv.emit('taskReset', () => {
         updateTaskStatusMsg('Environment reset. Ready.');
         document.getElementById('start-button').disabled = false;
