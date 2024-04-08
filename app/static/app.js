@@ -70,18 +70,28 @@ const updateLog = (msg, numSpace = 0) => {
     log.scrollTop = log.scrollHeight;
 }
 
+const countdown = async (sec) => {
+    const _updateCountdownMsg = () => updateTaskStatusMsg(`Start in ${countdownTimer.getTimeValues().seconds} sec...`);
+
+    countdownTimer.start({ countdown: true, startValues: { seconds: sec } });
+    _updateCountdownMsg();
+    countdownTimer.addEventListener('secondsUpdated', _updateCountdownMsg);
+
+    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve('timeout'), (sec + 1) * 1000));
+    const countdownPromise = new Promise((resolve) => countdownTimer.addEventListener('targetAchieved', () => resolve('targetAchieved')));
+    const result = await Promise.race([timeoutPromise, countdownPromise]);
+
+    countdownTimer.stop();
+    countdownTimer.removeEventListener('secondsUpdated', _updateCountdownMsg);
+    return result === 'targetAchieved';
+}
+
 const startTask = async () => {
     document.getElementById('start-button').disabled = true;
     document.getElementById('reset-button').disabled = false;
 
     // countdown
-    const _updateCountdownMsg = () => updateTaskStatusMsg(`Start in ${countdownTimer.getTimeValues().seconds} sec...`);
-    countdownTimer.start({ countdown: true, startValues: { seconds: countdownSec } });
-    _updateCountdownMsg();
-    countdownTimer.addEventListener('secondsUpdated', _updateCountdownMsg);
-    await new Promise(resolve => countdownTimer.addEventListener('targetAchieved', resolve));
-    countdownTimer.stop();
-    countdownTimer.removeEventListener('secondsUpdated', _updateCountdownMsg);
+    if (!await countdown(countdownSec)) return;
     updateTaskStatusMsg('Running...');
 
     // reset the subtask selection error rate
