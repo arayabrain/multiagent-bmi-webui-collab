@@ -57,8 +57,16 @@ document.addEventListener("DOMContentLoaded", () => {
         resetTask();
     });
 
+    document.getElementById('username').addEventListener('input', () => {
+        document.getElementById('start-button').disabled = !isNameValid();
+    });
+
     resetTask();
 });
+
+const isNameValid = () => {
+    return document.getElementById('username').value.trim() !== '';
+}
 
 const updateTaskStatusMsg = (msg) => {
     document.getElementById('task-status-message').innerText = msg;
@@ -125,9 +133,10 @@ const stopTask = () => {
 }
 
 const resetTask = () => {
+    console.assert(!isStarted, 'Task is not stopped');
     sockEnv.emit('taskReset', () => {
         updateTaskStatusMsg('Environment reset. Ready.');
-        document.getElementById('start-button').disabled = false;
+        document.getElementById('start-button').disabled = !isNameValid();
         document.getElementById('reset-button').disabled = true;
     });
     resetInteractionTimeHistory();
