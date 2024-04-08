@@ -48,7 +48,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // buttons
     document.getElementById('start-button').addEventListener('click', startTask);
     document.getElementById('reset-button').addEventListener('click', () => {
-        stopTask();
+        // stop
+        const { taskCompletionSec, errorRate } = stopTask();
+        updateLog('Task stopped.');
+        if (taskCompletionSec !== null) updateLog(`Time: ${taskCompletionSec.toFixed(1)} sec`);
+        if (errorRate !== null) updateLog(`Error rate: ${errorRate.toFixed(2)}`);
+        // reset
         resetTask();
     });
 
@@ -94,6 +99,7 @@ const stopTask = () => {
 
     // task completion time
     let taskCompletionSec = null;
+    let errorRate = null;
     if (taskCompletionTimer.isRunning()) {
         taskCompletionSec = taskCompletionTimer.getTotalTimeValues().secondTenths / 10;
         taskCompletionTimer.stop();
@@ -101,7 +107,7 @@ const stopTask = () => {
     if (countdownTimer.isRunning()) countdownTimer.stop();
 
     // error rate
-    const errorRate = numSubtaskSelections === 0 ? 0 : numInvalidSubtaskSelections / numSubtaskSelections;
+    errorRate = numSubtaskSelections === 0 ? null : numInvalidSubtaskSelections / numSubtaskSelections;
 
     sockEnv.emit('taskStop', () => updateTaskStatusMsg("Stopped."));
 
@@ -175,11 +181,11 @@ const connectEnv = () => {
             // agent is executing an action
             // Currently we do not count this as a subtask selection
             updateLog(`Agent ${agentId}: Command update failed`);
-            updateLog(`The agent is executing an action`, 15);
+            updateLog(`Agent is executing an action`, 2);
         } else if (!hasSubtaskNotDone) {
             // subtask has already been done
             updateLog(`Agent ${agentId}: Command update failed`);
-            updateLog(`The subtask "${_command}" has already been done`, 15);
+            updateLog(`Task "${_command}" is already done`, 2);
 
             if (_command !== '') {  // _command==='' should not happen actually
                 // This case is considered an "invalid" command
@@ -208,10 +214,13 @@ const connectEnv = () => {
     sockEnv.on('taskDone', () => {
         const { taskCompletionSec, errorRate } = stopTask();
         const { len, mean, std } = getInteractionTimeStats();
-        updateLog(`<br>Task completed!`);
-        updateLog(`Task completion time: ${taskCompletionSec.toFixed(1)} sec`);
-        updateLog(`Average time for ${len} interactions: ${mean.toFixed(1)} ± ${std.toFixed(1)} sec`);
-        updateLog(`Error rate: ${numInvalidSubtaskSelections}/${numSubtaskSelections} = ${errorRate.toFixed(2)}<br>`);
+        updateLog(`\nTask completed!`);
+        updateLog(`Task completion time:`);
+        updateLog(`${taskCompletionSec.toFixed(1)} sec`, 2);
+        updateLog(`Average time for ${len} interactions:`);
+        updateLog(`${mean.toFixed(1)} ± ${std.toFixed(1)} sec`, 2);
+        updateLog(`Error rate:`);
+        updateLog(`${numInvalidSubtaskSelections}/${numSubtaskSelections} = ${errorRate.toFixed(2)}\n`, 2);
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
