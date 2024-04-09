@@ -24,7 +24,7 @@ export const onToggleGaze = (checked) => {
         });
         showAprilTags();
     } else {
-        if (sockGaze.connected) sockGaze.disconnect();
+        if (sockGaze) sockGaze.disconnect();
         hideAprilTags();
     }
 }

@@ -1,6 +1,6 @@
 import { createCharts, resetChartData, updateChartColor, updateChartData, updateChartLock } from './chart.js';
 import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTime, resetInteractionTimeHistory, setSockEnv } from './cursor.js';
-import { onToggleEEG } from './eeg.js';
+import { onToggleEEG, setNumClasses } from './eeg.js';
 import { setGamepadHandler } from './gamepad.js';
 import { onToggleGaze } from './gaze.js';
 import { onToggleKeyboard, setKeyMap } from './keyboard.js';
@@ -188,6 +188,7 @@ const connectEnv = () => {
         updateLog(`Env: ${labels.length} classes, ${numAgents} agents`);
 
         setKeyMap(commandLabels);
+        setNumClasses(commandLabels.length);
 
         // if a video is ready, create charts
         document.querySelector('video').addEventListener('canplay', () => createCharts(commandColors, commandLabels));

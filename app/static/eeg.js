@@ -1,14 +1,17 @@
 import { updateConnectionStatusElement } from './utils.js';
 
 let sockEEG;
+let _numClasses;
 
-export const onToggleEEG = (checked, commandHandler, commandLabels) => {
-    console.assert(commandLabels.length > 0, "commandLabels must be an array of at least one element");
+export const setNumClasses = (numClasses) => _numClasses = numClasses;  // This should be called in sockEnv.on('init')
+
+export const onToggleEEG = (checked, commandHandler) => {
     if (checked) {
         updateConnectionStatusElement('connecting', 'toggle-eeg');
         sockEEG = io.connect(`http://localhost:8002`, { transports: ['websocket'] });
         sockEEG.on('connect', () => {
-            sockEEG.emit('init', { numClasses: commandLabels.length });
+            console.assert(_numClasses !== undefined, "numClasses is not set");
+            sockEEG.emit('init', { numClasses: _numClasses });
             updateConnectionStatusElement('connected', 'toggle-eeg');
             console.log("EEG server connected");
         });
@@ -21,6 +24,6 @@ export const onToggleEEG = (checked, commandHandler, commandLabels) => {
         });
         sockEEG.on('eeg', ({ cls, likelihoods }) => commandHandler(cls, likelihoods));
     } else {
-        if (sockEEG.connected) sockEEG.disconnect();
+        if (sockEEG) sockEEG.disconnect();
     }
 }
