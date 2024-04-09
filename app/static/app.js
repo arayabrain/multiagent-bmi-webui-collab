@@ -1,7 +1,9 @@
 import { createCharts, resetChartData, updateChartColor, updateChartData } from './chart.js';
-import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTime, resetInteractionTimeHistory, setSockEnv, updateCursorAndFocus } from './cursor.js';
+import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTime, resetInteractionTimeHistory, setSockEnv } from './cursor.js';
 import { setGamepadHandler } from './gamepad.js';
 import { onToggleGaze } from './gaze.js';
+import { onToggleKeyboard, setKeyMap } from './keyboard.js';
+import { onToggleMouse } from './mouse.js';
 import { binStr2Rgba, updateConnectionStatusElement } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
@@ -10,7 +12,6 @@ let videos, toggleGaze, toggleEEG;
 
 let commandLabels, commandColors;  // info from the env server
 let command, nextAcceptableCommands;
-let keyMap;
 
 let isStarted = false;  // task is started and accepting subtask selection
 
@@ -25,25 +26,19 @@ let numSubtaskSelections, numInvalidSubtaskSelections;
 
 document.addEventListener("DOMContentLoaded", () => {
     videos = document.querySelectorAll('video');
-    toggleGaze = document.getElementById('toggle-gaze');
-    toggleEEG = document.getElementById('toggle-eeg');
 
     connectEnv();
-    toggleGaze.addEventListener('change', () => onToggleGaze(toggleGaze.checked));
-    toggleEEG.addEventListener('change', () => onToggleEEG(toggleEEG.checked));
 
-    // Move the cursor by mouse
-    document.addEventListener('mousemove', (event) => {
-        updateCursorAndFocus(event.clientX, event.clientY);
-    });
-    // Move the cursor by gamepad
+    // robot selection devices
+    document.getElementById('toggle-gaze').addEventListener('change', (e) => onToggleGaze(e.target.checked));
+    document.getElementById('toggle-mouse').addEventListener('change', (e) => onToggleMouse(e.target.checked));
     setGamepadHandler();
+    // subtask selection devices
+    document.getElementById('toggle-eeg').addEventListener('change', (e) => onToggleEEG(e.target.checked));
+    document.getElementById('toggle-keyboard').addEventListener('change', (e) => onToggleKeyboard(e.target.checked, onSubtaskSelectionEvent));
 
-    // subtask selection by keyboard
-    document.addEventListener('keydown', (event) => {
-        if (keyMap === undefined || !keyMap.hasOwnProperty(event.key)) return;
-        onSubtaskSelectionEvent(keyMap[event.key]);
-    });
+    // dispatch events for initial state
+    document.querySelectorAll('.toggle-container .togglable').forEach(input => input.dispatchEvent(new Event('change')));
 
     // buttons
     document.getElementById('start-button').addEventListener('click', startTask);
@@ -93,6 +88,7 @@ const startTask = async () => {
     document.getElementById('username').disabled = true;
     document.getElementById('start-button').disabled = true;
     document.getElementById('reset-button').disabled = false;
+    document.querySelectorAll('.toggle-container .togglable').forEach(input => input.disabled = true);
 
     // countdown
     if (!await countdown(countdownSec)) return;
@@ -149,6 +145,13 @@ const stopTask = (isComplete = false) => {
             taskCompletionTime: taskCompletionSec,
             errorRate,
             interactionTime: { len, mean, std },
+            devices: {
+                mouse: document.getElementById('toggle-mouse').checked,
+                gamepad: document.getElementById('toggle-gamepad').checked,
+                gaze: document.getElementById('toggle-gaze').checked,
+                keyboard: document.getElementById('toggle-keyboard').checked,
+                eeg: document.getElementById('toggle-eeg').checked,
+            }
         }, (res) => {
             if (res) {
                 updateLog('Metrics saved.');
@@ -166,6 +169,7 @@ const resetTask = () => {
         document.getElementById('username').disabled = false;
         document.getElementById('start-button').disabled = !isNameValid();
         document.getElementById('reset-button').disabled = true;
+        document.querySelectorAll('.toggle-container .togglable').forEach(input => input.disabled = false);
     });
     resetChartData();
     // reset metrics
@@ -194,13 +198,7 @@ const connectEnv = () => {
 
         command = Array(numAgents).fill('');
         nextAcceptableCommands = Array(numAgents).fill([]);
-
-        keyMap = {};
-        // cancel: 0, others: 1, 2, ...
-        if (commandLabels.includes('cancel')) keyMap['0'] = 'cancel';
-        commandLabels.filter(label => label !== 'cancel').forEach((label, idx) => {
-            keyMap[(idx + 1).toString()] = label;
-        });
+        setKeyMap(commandLabels);
 
         // if video is ready, create charts
         videos[0].addEventListener('canplay', () => createCharts(commandColors, commandLabels));
