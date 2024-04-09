@@ -261,7 +261,7 @@ class EnvRunner:
                 self.frames[i] = visuals[f"rgb:franka{i}_front_cam:256x256:2d"]
             self.frame_update_cond.notify_all()
 
-    async def update_and_notify_command(self, command, agent_id):
+    async def update_and_notify_command(self, command, agent_id, likelihoods=None):
         # self.command should be updated only by this method
 
         # check if the command is valid
@@ -285,6 +285,7 @@ class EnvRunner:
                 "nextAcceptableCommands": next_acceptable_commands,
                 "isNowAcceptable": is_now_acceptable,
                 "hasSubtaskNotDone": has_subtask_not_done,
+                "likelihoods": likelihoods,
             },
         )
 

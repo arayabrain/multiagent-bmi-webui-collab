@@ -1,4 +1,4 @@
-import { createCharts, resetChartData, updateChartColor, updateChartData } from './chart.js';
+import { createCharts, resetChartData, updateChartColor, updateChartData, updateChartLock } from './chart.js';
 import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTime, resetInteractionTimeHistory, setSockEnv } from './cursor.js';
 import { onToggleEEG } from './eeg.js';
 import { setGamepadHandler } from './gamepad.js';
@@ -12,7 +12,6 @@ const countdownSec = 3;
 
 let sockEnv;
 let commandLabels, commandColors;  // info from the env server
-let command, nextAcceptableCommands;
 let isStarted = false;  // if true, task is started and accepting subtask selection
 const countdownTimer = new easytimer.Timer();
 const taskCompletionTimer = new easytimer.Timer();
@@ -188,8 +187,6 @@ const connectEnv = () => {
         commandLabels = labels;
         updateLog(`Env: ${labels.length} classes, ${numAgents} agents`);
 
-        command = Array(numAgents).fill('');
-        nextAcceptableCommands = Array(numAgents).fill([]);
         setKeyMap(commandLabels);
 
         // if a video is ready, create charts
@@ -204,6 +201,7 @@ const connectEnv = () => {
         const _nextAcceptableCommands = data.nextAcceptableCommands;
         const isNowAcceptable = data.isNowAcceptable;
         const hasSubtaskNotDone = data.hasSubtaskNotDone;
+        const likelihoods = data.likelihoods;
 
         if (_command !== '') {
             // record the interaction if the command is now acceptable
@@ -233,18 +231,15 @@ const connectEnv = () => {
                 numSubtaskSelections++;
             }
         } else {
-            // command is valid and updated
-            command[agentId] = _command;
-            nextAcceptableCommands[agentId] = _nextAcceptableCommands;
-
-            updateChartColor(agentId, command[agentId], nextAcceptableCommands[agentId]);
-
+            // command is valid and updated on the server
             if (_command !== '') {
                 numSubtaskSelections++;
-
                 updateLog(`Agent ${agentId}: Command updated to "${_command}"`);
-                // console.log(`Next acceptable commands: ${_nextAcceptableCommands.map(c => c === null ? 'null' : c)}`)
+                // sync the chart data before update chart lock status
+                if (likelihoods !== null) updateChartData(agentId, likelihoods);
             }
+            updateChartLock(agentId, _nextAcceptableCommands);
+            updateChartColor(agentId, _command);
         }
     });
     sockEnv.on('subtaskDone', ({ agentId, subtask }) => {
@@ -287,12 +282,16 @@ const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
     }
 
     if (commandLabel !== '') {
-        sockEnv.emit('command', { agentId: agentId, command: commandLabel });
+        sockEnv.emit('command', {
+            agentId: agentId,
+            command: commandLabel,
+            likelihoods: likelihoods,
+        });
     }
 
+    // update the chart
     if (likelihoods === undefined) {
         likelihoods = commandLabels.map(label => label === commandLabel ? 1 : 0);
     }
-    // update the chart data
-    updateChartData(agentId, likelihoods, nextAcceptableCommands[agentId]);
+    updateChartData(agentId, likelihoods);
 }
