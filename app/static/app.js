@@ -1,14 +1,15 @@
 import { createCharts, resetChartData, updateChartColor, updateChartData } from './chart.js';
 import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTime, resetInteractionTimeHistory, setSockEnv } from './cursor.js';
+import { onToggleEEG } from './eeg.js';
 import { setGamepadHandler } from './gamepad.js';
 import { onToggleGaze } from './gaze.js';
 import { onToggleKeyboard, setKeyMap } from './keyboard.js';
 import { onToggleMouse } from './mouse.js';
-import { binStr2Rgba, updateConnectionStatusElement } from './utils.js';
+import { binStr2Rgba } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
-let sockEnv, sockEEG;
-let videos, toggleGaze, toggleEEG;
+let sockEnv;
+let videos;
 
 let commandLabels, commandColors;  // info from the env server
 let command, nextAcceptableCommands;
@@ -34,9 +35,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('toggle-mouse').addEventListener('change', (e) => onToggleMouse(e.target.checked));
     setGamepadHandler();
     // subtask selection devices
-    document.getElementById('toggle-eeg').addEventListener('change', (e) => onToggleEEG(e.target.checked));
+    document.getElementById('toggle-eeg').addEventListener('change', (e) => onToggleEEG(e.target.checked, onSubtaskSelectionEvent, commandLabels));
     document.getElementById('toggle-keyboard').addEventListener('change', (e) => onToggleKeyboard(e.target.checked, onSubtaskSelectionEvent));
-
     // dispatch events for initial state
     document.querySelectorAll('.toggle-container .togglable').forEach(input => input.dispatchEvent(new Event('change')));
 
@@ -273,28 +273,6 @@ const connectEnv = () => {
     });
 
     setSockEnv(sockEnv);
-}
-
-const onToggleEEG = (checked) => {
-    if (checked) {
-        updateConnectionStatusElement('connecting', 'toggle-eeg');
-        sockEEG = io.connect(`http://localhost:8002`, { transports: ['websocket'] });  // TODO: https?
-        sockEEG.on('connect', () => {
-            sockEEG.emit('init', { numClasses: commandLabels.length });
-            updateConnectionStatusElement('connected', 'toggle-eeg');
-            console.log("EEG server connected");
-        });
-        sockEEG.on('disconnect', () => {
-            updateConnectionStatusElement('disconnected', 'toggle-eeg');
-            console.log("EEG server disconnected");
-        });
-        sockEEG.on('reconnect_attempt', () => {  // TODO: not working
-            console.log("EEG server reconnecting...");
-        });
-        sockEEG.on('eeg', ({ cls, likelihoods }) => onSubtaskSelectionEvent(cls, likelihoods));
-    } else {
-        if (sockEEG.connected) sockEEG.disconnect();
-    }
 }
 
 const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
