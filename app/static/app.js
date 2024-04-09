@@ -134,7 +134,7 @@ const stopTask = (isComplete = false) => {
         sockEnv.emit('saveMetrics', {
             username: document.getElementById('username').value,
             taskCompletionTime: taskCompletionSec,
-            errorRate,
+            errorRate: { numInvalidSubtaskSelections, numSubtaskSelections, rate: errorRate },
             interactionTime: { len, mean, std },
             devices: {
                 mouse: document.getElementById('toggle-mouse').checked,
