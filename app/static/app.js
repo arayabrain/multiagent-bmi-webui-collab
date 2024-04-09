@@ -1,5 +1,5 @@
 import { createCharts, resetChartData, updateChartColor, updateChartData, updateChartLock } from './chart.js';
-import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTime, resetInteractionTimeHistory, setSockEnv } from './cursor.js';
+import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTimeHistory, resetInteractionTimer, setSockEnv } from './cursor.js';
 import { onToggleEEG, setNumClasses } from './eeg.js';
 import { setGamepadHandler } from './gamepad.js';
 import { onToggleGaze } from './gaze.js';
@@ -193,59 +193,48 @@ const connectEnv = () => {
         // if a video is ready, create charts
         document.querySelector('video').addEventListener('canplay', () => createCharts(commandColors, commandLabels));
     });
-    sockEnv.on('command', (data) => {
-        // this event should be emitted only after the 'init' event
-
-        // TODO: rename global vars and replace "data"
-        const agentId = data.agentId;
-        const _command = data.command;
-        const _nextAcceptableCommands = data.nextAcceptableCommands;
-        const isNowAcceptable = data.isNowAcceptable;
-        const hasSubtaskNotDone = data.hasSubtaskNotDone;
-        const likelihoods = data.likelihoods;
-
-        if (_command !== '') {
+    sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods }) => {
+        // interaction time
+        if (command !== '') {
             // record the interaction if the command is now acceptable
-            // regardless of whether the command is "valid" subtask selection (data.hasSubtaskNotDone)
+            // regardless of whether the command is "valid" (hasSubtaskNotDone) subtask selection
             if (isNowAcceptable) {
                 const sec = recordInteractionTime();
                 updateLog(`Agent ${agentId}: Interaction recorded, ${sec.toFixed(1)}s`);
             }
-
-            // reset interaction time regardless of hasSubtaskNotDone and isNowAcceptable
-            resetInteractionTime();
+            // reset interaction timer regardless of hasSubtaskNotDone and isNowAcceptable
+            resetInteractionTimer();
         }
 
+        // error rate and chart update
         if (!isNowAcceptable) {
-            // agent is executing an action
+            // Command was not updated because agent was already executing an action
             // Currently we do not count this as a subtask selection
             updateLog(`Agent ${agentId}: Command update failed`);
             updateLog(`Agent is executing an action`, 2);
         } else if (!hasSubtaskNotDone) {
-            // subtask has already been done
+            // Command was not updated because the selected subtask has already been done
+            // We consider this as an "invalid" subtask selection and count as an error
             updateLog(`Agent ${agentId}: Command update failed`);
-            updateLog(`Task "${_command}" is already done`, 2);
+            updateLog(`Task "${command}" is already done`, 2);
 
-            if (_command !== '') {  // _command==='' should not happen actually
-                // This case is considered an "invalid" command
-                numInvalidSubtaskSelections++;
-                numSubtaskSelections++;
-            }
+            console.assert(command !== '', 'empty command');
+            numInvalidSubtaskSelections++;
+            numSubtaskSelections++;
         } else {
-            // command is valid and updated on the server
-            if (_command !== '') {
+            // Command was valid and updated
+            if (command !== '') {
                 numSubtaskSelections++;
-                updateLog(`Agent ${agentId}: Command updated to "${_command}"`);
-                // sync the chart data before update chart lock status
-                if (likelihoods !== null) updateChartData(agentId, likelihoods);
+                updateLog(`Agent ${agentId}: Command updated to "${command}"`);
+                if (likelihoods !== null) updateChartData(agentId, likelihoods);  // sync the chart data before updating the lock status
             }
-            updateChartLock(agentId, _nextAcceptableCommands);
-            updateChartColor(agentId, _command);
+            updateChartLock(agentId, nextAcceptableCommands);
+            updateChartColor(agentId, command);
         }
     });
     sockEnv.on('subtaskDone', ({ agentId, subtask }) => {
         updateLog(`Agent ${agentId}: Subtask "${subtask}" done`);
-        if (getFocusId() === agentId) resetInteractionTime();  // reset the timer if the agent is selected so that the time during the subtask is not counted
+        if (getFocusId() === agentId) resetInteractionTimer();  // reset the timer if the agent is selected so that the time during the subtask is not counted
     });
     sockEnv.on('taskDone', () => stopTask(true));
     sockEnv.on('webrtc-offer', async (data) => {

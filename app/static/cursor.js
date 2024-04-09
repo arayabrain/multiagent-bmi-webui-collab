@@ -70,7 +70,7 @@ const _updateAndNotifyFocus = (newId) => {
     if (sockEnv.connected) sockEnv.emit('focus', focusId);
 
     // start the timer
-    resetInteractionTime();
+    resetInteractionTimer();
 }
 
 export const recordInteractionTime = () => {
@@ -80,7 +80,7 @@ export const recordInteractionTime = () => {
     return sec;
 }
 
-export const resetInteractionTime = () => interactionTimer.reset();
+export const resetInteractionTimer = () => interactionTimer.reset();
 
 export const getInteractionTimeStats = () => {
     let mean = null, std = null;
