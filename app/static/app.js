@@ -8,26 +8,18 @@ import { onToggleMouse } from './mouse.js';
 import { binStr2Rgba } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
-let sockEnv;
-let videos;
+const countdownSec = 3;
 
+let sockEnv;
 let commandLabels, commandColors;  // info from the env server
 let command, nextAcceptableCommands;
-
-let isStarted = false;  // task is started and accepting subtask selection
-
-const taskCompletionTimer = new easytimer.Timer();
-
-const countdownSec = 3;
+let isStarted = false;  // if true, task is started and accepting subtask selection
 const countdownTimer = new easytimer.Timer();
-
-// error rate
-let numSubtaskSelections, numInvalidSubtaskSelections;
+const taskCompletionTimer = new easytimer.Timer();
+let numSubtaskSelections, numInvalidSubtaskSelections;  // error rate
 
 
 document.addEventListener("DOMContentLoaded", () => {
-    videos = document.querySelectorAll('video');
-
     connectEnv();
 
     // robot selection devices
@@ -200,8 +192,8 @@ const connectEnv = () => {
         nextAcceptableCommands = Array(numAgents).fill([]);
         setKeyMap(commandLabels);
 
-        // if video is ready, create charts
-        videos[0].addEventListener('canplay', () => createCharts(commandColors, commandLabels));
+        // if a video is ready, create charts
+        document.querySelector('video').addEventListener('canplay', () => createCharts(commandColors, commandLabels));
     });
     sockEnv.on('command', (data) => {
         // this event should be emitted only after the 'init' event
@@ -262,7 +254,7 @@ const connectEnv = () => {
     sockEnv.on('taskDone', () => stopTask(true));
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
-        pc = setupPeerConnection(sockEnv, videos);
+        pc = setupPeerConnection(sockEnv, document.querySelectorAll('video'));
         await handleOffer(sockEnv, pc, data);
     });
     sockEnv.on('webrtc-ice', async (data) => {
