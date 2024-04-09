@@ -48,12 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // buttons
     document.getElementById('start-button').addEventListener('click', startTask);
     document.getElementById('reset-button').addEventListener('click', () => {
-        // stop
-        const { taskCompletionSec, errorRate } = stopTask();
-        updateLog('Task stopped.');
-        if (taskCompletionSec !== null) updateLog(`Time: ${taskCompletionSec.toFixed(1)} sec`);
-        if (errorRate !== null) updateLog(`Error rate: ${errorRate.toFixed(2)}`);
-        // reset
+        stopTask();
         resetTask();
     });
 
@@ -95,6 +90,7 @@ const countdown = async (sec) => {
 }
 
 const startTask = async () => {
+    document.getElementById('username').disabled = true;
     document.getElementById('start-button').disabled = true;
     document.getElementById('reset-button').disabled = false;
 
@@ -102,45 +98,80 @@ const startTask = async () => {
     if (!await countdown(countdownSec)) return;
     updateTaskStatusMsg('Running...');
 
-    // reset the subtask selection error rate
-    numSubtaskSelections = 0;
-    numInvalidSubtaskSelections = 0;
-
     // start the timer
     taskCompletionTimer.start({ precision: 'secondTenths' });
 
     isStarted = true;
 }
 
-const stopTask = () => {
-    isStarted = false;
-
-    // task completion time
-    let taskCompletionSec = null;
-    let errorRate = null;
-    if (taskCompletionTimer.isRunning()) {
-        taskCompletionSec = taskCompletionTimer.getTotalTimeValues().secondTenths / 10;
-        taskCompletionTimer.stop();
+const stopTask = (isComplete = false) => {
+    if (!isStarted) {
+        // called by
+        // - the stop&reset button during the countdown
+        // - the stop&reset button after taskDone
+        if (countdownTimer.isRunning()) countdownTimer.stop();
+        return;
     }
-    if (countdownTimer.isRunning()) countdownTimer.stop();
 
-    // error rate
-    errorRate = numSubtaskSelections === 0 ? null : numInvalidSubtaskSelections / numSubtaskSelections;
+    // get metrics
+    const taskCompletionSec = taskCompletionTimer.getTotalTimeValues().secondTenths / 10;
+    taskCompletionTimer.stop();
+    const errorRate = numSubtaskSelections === 0 ? null : numInvalidSubtaskSelections / numSubtaskSelections;
+    const { len, mean, std } = getInteractionTimeStats();
 
-    sockEnv.emit('taskStop', () => updateTaskStatusMsg("Stopped."));
+    // stop the agents
+    const status = isComplete ? 'Task Completed!' : 'Stopped.';
+    sockEnv.emit('taskStop', () => {
+        isStarted = false;
+        updateTaskStatusMsg(status);
+    });
 
-    return { taskCompletionSec, errorRate };
+    // show logs
+    updateLog(`\n${status}`);
+    if (taskCompletionSec > 0) {
+        updateLog(`Time:`);
+        updateLog(`${taskCompletionSec.toFixed(1)} sec`, 2);
+    }
+    if (len !== 0) {
+        updateLog(`Average time for ${len} interactions:`);
+        updateLog(`${mean.toFixed(2)} ± ${std.toFixed(2)} sec`, 2);
+    }
+    if (errorRate !== null) {
+        updateLog(`Error rate:`);
+        updateLog(`${numInvalidSubtaskSelections}/${numSubtaskSelections} = ${errorRate.toFixed(2)}`, 2);
+    }
+    updateLog('');
+
+    // send the metrics to the server if the task is completed
+    if (isComplete) {
+        sockEnv.emit('saveMetrics', {
+            username: document.getElementById('username').value,
+            taskCompletionTime: taskCompletionSec,
+            errorRate,
+            interactionTime: { len, mean, std },
+        }, (res) => {
+            if (res) {
+                updateLog('Metrics saved.');
+            } else {
+                updateLog('Failed to save metrics.');
+            }
+        });
+    }
 }
 
 const resetTask = () => {
     console.assert(!isStarted, 'Task is not stopped');
     sockEnv.emit('taskReset', () => {
         updateTaskStatusMsg('Environment reset. Ready.');
+        document.getElementById('username').disabled = false;
         document.getElementById('start-button').disabled = !isNameValid();
         document.getElementById('reset-button').disabled = true;
     });
-    resetInteractionTimeHistory();
     resetChartData();
+    // reset metrics
+    resetInteractionTimeHistory();
+    numSubtaskSelections = 0;
+    numInvalidSubtaskSelections = 0;
 }
 
 const connectEnv = () => {
@@ -230,17 +261,7 @@ const connectEnv = () => {
         updateLog(`Agent ${agentId}: Subtask "${subtask}" done`);
         if (getFocusId() === agentId) resetInteractionTime();  // reset the timer if the agent is selected so that the time during the subtask is not counted
     });
-    sockEnv.on('taskDone', () => {
-        const { taskCompletionSec, errorRate } = stopTask();
-        const { len, mean, std } = getInteractionTimeStats();
-        updateLog(`\nTask completed!`);
-        updateLog(`Task completion time:`);
-        updateLog(`${taskCompletionSec.toFixed(1)} sec`, 2);
-        updateLog(`Average time for ${len} interactions:`);
-        updateLog(`${mean.toFixed(1)} ± ${std.toFixed(1)} sec`, 2);
-        updateLog(`Error rate:`);
-        updateLog(`${numInvalidSubtaskSelections}/${numSubtaskSelections} = ${errorRate.toFixed(2)}\n`, 2);
-    });
+    sockEnv.on('taskDone', () => stopTask(true));
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
         pc = setupPeerConnection(sockEnv, videos);

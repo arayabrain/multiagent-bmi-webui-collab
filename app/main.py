@@ -1,3 +1,5 @@
+import json
+from datetime import datetime
 from pathlib import Path
 
 import socketio
@@ -81,6 +83,21 @@ async def task_stop(sid):
     return True
 
 
+@sio.on("saveMetrics")
+async def save_metrics(sid, data):
+    try:
+        filepath = log_dir / env_id / data["username"] / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=4)
+        print(f"Metrics saved to {filepath}")
+        return True
+    except Exception as e:
+        print(f"Error saving metrics: {e}")
+        print(f"data:\n{data}")
+        return False
+
+
 @sio.on("focus")
 async def focus(sid, focus_id):
     print(f"focus: received {focus_id}")
@@ -118,8 +135,8 @@ async def webrtc_ice(sid, data):
 
 
 if __name__ == "__main__":
-    # for HTTPS
-    key_dir = app_dir / "../.keys"
+    log_dir = app_dir / "logs"
+    key_dir = app_dir / "../.keys"  # for HTTPS
 
     uvicorn.run(
         socket_app,

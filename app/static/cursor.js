@@ -83,9 +83,12 @@ export const recordInteractionTime = () => {
 export const resetInteractionTime = () => interactionTimer.reset();
 
 export const getInteractionTimeStats = () => {
+    let mean = null, std = null;
     const len = interactionTimeHistory.length;
-    const mean = math.mean(interactionTimeHistory);
-    const std = math.std(interactionTimeHistory);
+    if (len !== 0) {
+        mean = math.mean(interactionTimeHistory);
+        std = math.std(interactionTimeHistory);
+    }
     return { len, mean, std };
 }
 
