@@ -12,7 +12,7 @@ let commandLabels, commandColors;  // info from the env server
 let command, nextAcceptableCommands;
 let keyMap;
 
-let isStarted = false;
+let isStarted = false;  // task is started and accepting subtask selection
 
 const taskCompletionTimer = new easytimer.Timer();
 
@@ -112,6 +112,7 @@ const stopTask = (isComplete = false) => {
         if (countdownTimer.isRunning()) countdownTimer.stop();
         return;
     }
+    isStarted = false;
 
     // get metrics
     const taskCompletionSec = taskCompletionTimer.getTotalTimeValues().secondTenths / 10;
@@ -122,7 +123,6 @@ const stopTask = (isComplete = false) => {
     // stop the agents
     const status = isComplete ? 'Task Completed!' : 'Stopped.';
     sockEnv.emit('taskStop', () => {
-        isStarted = false;
         updateTaskStatusMsg(status);
     });
 
