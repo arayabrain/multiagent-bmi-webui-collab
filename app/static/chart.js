@@ -109,10 +109,7 @@ export const resetChartData = () => {
 
 export const updateChartColor = (agentId, currentCommand, nextAcceptableCommands) => {
     const chart = charts[agentId];
-    if (chart === undefined) {
-        console.error('Chart not initialized.');
-        return;
-    }
+    if (chart === undefined) return;  // occurs when the environment is reset on page load
     chart.data.datasets[0].backgroundColor = [...Array(commandLabels.length).keys()].map(barId => getBarColor(barId, currentCommand));
     chart.data.datasets[0].borderColor = [...Array(commandLabels.length).keys()].map(barId => getBorderColor(barId, currentCommand, nextAcceptableCommands));
     chart.update();
