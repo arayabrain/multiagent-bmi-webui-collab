@@ -1,12 +1,16 @@
+import time
 from contextlib import asynccontextmanager
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import click
+import numpy as np
 import socketio
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pylsl import resolve_streams
+from pylsl import local_clock, resolve_streams
 
 from app.devices.eeg.decoder import Decoder, measure_baseline
 from app.devices.eeg.models.threshold_model import ThresholdModel as Model
@@ -14,6 +18,8 @@ from app.devices.eeg.recorder import Recorder
 from app.devices.utils.networking import create_observable_from_stream_inlet, get_stream_inlet
 
 # from app.devices.eeg.models.threshold_model import ThresholdDiffModel as Model
+
+num_rtt_measurements = 10
 
 
 @click.command()
@@ -46,7 +52,7 @@ from app.devices.utils.networking import create_observable_from_stream_inlet, ge
     help="Window duration in seconds",
 )
 # options for recorder
-@click.option("--record-path", "-p", default="logs/data.hdf5", type=click.Path(), help="Path to save recorded data")
+@click.option("--username", "-u", default="noname", type=str, help="Username")
 @click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
 def main(
     env_ip,
@@ -58,7 +64,7 @@ def main(
     baseline_ready_duration,
     thres,
     window_duration,
-    record_path,
+    username,
     record_interval,
 ) -> None:
     host = "localhost"
@@ -69,6 +75,7 @@ def main(
     ]
     sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=origins)
     num_clients = 0
+    ref_time_browser = None
 
     runners: list[Any] = []
 
@@ -131,8 +138,35 @@ def main(
 
         runners.clear()
         if not no_record:
-            chunk_size = input_freq * record_interval
-            recorder = Recorder(input_observable, input_nch, save_path=record_path, chunk_size=chunk_size)
+            # measure RTT
+            async def measure_rtt():
+                start_time = time.time()
+                await sio.call("ping", to=sid)
+                rtt = (time.time() - start_time) * 1000  # msec
+                return rtt
+
+            rtts = np.array([await measure_rtt() for _ in range(num_rtt_measurements)])
+            rtt_avg = np.mean(rtts)
+            print(f"RTT: {rtt_avg:.1f} +/- {np.std(rtts):.1f} ms")
+
+            # set reference time for recording
+            # to be as close as possible to the same time in LSL and the browser
+            nonlocal ref_time_browser
+            ref_time_browser = await sio.call("getTime", to=sid) - rtt_avg / 2  # one-way RTT
+            ref_time_lsl = local_clock()
+
+            save_path = (
+                Path(__file__).parents[1] / "logs" / username / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.hdf5"
+            )
+            save_path.parent.mkdir(parents=True, exist_ok=True)  # make devices/logs/username/
+
+            recorder = Recorder(
+                input_observable,
+                input_nch,
+                save_path=save_path,
+                chunk_size=input_freq * record_interval,
+                ref_time=ref_time_lsl,
+            )
             runners.append(recorder)
         if not no_decode:
             baselines = measure_baseline(
@@ -150,6 +184,16 @@ def main(
         # Start the runners
         for runner in runners:
             runner.start()
+
+    @sio.on("dataCollectionOnset")
+    async def data_collection_onset(sid: str, data: dict) -> None:
+        for runner in runners:
+            if not isinstance(runner, Recorder):
+                continue
+            cue = data["cue"]
+            timestamp = (data["timestamp"] - ref_time_browser) / 1000  # sec
+            runner.record_onset(cue, timestamp)
+            print(f"Received data collection onset: '{cue}' at {timestamp}s")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

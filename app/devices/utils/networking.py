@@ -88,8 +88,9 @@ def extract_buffer(buf: list) -> tuple:
             timestamp: float
     Returns:
         data: np.ndarray, shape (time, channels)  # time = len(buf)
-        timestamps: list of float, shape (time,)
+        timestamps: np.ndarray, shape (time,)
     """
     data, timestamps = zip(*buf)
     data = np.array(data, dtype=float)  # TODO: float32 or 64?
+    timestamps = np.array(timestamps, dtype=float)
     return data, timestamps

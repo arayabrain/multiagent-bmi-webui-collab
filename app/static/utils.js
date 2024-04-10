@@ -1,3 +1,5 @@
+export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const updateConnectionStatusElement = (status, statusElementId) => {
     var statusElement = document.getElementById(statusElementId);
     statusElement.classList.remove('connected', 'disconnected', 'connecting');

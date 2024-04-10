@@ -1,6 +1,7 @@
 import { createCharts, resetChartData, updateChartColor, updateChartData, updateChartLock } from './chart.js';
 import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTimeHistory, resetInteractionTimer, setSockEnv } from './cursor.js';
-import { onToggleEEG, setNumClasses } from './eeg.js';
+import { startDataCollection, stopDataCollection } from './dataCollection.js';
+import { onToggleEEG, sendDataCollectionOnset, setNumClasses } from './eeg.js';
 import { setGamepadHandler } from './gamepad.js';
 import { onToggleGaze } from './gaze.js';
 import { onToggleKeyboard, setKeyMap } from './keyboard.js';
@@ -13,6 +14,7 @@ const countdownSec = 3;
 let sockEnv;
 let commandLabels, commandColors;  // info from the env server
 let isStarted = false;  // if true, task is started and accepting subtask selection
+let isDataCollection = false;
 const countdownTimer = new easytimer.Timer();
 const taskCompletionTimer = new easytimer.Timer();
 let numSubtaskSelections, numInvalidSubtaskSelections;  // error rate
@@ -84,9 +86,21 @@ const startTask = async () => {
     // countdown
     if (!await countdown(countdownSec)) return;
     updateTaskStatusMsg('Running...');
+    updateLog('\nStarted.');
 
-    // start the timer
-    taskCompletionTimer.start({ precision: 'secondTenths' });
+    if (isDataCollection) {
+        document.addEventListener('dataCollectionCompleted', async () => {
+            stopTask(true);
+        });
+        document.addEventListener('dataCollectionOnset', async (event) => {
+            sendDataCollectionOnset(event);  // eeg server; TODO: also for other devices?
+            updateLog(`Time: ${event.detail.timestamp}, Command: ${event.detail.command}`);
+        });
+        startDataCollection(commandColors, commandLabels);
+    } else {
+        // start the metrics measurement
+        taskCompletionTimer.start({ precision: 'secondTenths' });
+    }
 
     isStarted = true;
 }
@@ -101,55 +115,58 @@ const stopTask = (isComplete = false) => {
     }
     isStarted = false;
 
-    // get metrics
+    // stop the metrics measurement and get the results
     const taskCompletionSec = taskCompletionTimer.getTotalTimeValues().secondTenths / 10;
-    taskCompletionTimer.stop();
     const errorRate = numSubtaskSelections === 0 ? null : numInvalidSubtaskSelections / numSubtaskSelections;
     const { len, mean, std } = getInteractionTimeStats();
+    taskCompletionTimer.stop();
 
     // stop the agents
-    const status = isComplete ? 'Task Completed!' : 'Stopped.';
+    const status = isComplete ? 'Completed!' : 'Stopped.';
     sockEnv.emit('taskStop', () => {
         updateTaskStatusMsg(status);
+        updateLog(`\n${status}`);
     });
 
-    // show logs
-    updateLog(`\n${status}`);
-    if (taskCompletionSec > 0) {
-        updateLog(`Time:`);
-        updateLog(`${taskCompletionSec.toFixed(1)} sec`, 2);
-    }
-    if (len !== 0) {
-        updateLog(`Average time for ${len} interactions:`);
-        updateLog(`${mean.toFixed(2)} ± ${std.toFixed(2)} sec`, 2);
-    }
-    if (errorRate !== null) {
-        updateLog(`Error rate:`);
-        updateLog(`${numInvalidSubtaskSelections}/${numSubtaskSelections} = ${errorRate.toFixed(2)}`, 2);
-    }
-    updateLog('');
+    if (isDataCollection) {
+        stopDataCollection();
+    } else {
+        // show logs
+        if (taskCompletionSec > 0) {
+            updateLog(`Time:`);
+            updateLog(`${taskCompletionSec.toFixed(1)} sec`, 2);
+        }
+        if (len !== 0) {
+            updateLog(`Average time for ${len} interactions:`);
+            updateLog(`${mean.toFixed(2)} ± ${std.toFixed(2)} sec`, 2);
+        }
+        if (errorRate !== null) {
+            updateLog(`Error rate:`);
+            updateLog(`${numInvalidSubtaskSelections}/${numSubtaskSelections} = ${errorRate.toFixed(2)}`, 2);
+        }
 
-    // send the metrics to the server if the task is completed
-    if (isComplete) {
-        sockEnv.emit('saveMetrics', {
-            username: document.getElementById('username').value,
-            taskCompletionTime: taskCompletionSec,
-            errorRate: { numInvalidSubtaskSelections, numSubtaskSelections, rate: errorRate },
-            interactionTime: { len, mean, std },
-            devices: {
-                mouse: document.getElementById('toggle-mouse').checked,
-                gamepad: document.getElementById('toggle-gamepad').checked,
-                gaze: document.getElementById('toggle-gaze').checked,
-                keyboard: document.getElementById('toggle-keyboard').checked,
-                eeg: document.getElementById('toggle-eeg').checked,
-            }
-        }, (res) => {
-            if (res) {
-                updateLog('Metrics saved.');
-            } else {
-                updateLog('Failed to save metrics.');
-            }
-        });
+        // send the metrics to the server if the task is completed
+        if (isComplete) {
+            sockEnv.emit('saveMetrics', {
+                username: document.getElementById('username').value,
+                taskCompletionTime: taskCompletionSec,
+                errorRate: { numInvalidSubtaskSelections, numSubtaskSelections, rate: errorRate },
+                interactionTime: { len, mean, std },
+                devices: {
+                    mouse: document.getElementById('toggle-mouse').checked,
+                    gamepad: document.getElementById('toggle-gamepad').checked,
+                    gaze: document.getElementById('toggle-gaze').checked,
+                    keyboard: document.getElementById('toggle-keyboard').checked,
+                    eeg: document.getElementById('toggle-eeg').checked,
+                }
+            }, (res) => {
+                if (res) {
+                    updateLog('Metrics saved.');
+                } else {
+                    updateLog('Failed to save metrics.');
+                }
+            });
+        }
     }
 }
 
@@ -255,6 +272,7 @@ const connectEnv = () => {
 const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
     if (!isStarted) return;
     if (!sockEnv.connected) return;
+    if (isDataCollection) return;  // For now, do not send commands during data collection
 
     const agentId = getFocusId();
     if (agentId === null) return;

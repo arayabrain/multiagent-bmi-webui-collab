@@ -22,8 +22,14 @@ export const onToggleEEG = (checked, commandHandler) => {
         sockEEG.on('reconnect_attempt', () => {  // TODO: not working
             console.log("EEG server reconnecting...");
         });
+        sockEEG.on('ping', (ack) => ack());
+        sockEEG.on('getTime', (ack) => ack(Date.now()));
         sockEEG.on('eeg', ({ cls, likelihoods }) => commandHandler(cls, likelihoods));
     } else {
         if (sockEEG) sockEEG.disconnect();
     }
+}
+
+export const sendDataCollectionOnset = (event) => {
+    if (sockEEG) sockEEG.emit('dataCollectionOnset', event.detail);
 }

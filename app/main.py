@@ -24,7 +24,8 @@ templates = Jinja2Templates(directory=app_dir / "templates")
 # env_id = "FrankaReachFixedMulti-v0"
 # env_id = "FrankaPickPlaceMulti-v0"
 # env_id = "FrankaPickPlaceMulti4-v0"
-env_id = "FrankaPickPlaceMulti4Robots4Col-v0"
+# env_id = "FrankaPickPlaceMulti4Robots4Col-v0"
+env_id = "FrankaPickPlaceSingle4Col-v0"
 
 env = EnvRunner(env_id, sio)
 
@@ -33,12 +34,12 @@ peer_connections: dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for ea
 
 
 @app.get("/")
-async def get(request: Request):
+async def index(request: Request):
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
-            "num_agents": env.num_agents,
+            "numAgents": env.num_agents,
         },
     )
 

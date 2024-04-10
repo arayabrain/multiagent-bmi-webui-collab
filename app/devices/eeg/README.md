@@ -37,7 +37,7 @@ It is executed on the user's PC.
     ```bash
     python app/devices/eeg/main.py \
         [-e <your environment server ip> (default: localhost)] \
-        [-p <recorded data path> (default: logs/data.hdf5)]
+        [-u <username> (data will be saved to devices/logs/username/)]
     ```
 - Switch the "EEG" toggle in the browser.
 - Follow the prompt to measure the baseline.
