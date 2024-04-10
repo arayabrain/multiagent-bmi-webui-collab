@@ -171,10 +171,10 @@ class EnvRunner:
                 for policy in self.policies:
                     policy.done_subtasks = []  # TODO: not intuitive
 
-            # obs, _, done, _ = env.step(action)
+            obs, _, done, _ = env.step(action)
 
-            action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
-            simulate_action(env.sim, action[np.newaxis, :], action_indices, render=False)
+            # action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
+            # simulate_action(env.sim, action[np.newaxis, :], action_indices, render=False)
             # done = False
 
             await self._update_frame()
