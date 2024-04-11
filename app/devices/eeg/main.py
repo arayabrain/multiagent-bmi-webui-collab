@@ -193,7 +193,8 @@ def main(
             cue = data["cue"]
             timestamp = (data["timestamp"] - ref_time_browser) / 1000  # sec
             runner.record_onset(cue, timestamp)
-            print(f"Received data collection onset: '{cue}' at {timestamp}s")
+            # trailing space in case of no line break
+            print(f"Received data collection onset: '{cue}' at {timestamp:.2f}s ")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

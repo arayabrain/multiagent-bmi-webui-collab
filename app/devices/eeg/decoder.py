@@ -62,7 +62,7 @@ class Decoder:
 
         cls_str = f"{cls:>4}" if cls is not None else "None"
         likelihoods_str = array2str(likelihoods)
-        print(f"EEG class: {cls_str}, likelihoods: {likelihoods_str}")
+        print(f"EEG class: {cls_str}, likelihoods: {likelihoods_str} ")  # trailing space in case of no line break
 
     async def _emit(self, cls: int | None, likelihoods: np.ndarray) -> None:
         assert isinstance(self.sio, socketio.AsyncServer), "Socket is not set."

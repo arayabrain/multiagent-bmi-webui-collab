@@ -89,12 +89,12 @@ const startTask = async () => {
     updateLog('\nStarted.');
 
     if (isDataCollection) {
-        document.addEventListener('dataCollectionCompleted', async () => {
-            stopTask(true);
-        });
         document.addEventListener('dataCollectionOnset', async (event) => {
             sendDataCollectionOnset(event);  // eeg server; TODO: also for other devices?
-            updateLog(`Time: ${event.detail.timestamp}, Command: ${event.detail.command}`);
+            updateLog(`Cue: ${event.detail.cue}`);
+        });
+        document.addEventListener('dataCollectionCompleted', async () => {
+            stopTask(true);
         });
         startDataCollection(commandColors, commandLabels);
     } else {
@@ -190,7 +190,11 @@ const connectEnv = () => {
     // sockEnv: socket for communication with the environment server
     // - WebRTC signaling
     // - focus update notification
-    sockEnv = io.connect(`${location.protocol}//${location.hostname}:8000`, { transports: ['websocket'] });
+    console.log(location.pathname)
+    sockEnv = io.connect(`${location.protocol}//${location.hostname}:8000`, {
+        transports: ['websocket'],
+        query: { endpoint: location.pathname },
+    });
     let pc;
 
     sockEnv.on('connect', () => {
@@ -198,11 +202,12 @@ const connectEnv = () => {
         // request WebRTC offer to the server
         sockEnv.emit('webrtc-offer-request');
     });
-    sockEnv.on('init', ({ commandLabels: labels, commandColors: colors, numAgents }) => {
+    sockEnv.on('init', ({ isDataCollection: idc, commandLabels: labels, commandColors: colors }) => {
+        isDataCollection = idc;
         // commandColors: ["001", "010", ...]
         commandColors = colors.map(c => binStr2Rgba(c, 0.3));
         commandLabels = labels;
-        updateLog(`Env: ${labels.length} classes, ${numAgents} agents`);
+        updateLog(`Environment initialized`);
 
         setKeyMap(commandLabels);
         setNumClasses(commandLabels.length);
