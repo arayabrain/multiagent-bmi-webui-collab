@@ -126,9 +126,18 @@ def main(
             try:
                 stream_infos = resolve_streams(wait_time=1)
                 input_inlet = get_stream_inlet(stream_infos, type=input)  # TODO: name
-                input_freq = round(input_inlet.info().nominal_srate())
-                input_nch = input_inlet.info().channel_count()
-                print(f"Input stream {input_inlet.info().name()}: {input_freq} Hz")
+                _info = input_inlet.info()
+                input_info: dict = {
+                    "name": _info.name(),
+                    "type": _info.type(),
+                    "channel_count": _info.channel_count(),
+                    "nominal_srate": _info.nominal_srate(),
+                    "hostname": _info.hostname(),
+                    "source_id": _info.source_id(),
+                    "session_id": _info.session_id(),
+                    "uid": _info.uid(),
+                }
+                print(f"Input stream {input_info['source_id']}: {input_info['nominal_srate']} Hz")
                 break
             except LookupError:  # Try again if get_stream_inlet fails
                 pass
@@ -160,13 +169,14 @@ def main(
 
             recorder = Recorder(
                 input_observable,
-                input_nch,
+                input_info,
                 save_path=save_path,
-                chunk_size=input_freq * record_interval,
+                record_interval=record_interval,
                 ref_time=ref_time_lsl,
             )
             runners.append(recorder)
         if not no_decode:
+            input_freq = input_info["nominal_srate"]
             baselines = measure_baseline(
                 input_observable, baseline_duration, baseline_ready_duration, input_freq, auto_start=auto_baseline
             )

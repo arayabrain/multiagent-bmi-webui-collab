@@ -12,57 +12,67 @@ class Recorder:
     def __init__(
         self,
         input_observable: rx.Observable,
-        input_nch: int,
+        input_info: dict,
         save_path: Path,
-        chunk_size: int = 5000,
+        record_interval: float = 5,  # sec
         ref_time: float = 0,  # reference time for timestamps (sec)
     ) -> None:
         self.input_observable = input_observable
         self.subscription: rx.abc.DisposableBase | None = None
         self.is_running = False
 
-        self.input_nch = input_nch
+        self.input_info = input_info
         self.save_path = save_path
-        self.chunk_size = chunk_size
+        self.record_interval = record_interval
         self.ref_time = ref_time
 
     def start(self) -> None:
-        if self.save_path.exists():
-            print(f"Appending to existing file: {self.save_path}")
-        else:
-            print(f"Creating new file: {self.save_path}")
-            self.save_path.parent.mkdir(parents=True, exist_ok=True)
-        with h5py.File(self.save_path, "a") as f:
-            if "data" not in f:
-                f.create_dataset("data", (0, self.input_nch), maxshape=(None, self.input_nch), dtype="f", chunks=True)
-            if "timestamp" not in f:
-                f.create_dataset("timestamp", (0,), maxshape=(None,), dtype="f", chunks=True)
-            if "onset" not in f:
-                f.create_dataset("onset", (0,), maxshape=(None,), dtype="f", chunks=True)
-            if "cue" not in f:
-                dt = h5py.string_dtype(encoding="utf-8")
-                f.create_dataset("cue", (0,), maxshape=(None,), dtype=dt, chunks=True)
+        if self.is_running:
+            print("Recorder is already running.")
+            return
 
-        self.start_time = time.time()
+        if self.save_path.exists():
+            raise RuntimeError("File already exists.")
+        print(f"Save path: {self.save_path}")
+        self.save_path.parent.mkdir(parents=True, exist_ok=True)
+
+        nch = self.input_info["channel_count"]
+        str_dt = h5py.special_dtype(vlen=str)
+        with h5py.File(self.save_path, "w") as hf:
+            hf.create_dataset("data", (0, nch), maxshape=(None, nch), dtype="f", chunks=True)
+            hf.create_dataset("data_ts", (0,), maxshape=(None,), dtype="f", chunks=True)
+            hf.create_dataset("cue", (0,), maxshape=(None,), dtype=str_dt, chunks=True)
+            hf.create_dataset("cue_ts", (0,), maxshape=(None,), dtype="f", chunks=True)
+            # metadata
+            for key, value in self.input_info.items():
+                if isinstance(value, str):
+                    dset = hf.create_dataset(key, (1,), dtype=str_dt)
+                    dset[0] = value
+                else:
+                    hf.create_dataset(key, data=value)
+
+        chunk_size = int(self.input_info["nominal_srate"] * self.record_interval)
         self.is_running = True
+        self.start_time = time.time()
 
         self.subscription = self.input_observable.pipe(  # type: ignore
-            ops.buffer_with_count(self.chunk_size),
+            ops.buffer_with_count(chunk_size),
         ).subscribe(
             on_next=self._save,
             on_completed=self.stop,
         )
 
     def _save(self, buf: list) -> None:
+        if not self.is_running:
+            return
         elapsed_time = time.time() - self.start_time
         data, timestamps = extract_buffer(buf)
         size = len(timestamps)
-
         with h5py.File(self.save_path, "a") as f:
             f["data"].resize(f["data"].shape[0] + size, axis=0)
             f["data"][-size:] = data
-            f["timestamp"].resize(f["timestamp"].shape[0] + size, axis=0)
-            f["timestamp"][-size:] = timestamps - self.ref_time
+            f["data_ts"].resize(f["data_ts"].shape[0] + size, axis=0)
+            f["data_ts"][-size:] = timestamps - self.ref_time
 
         print(f"{elapsed_time:.1f}s: recorded {size} samples")
 
@@ -73,12 +83,13 @@ class Recorder:
             timestamp: The timestamp of the onset (sec).
                 Should be relative to the browser reference time.
         """
+        if not self.is_running:
+            return
         with h5py.File(self.save_path, "a") as f:
-            size = f["onset"].shape[0]
-            f["onset"].resize(size + 1, axis=0)
-            f["onset"][-1] = timestamp
-            f["cue"].resize(size + 1, axis=0)
+            f["cue"].resize(f["cue"].shape[0] + 1, axis=0)
             f["cue"][-1] = cue
+            f["cue_ts"].resize(f["cue_ts"].shape[0] + 1, axis=0)
+            f["cue_ts"][-1] = timestamp
 
     def stop(self) -> None:
         if self.subscription is not None:
