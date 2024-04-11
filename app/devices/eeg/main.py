@@ -138,7 +138,7 @@ def main(
 
         runners.clear()
         if not no_record:
-            # measure RTT
+            # measure round-trip time for data collection
             async def measure_rtt():
                 start_time = time.time()
                 await sio.call("ping", to=sid)
@@ -149,16 +149,14 @@ def main(
             rtt_avg = np.mean(rtts)
             print(f"RTT: {rtt_avg:.1f} +/- {np.std(rtts):.1f} ms")
 
-            # set reference time for recording
-            # to be as close as possible to the same time in LSL and the browser
+            # get the reference times from the browser and LSL
+            # should be the same timing as much as possible
             nonlocal ref_time_browser
-            ref_time_browser = await sio.call("getTime", to=sid) - rtt_avg / 2  # one-way RTT
-            ref_time_lsl = local_clock()
+            ref_time_lsl = local_clock()  # first get LSL time
+            ref_time_browser = await sio.call("getTime", to=sid) - rtt_avg / 2  # then get RTT-corrected browser time
 
-            save_path = (
-                Path(__file__).parents[1] / "logs" / username / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.hdf5"
-            )
-            save_path.parent.mkdir(parents=True, exist_ok=True)  # make devices/logs/username/
+            save_path = Path(__file__).parent / "logs" / username / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.hdf5"
+            save_path.parent.mkdir(parents=True, exist_ok=True)  # make devices/eeg/logs/username/
 
             recorder = Recorder(
                 input_observable,
