@@ -134,15 +134,6 @@ video {
     /* Space between each button */
 }
 
-#start-button {
-    width: 80%;
-}
-
-#start-button-toggle {
-    padding-right: 1rem;
-    /* default: 0.75rem */
-}
-
 /* task status message */
 #task-status-message {
     width: 100%;

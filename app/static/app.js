@@ -123,9 +123,10 @@ const stopTask = (isComplete = false) => {
 
     // stop the agents
     const status = isComplete ? 'Completed!' : 'Stopped.';
+    updateLog(`\n${status}`);
     sockEnv.emit('taskStop', () => {
         updateTaskStatusMsg(status);
-        updateLog(`\n${status}`);
+        updateLog('Agent stopped.');
     });
 
     if (isDataCollection) {

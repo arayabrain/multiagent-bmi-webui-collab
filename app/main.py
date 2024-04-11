@@ -28,7 +28,8 @@ peer_connections: dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for ea
 
 env_info = {
     "": {
-        "env_id": "FrankaPickPlaceMulti4Robots4Col-v0",
+        # "env_id": "FrankaPickPlaceMulti4Robots4Col-v0",
+        "env_id": "FrankaPickPlaceMulti4Robots4Col-v1",
         "num_agents": 4,
     },
     "data-collection": {
