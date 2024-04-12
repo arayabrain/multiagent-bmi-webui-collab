@@ -1,17 +1,13 @@
 import { updateConnectionStatusElement } from './utils.js';
 
 let sockEEG;
-let _numClasses;
 
-export const setNumClasses = (numClasses) => _numClasses = numClasses;  // This should be called in sockEnv.on('init')
-
-export const onToggleEEG = (checked, commandHandler) => {
+export const onToggleEEG = (checked, commandHandler, commandLabels) => {
     if (checked) {
         updateConnectionStatusElement('connecting', 'toggle-eeg');
         sockEEG = io.connect(`http://localhost:8002`, { transports: ['websocket'] });
         sockEEG.on('connect', () => {
-            console.assert(_numClasses !== undefined, "numClasses is not set");
-            sockEEG.emit('init', { numClasses: _numClasses });
+            sockEEG.emit('init', { numClasses: commandLabels.length });
             updateConnectionStatusElement('connected', 'toggle-eeg');
             console.log("EEG server connected");
         });

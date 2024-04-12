@@ -1,10 +1,10 @@
 import { createCharts, resetChartData, updateChartColor, updateChartData, updateChartLock } from './chart.js';
 import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTimeHistory, resetInteractionTimer, setSockEnv } from './cursor.js';
 import { startDataCollection, stopDataCollection } from './dataCollection.js';
-import { onToggleEEG, sendDataCollectionOnset, setNumClasses } from './eeg.js';
+import { onToggleEEG, sendDataCollectionOnset } from './eeg.js';
 import { setGamepadHandler } from './gamepad.js';
 import { onToggleGaze } from './gaze.js';
-import { onToggleKeyboard, setKeyMap } from './keyboard.js';
+import { onToggleKeyboard } from './keyboard.js';
 import { onToggleMouse } from './mouse.js';
 import { binStr2Rgba } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
@@ -22,16 +22,6 @@ let numSubtaskSelections, numInvalidSubtaskSelections;  // error rate
 
 document.addEventListener("DOMContentLoaded", () => {
     connectEnv();
-
-    // robot selection devices
-    document.getElementById('toggle-gaze').addEventListener('change', (e) => onToggleGaze(e.target.checked));
-    document.getElementById('toggle-mouse').addEventListener('change', (e) => onToggleMouse(e.target.checked));
-    setGamepadHandler();
-    // subtask selection devices
-    document.getElementById('toggle-eeg').addEventListener('change', (e) => onToggleEEG(e.target.checked, onSubtaskSelectionEvent, commandLabels));
-    document.getElementById('toggle-keyboard').addEventListener('change', (e) => onToggleKeyboard(e.target.checked, onSubtaskSelectionEvent));
-    // dispatch events for initial state
-    document.querySelectorAll('.toggle-container .togglable').forEach(input => input.dispatchEvent(new Event('change')));
 
     // buttons
     document.getElementById('start-button').addEventListener('click', startTask);
@@ -210,8 +200,18 @@ const connectEnv = () => {
         commandLabels = labels;
         updateLog(`Environment initialized`);
 
-        setKeyMap(commandLabels);
-        setNumClasses(commandLabels.length);
+        // setup toggle switches
+        // robot selection devices
+        document.getElementById('toggle-gaze').addEventListener('change', (e) => onToggleGaze(e.target.checked));
+        document.getElementById('toggle-mouse').addEventListener('change', (e) => onToggleMouse(e.target.checked));
+        // subtask selection devices
+        document.getElementById('toggle-eeg').addEventListener('change', (e) => onToggleEEG(e.target.checked, onSubtaskSelectionEvent, commandLabels));
+        document.getElementById('toggle-keyboard').addEventListener('change', (e) => onToggleKeyboard(e.target.checked, onSubtaskSelectionEvent, commandLabels));
+        // both
+        setGamepadHandler(onSubtaskSelectionEvent, commandLabels);
+        // dispatch events for initial state
+        document.querySelectorAll('.toggle-container .togglable').forEach(input => input.dispatchEvent(new Event('change')));
+
 
         // if a video is ready, create charts
         document.querySelector('video').addEventListener('canplay', () => createCharts(commandColors, commandLabels));

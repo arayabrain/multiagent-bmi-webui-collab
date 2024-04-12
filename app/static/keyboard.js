@@ -1,25 +1,16 @@
-let keyMap;
-
-export const onToggleKeyboard = (checked, commandHandler) => {
-    const _onKeydown = (event) => onKeydown(event, commandHandler);
-    if (checked) {
-        document.addEventListener('keydown', _onKeydown);
-    } else {
-        document.removeEventListener('keydown', _onKeydown);
-    }
-}
-
-const onKeydown = (event, commandHandler) => {
-    if (keyMap === undefined || !keyMap.hasOwnProperty(event.key)) return;
-    commandHandler(keyMap[event.key]);
-}
-
-export const setKeyMap = (commandLabels) => {
-    keyMap = {};
+export const onToggleKeyboard = (checked, commandHandler, commandLabels) => {
+    // set key map
     // cancel: 0, others: 1, 2, ...
+    const keyMap = {};
     if (commandLabels.includes('cancel')) keyMap['0'] = 'cancel';
     commandLabels.filter(label => label !== 'cancel').forEach((label, idx) => {
         keyMap[(idx + 1).toString()] = label;
     });
-}
 
+    const onKeydown = (event) => commandHandler(keyMap[event.key]);
+    if (checked) {
+        document.addEventListener('keydown', onKeydown);
+    } else {
+        document.removeEventListener('keydown', onKeydown);
+    }
+}
