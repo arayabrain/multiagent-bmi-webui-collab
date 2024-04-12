@@ -1,8 +1,8 @@
 import { updateCursorAndFocus } from './cursor.js';
 
-let animationFrameRequest;
-let _commandHandler, keyMap;
-const sensitivity = 60;
+const sampleRate = 60;  // Hz
+const sensitivity = 40;
+let _commandHandler, keyMap, prevPressed, intervalId;
 
 export const setGamepadHandler = (commandHandler, commandLabels) => {
     _commandHandler = commandHandler;
@@ -14,32 +14,34 @@ export const setGamepadHandler = (commandHandler, commandLabels) => {
         3: commandLabels[3],  // Y
         8: 'cancel',  // Start
     };
-    window.addEventListener("gamepadconnected", (event) => gamepadHandler(event, true));
-    window.addEventListener("gamepaddisconnected", (event) => gamepadHandler(event, false));
+    // initialize the state of button presses
+    prevPressed = Object.fromEntries(Object.keys(keyMap).map(key => [key, false]));
+
+    window.addEventListener("gamepadconnected", connect);
+    window.addEventListener("gamepaddisconnected", disconnect);
 }
 
-const gamepadHandler = (event, connecting) => {
+const connect = (event) => {
     const gamepad = event.gamepad;
-    if (connecting) {
-        console.log(
-            "Gamepad connected at index %d: %s. %d buttons, %d axes.",
-            gamepad.index, gamepad.id, gamepad.buttons.length, gamepad.axes.length
-        );
-        if (getActiveGamepadsCount() === 1) {
-            document.getElementById('toggle-gamepad').checked = true;
-            // start the loop with initial state
-            const prevPressed = Object.fromEntries(Object.keys(keyMap).map(key => [key, false]));
-            gamepadsLoop(prevPressed);
-        }
-    } else {
-        console.log(
-            "Gamepad disconnected from index %d: %s",
-            gamepad.index, gamepad.id
-        );
-        if (getActiveGamepadsCount() === 0) {
-            if (animationFrameRequest) cancelAnimationFrame(animationFrameRequest);  // stop the loop
-            document.getElementById('toggle-gamepad').checked = false;
-        }
+    console.log(
+        "Gamepad connected at index %d: %s. %d buttons, %d axes.",
+        gamepad.index, gamepad.id, gamepad.buttons.length, gamepad.axes.length
+    );
+    if (getActiveGamepadsCount() === 1) {
+        document.getElementById('toggle-gamepad').checked = true;
+        intervalId = setInterval(gamepadsLoop, 1000 / sampleRate);
+    }
+}
+
+const disconnect = (event) => {
+    const gamepad = event.gamepad;
+    console.log(
+        "Gamepad disconnected from index %d: %s",
+        gamepad.index, gamepad.id
+    );
+    if (getActiveGamepadsCount() === 0) {
+        clearInterval(intervalId);
+        document.getElementById('toggle-gamepad').checked = false;
     }
 }
 
@@ -48,7 +50,7 @@ const getActiveGamepadsCount = () => {
     return gamepads.filter(gp => gp !== null).length;
 }
 
-const gamepadsLoop = (prevPressed) => {
+const gamepadsLoop = () => {
     // get the first valid gamepad
     const gp = navigator.getGamepads().find(gp => gp !== null);
     if (gp === undefined) return;
@@ -86,7 +88,5 @@ const gamepadsLoop = (prevPressed) => {
     Object.keys(keyMap).forEach((key) => {
         prevPressed[key] = gp.buttons[key].pressed;
     });
-
-    animationFrameRequest = requestAnimationFrame(() => gamepadsLoop(prevPressed));
 }
 
