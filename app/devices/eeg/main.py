@@ -16,7 +16,7 @@ from app.devices.eeg.models.threshold_model import ThresholdModel as Model
 from app.devices.eeg.recorder import Recorder
 from app.devices.utils.networking import create_observable_from_stream_inlet, get_ref_time, get_stream_inlet
 
-# from app.devices.eeg.models.threshold_model import ThresholdDiffModel as Model
+use_diff = False
 
 
 @click.command()
@@ -178,10 +178,10 @@ def main(
         # setup decoder
         if not no_decode:
             if not model_datetime:
-                model = Model(num_classes, thres, baseline)
+                model = Model(num_classes, thres, baseline, use_diff=use_diff)
             else:
                 print("Ignoring '--thres' because '--model-datetime' is given.")
-                model = Model(num_classes, thres, baseline)  # use thres as a placeholder
+                model = Model(num_classes, thres, baseline, use_diff=use_diff)  # use thres as a placeholder
                 model_path = Path(__file__).parent / "logs" / username / model_datetime / "params.npz"
                 model.load(model_path)
 
