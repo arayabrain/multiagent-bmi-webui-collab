@@ -48,6 +48,8 @@ class Recorder:
                 if isinstance(value, str):
                     dset = hf.create_dataset(key, (1,), dtype=str_dt)
                     dset[0] = value
+                elif isinstance(value, list) and isinstance(value[0], str):
+                    dset = hf.create_dataset(key, data=value, dtype=str_dt)
                 else:
                     hf.create_dataset(key, data=value)
 
@@ -65,31 +67,36 @@ class Recorder:
     def _save(self, buf: list) -> None:
         if not self.is_running:
             return
-        elapsed_time = time.time() - self.start_time
+        recorder_time = time.time() - self.start_time
         data, timestamps = extract_buffer(buf)
-        size = len(timestamps)
+        stream_times = timestamps - self.ref_time
+        size = len(stream_times)
         with h5py.File(self.save_path, "a") as f:
             f["data"].resize(f["data"].shape[0] + size, axis=0)
             f["data"][-size:] = data
             f["data_ts"].resize(f["data_ts"].shape[0] + size, axis=0)
-            f["data_ts"][-size:] = timestamps - self.ref_time
+            f["data_ts"][-size:] = stream_times
+        print(
+            f"Recorder({recorder_time:.1f}s): recorded {size} samples "
+            f"at {stream_times[0]:.1f} - {stream_times[-1]:.1f}s "
+        )
 
-        print(f"{elapsed_time:.1f}s: recorded {size} samples")
-
-    def record_onset(self, cue: str, timestamp: float) -> None:
+    def record_cue(self, cue: str, timestamp: float) -> None:
         """Record the onset of a data collection cue.
         Args:
-            cue: The command string of the cue.
-            timestamp: The timestamp of the onset (sec).
-                Should be relative to the browser reference time.
+            cue: Command string of the cue.
+            timestamp: Timestamp of the cue (sec).
+                Should be the time elapsed from the reference time of the cue source.
         """
         if not self.is_running:
             return
+        recorder_time = time.time() - self.start_time
         with h5py.File(self.save_path, "a") as f:
             f["cue"].resize(f["cue"].shape[0] + 1, axis=0)
             f["cue"][-1] = cue
             f["cue_ts"].resize(f["cue_ts"].shape[0] + 1, axis=0)
             f["cue_ts"][-1] = timestamp
+        print(f"Recorder({recorder_time:.1f}s): recorded cue '{cue}' at {timestamp:.1f}s ")
 
     def stop(self) -> None:
         if self.subscription is not None:

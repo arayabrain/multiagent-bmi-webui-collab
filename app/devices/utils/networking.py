@@ -3,12 +3,14 @@ from https://github.com/arayabrain/human-robot-interface/blob/main/src/networkin
 """
 
 import threading
+import time
 from typing import Callable
 
 import numpy as np
 import pylsl
 import reactivex as rx
-from pylsl import LostError, StreamInfo, StreamInlet, StreamOutlet
+import socketio
+from pylsl import LostError, StreamInfo, StreamInlet, StreamOutlet, local_clock
 from reactivex import operators as ops
 
 
@@ -94,3 +96,23 @@ def extract_buffer(buf: list) -> tuple:
     data = np.array(data, dtype=float)  # TODO: float32 or 64?
     timestamps = np.array(timestamps, dtype=float)
     return data, timestamps
+
+
+async def get_ref_time(sio: socketio.AsyncServer, sid: str, num_rtt_measurements: int = 10):
+    # measure round-trip time for data collection
+    async def measure_rtt():
+        start_time = time.time()
+        await sio.call("ping", to=sid)
+        rtt = (time.time() - start_time) * 1000  # msec
+        return rtt
+
+    rtts = np.array([await measure_rtt() for _ in range(num_rtt_measurements)])
+    rtt_avg = np.mean(rtts)
+    print(f"RTT: {rtt_avg:.1f} +/- {np.std(rtts):.1f} ms")
+
+    # get the reference times from the browser and LSL
+    # should be the same timing as much as possible
+    ref_time_lsl = local_clock()  # first get LSL time
+    ref_time_browser = await sio.call("getTime", to=sid) - rtt_avg / 2  # then get RTT-corrected browser time
+
+    return ref_time_lsl, ref_time_browser

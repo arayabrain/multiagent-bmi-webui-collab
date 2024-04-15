@@ -7,7 +7,7 @@ export const onToggleEEG = (checked, commandHandler, commandLabels) => {
         updateConnectionStatusElement('connecting', 'toggle-eeg');
         sockEEG = io.connect(`http://localhost:8002`, { transports: ['websocket'] });
         sockEEG.on('connect', () => {
-            sockEEG.emit('init', { numClasses: commandLabels.length });
+            sockEEG.emit('init', { commandLabels: commandLabels });
             updateConnectionStatusElement('connected', 'toggle-eeg');
             console.log("EEG server connected");
         });

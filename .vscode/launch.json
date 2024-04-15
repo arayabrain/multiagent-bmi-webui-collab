@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File",
+            "name": "Current File",
             "type": "python",
             "request": "launch",
             "program": "${file}",
@@ -13,7 +13,7 @@
             "justMyCode": false
         },
         {
-            "name": "Env Server",
+            "name": "Env: Server",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/app/main.py",
@@ -21,7 +21,15 @@
             "justMyCode": false,
         },
         {
-            "name": "EEG Server",
+            "name": "EEG: Mock Streamer",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/app/devices/eeg/mock_streamer/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
+            "name": "EEG: Server (data collection)",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/app/devices/eeg/main.py",
@@ -32,7 +40,6 @@
                 "10.10.0.137",
                 "--input",
                 "EEG",
-                // "Audio",
                 "--auto-baseline",
                 "-bdur",
                 "1",
@@ -40,11 +47,53 @@
                 "0",
                 "-u",
                 "testuser",
-                // "--no-decode",
+                "--no-decode",
             ],
         },
         {
-            "name": "Pupil Server",
+            "name": "EEG: Server (decoding)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/app/devices/eeg/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "-e",
+                "10.10.0.137",
+                "--input",
+                "EEG",
+                "--auto-baseline",
+                "-bdur",
+                "1",
+                "-rdur",
+                "0",
+                "-u",
+                "testuser",
+                "--no-record",
+                "-d",
+                "20240415_192912",
+            ],
+        },
+        {
+            "name": "EEG: Train",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/app/devices/eeg/train.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "-u",
+                "testuser",
+                "-d",
+                "20240415_192912",
+                "-wdur",
+                "0.1",
+                "-bdur",
+                "1.0",
+            ]
+        },
+        {
+            "name": "Pupil: Server",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/app/devices/eye/main.py",
@@ -56,7 +105,7 @@
             ]
         },
         {
-            "name": "Pupil Server (Dummy)",
+            "name": "Pupil: Server (dummy)",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/app/devices/eye/main_dummy.py",
@@ -69,14 +118,6 @@
                 "-e",
                 "10.10.0.137",
             ]
-        },
-        {
-            "name": "Mock EEG Streamer",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/app/devices/eeg/mock_streamer/main.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
         },
     ]
 }
