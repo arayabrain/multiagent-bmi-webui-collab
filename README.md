@@ -13,6 +13,7 @@ This might require getting reading permission to the repository.
     ```bash
     git clone --recurse-submodules -j8 \
     git@github.com:arayabrain/robohive-multi.git
+    git checkout hri-new-config
     pip install -e robohive-multi/.
     pip install -e robohive-multi/robohive/.
     pip install -e robohive-multi/vtils/.
@@ -51,11 +52,12 @@ This might require getting reading permission to the repository.
     ```
 
 - On windows, you need to open ports for the WebRTC UDP communication.
-Open Windows Firewall settings (`wf.msc`) and create a new inbound rule to allow UDP ports `49152-65535`.
+Open Windows Firewall settings (`wf.msc`) and create a new inbound rule to allow UDP ports `49152-65535`.  
+Also check the network settings of your anti-virus software.
 
 - You may need to comment out `max_episode_steps` of the environment you use to remove the episode time limit.
-    - `FrankaReachFixedMulti-v0` in `robohive/envs/arms/__init__.py`
-    - `FrankaPickPlaceMulti4-v0` in `custom_robohive_design/env_init.py`
+    - `FrankaPickPlaceSingle4Col-v1` in `robohive_multi/envs/single_arms/__init__.py`
+    - `FrankaPickPlaceMulti4Robots4Col-v1` in `robohive_multi/envs/multi_arms/__init__.py`
 
 
 ## Run
@@ -77,3 +79,5 @@ Activate your virtual environment, then:
         - Use the number keys (1, 2, 3, 4) to enter commands.
     - EEG/EMG
         - Please see the [README](app/devices/eeg/README.md).
+
+(TODO: update on data-collection mode)

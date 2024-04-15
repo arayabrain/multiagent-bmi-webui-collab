@@ -33,7 +33,8 @@ env_info = {
         "num_agents": 4,
     },
     "data-collection": {
-        "env_id": "FrankaPickPlaceSingle4Col-v0",
+        # "env_id": "FrankaPickPlaceSingle4Col-v0",
+        "env_id": "FrankaPickPlaceSingle4Col-v1",
         "num_agents": 1,
     },
 }
