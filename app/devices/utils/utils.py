@@ -1,3 +1,4 @@
+import click
 import numpy as np
 
 
@@ -13,3 +14,10 @@ def root_mean_square(data: np.ndarray) -> np.ndarray:
         rms: np.ndarray, shape (channels,)
     """
     return np.sqrt(np.mean(np.square(data), axis=0))
+
+
+def parse_float_list(string):
+    try:
+        return np.array([float(s) for s in string.split(",")])
+    except ValueError:
+        raise click.BadParameter("This argument needs to be a comma-separated list of floats.")

@@ -15,8 +15,10 @@ from app.devices.eeg.decoder import Decoder
 from app.devices.eeg.models.threshold_model import ThresholdModel as Model
 from app.devices.eeg.recorder import Recorder
 from app.devices.utils.networking import create_observable_from_stream_inlet, get_ref_time, get_stream_inlet
+from app.devices.utils.utils import parse_float_list
 
 use_diff = False
+# use_diff = True
 
 
 @click.command()
@@ -47,7 +49,13 @@ use_diff = False
     type=click.FloatRange(min=0),
     help="Window duration in seconds",
 )
-@click.option("--thres", "-t", default=12.0, type=click.FloatRange(min=0), help="Threshold for channel activation")
+@click.option(
+    "--thres",
+    "-t",
+    default="12.0,12.0,12.0,12.0",
+    type=str,
+    help="Thresholds for channel activation (comma-separated list)",
+)
 @click.option("--model-datetime", "-d", default="", type=str, help="Date of the model to load")
 # options for recorder
 @click.option("--username", "-u", default="noname", type=str, help="Username")
@@ -178,10 +186,11 @@ def main(
         # setup decoder
         if not no_decode:
             if not model_datetime:
-                model = Model(num_classes, thres, baseline, use_diff=use_diff)
+                thres_ = parse_float_list(thres)
+                model = Model(num_classes, thres_, baseline, use_diff=use_diff)
             else:
                 print("Ignoring '--thres' because '--model-datetime' is given.")
-                model = Model(num_classes, thres, baseline, use_diff=use_diff)  # use thres as a placeholder
+                model = Model(num_classes, None, baseline, use_diff=use_diff)
                 model_path = Path(__file__).parent / "logs" / username / model_datetime / "params.npz"
                 model.load(model_path)
 

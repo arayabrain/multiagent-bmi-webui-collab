@@ -9,12 +9,15 @@ class ThresholdModel:
     def __init__(
         self,
         num_classes: int,
-        thres: float,
+        thres: np.ndarray | None,  # (num_classes,)
         baseline: np.ndarray | None = None,  # (times, channels)
         use_diff: bool = False,
     ):
         self.num_classes = num_classes
-        self.thres = thres
+        if thres is not None:
+            self.thres = thres
+        else:
+            self.thres = np.ones(num_classes)
         if baseline is not None:
             self.baseline_rms = root_mean_square(baseline)
         else:
@@ -45,7 +48,7 @@ class ThresholdModel:
             # truncate
             x = x[: self.num_classes]
 
-        likelihoods = x / self.thres
+        likelihoods = x / self.thres  # element-wise division
         max_ch = int(np.argmax(likelihoods))  # the channel with the highest likelihood
         if likelihoods[max_ch] < 1 or self.class_output_flags[max_ch]:
             # if the max_ch has already been output, do not output the same class again
@@ -73,8 +76,11 @@ class ThresholdModel:
             rms_diff_ratio = np.diff(rms, axis=0) / self.baseline_rms
             X_ = np.maximum(0, rms_diff_ratio)  # ignore negative values
 
-        x_true = [x_[y_] for x_, y_ in zip(X_, y)]
-        self.thres = np.median(x_true)
+        self.thres = np.array([np.median(X_[y == i][:, i]) for i in range(self.num_classes)])
+        print(f"Thresholds: {self.thres}")
+        # for i in range(self.num_classes):
+        #     print(X_[y == i][:, i])
+
         return self
 
     def save(self, path: Path):
