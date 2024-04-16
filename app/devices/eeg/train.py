@@ -11,8 +11,8 @@ from app.devices.eeg.models.threshold_model import ThresholdModel as Model
 @click.command()
 @click.option("--username", "-u", default="testuser", help="Username for the session.")
 @click.option("--date", "-d", default="20240412_044751", help="Date for the session.")
-@click.option("--window_duration", "-wdur", default=0.1, help="Duration of the window in seconds.")
-@click.option("--baseline_duration", "-bdur", default=1.0, help="Duration of the baseline in seconds.")
+@click.option("--window_duration", "-wdur", default=2.0, help="Duration of window per cue in seconds.")
+@click.option("--baseline_duration", "-bdur", default=5.0, help="Duration of the baseline in seconds.")
 def main(username, date, window_duration, baseline_duration):
     log_dir = Path(__file__).parent / "logs" / username / date
     save_path = log_dir / "recording.hdf5"

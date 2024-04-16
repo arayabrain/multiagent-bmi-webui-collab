@@ -1,7 +1,7 @@
 import { scaleRgba, sleep } from './utils.js';
 
 const numTrialForEachColor = 3;
-const goCueDuration = 1000;
+const goCueDuration = 2500;
 const loopInterval = 1000;
 let cueColors, commandLabels;
 let isRunning = false;
