@@ -2,6 +2,8 @@
 Web UI for the multi-agent robot arm environment
 
 ## Overview
+![web interface image](assets/web_interface.png)
+
 ![overview image](assets/overview.png)
 
 
