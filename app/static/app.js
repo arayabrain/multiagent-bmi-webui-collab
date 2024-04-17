@@ -283,6 +283,7 @@ const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
     const agentId = getFocusId();
     if (agentId === null) return;
 
+    // get the command label
     let commandLabel;
     if (command === null) {
         commandLabel = '';
@@ -295,6 +296,11 @@ const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
         return;
     }
 
+    // set likelihoods if not provided
+    if (likelihoods === undefined) {
+        likelihoods = commandLabels.map(label => label === commandLabel ? 1 : 0);
+    }
+    // send the command and likelihoods to the server
     if (commandLabel !== '') {
         sockEnv.emit('command', {
             agentId: agentId,
@@ -302,10 +308,6 @@ const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
             likelihoods: likelihoods,
         });
     }
-
     // update the chart
-    if (likelihoods === undefined) {
-        likelihoods = commandLabels.map(label => label === commandLabel ? 1 : 0);
-    }
     updateChartData(agentId, likelihoods);
 }
