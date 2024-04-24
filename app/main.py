@@ -1,4 +1,6 @@
 import json
+import os
+import secrets
 import urllib
 from datetime import datetime
 from pathlib import Path
@@ -7,35 +9,51 @@ import socketio
 import uvicorn
 from aiortc import RTCPeerConnection
 from aiortc.contrib.media import MediaRelay
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
+from fastapi.exceptions import HTTPException
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.env import EnvRunner, ImageStreamTrack
 from app.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
 
+load_dotenv()
+
 app = FastAPI()
-sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")  # TODO
-socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
+
+secret_key = os.getenv("SESSION_SECRET_KEY")
+if secret_key is None:
+    secret_key = secrets.token_urlsafe(32)
+    with open(Path(__file__).parent / ".env", "a") as f:
+        f.write(f"SESSION_SECRET_KEY={secret_key}\n")
+app.add_middleware(SessionMiddleware, secret_key=secret_key)
 
 app_dir = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=app_dir / "static"), name="static")
 templates = Jinja2Templates(directory=app_dir / "templates")
+
+sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")  # TODO
+socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
 modes: dict[str, str] = {}  # mode for each client
 envs: dict[str, EnvRunner] = {}  # EnvRunners for each client
 peer_connections: dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
 
 env_info = {
-    "": {
-        # "env_id": "FrankaPickPlaceMulti4Robots4Col-v0",
-        "env_id": "FrankaPickPlaceMulti4Robots4Col-v1",
-        "num_agents": 4,
-    },
     "data-collection": {
-        # "env_id": "FrankaPickPlaceSingle4Col-v0",
         "env_id": "FrankaPickPlaceSingle4Col-v1",
         "num_agents": 1,
+    },
+    "single-robot": {
+        "env_id": "FrankaPickPlaceSingle4Col-v1",
+        "num_agents": 1,
+    },
+    "multi-robot": {
+        "env_id": "FrankaPickPlaceMulti4Robots4Col-v1",
+        "num_agents": 4,
     },
 }
 
@@ -44,22 +62,65 @@ env_info = {
 async def index(request: Request):
     return templates.TemplateResponse(
         "index.html",
-        {
-            "request": request,
-            "numAgents": env_info[""]["num_agents"],
-        },
+        {"request": request},
     )
 
 
-@app.get("/data-collection")  # endpoint for data collection mode
-async def data_collection(request: Request):
+@app.post("/api/setuser")
+async def set_user(request: Request):
+    data = await request.form()
+    username = data.get("username")
+    age = data.get("age")
+    gender = data.get("gender")
+    if username and age and gender:  # TODO: verify
+        request.session["userinfo"] = {
+            "username": username,
+            "age": age,
+            "gender": gender,
+        }
+        request.session["access_granted"] = True
+        return request.session["userinfo"]
+    else:
+        raise HTTPException(status_code=400, detail="Invalid user info")
+
+
+@app.post("/api/resetuser")
+async def reset_user(request: Request):
+    request.session.pop("userinfo", None)
+    request.session.pop("access_granted", None)
+    return {"success": True}
+
+
+@app.get("/api/getuser")
+async def get_user(request: Request):
+    return request.session.get("userinfo")
+
+
+async def response(request: Request, mode: str):
+    if not request.session.get("access_granted"):
+        return RedirectResponse(url="/")
     return templates.TemplateResponse(
-        "index.html",
+        "app.html",
         {
             "request": request,
-            "numAgents": env_info["data-collection"]["num_agents"],
+            "numAgents": env_info[mode]["num_agents"],
         },
     )
+
+
+@app.get("/data-collection")
+async def data_collection(request: Request):
+    return await response(request, "data-collection")
+
+
+@app.get("/single-robot")
+async def single_robot(request: Request):
+    return await response(request, "single-robot")
+
+
+@app.get("/multi-robot")
+async def multi_robot(request: Request):
+    return await response(request, "multi-robot")
 
 
 @sio.event

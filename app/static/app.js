@@ -11,7 +11,7 @@ import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 const countdownSec = 3;
 
-let sockEnv;
+let sockEnv, userinfo;
 let commandLabels, commandColors;  // info from the env server
 let isStarted = false;  // if true, task is started and accepting subtask selection
 let isDataCollection = false;
@@ -20,9 +20,13 @@ const taskCompletionTimer = new easytimer.Timer();
 let numSubtaskSelections, numInvalidSubtaskSelections;  // error rate
 
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     connectEnv();
 
+    // username input
+    const res = await fetch('/api/getuser');
+    userinfo = await res.json();
+    document.getElementById('username').textContent = `User: ${userinfo.username}`;
     // buttons
     document.getElementById('start-button').addEventListener('click', startTask);
     document.getElementById('reset-button').addEventListener('click', () => {
@@ -30,16 +34,8 @@ document.addEventListener("DOMContentLoaded", () => {
         resetTask();
     });
 
-    document.getElementById('username').addEventListener('input', () => {
-        document.getElementById('start-button').disabled = !isNameValid();
-    });
-
     resetTask();
 });
-
-const isNameValid = () => {
-    return document.getElementById('username').value.trim() !== '';
-}
 
 const updateTaskStatusMsg = (msg) => {
     document.getElementById('task-status-message').innerText = msg;
@@ -68,7 +64,6 @@ const countdown = async (sec) => {
 }
 
 const startTask = async () => {
-    document.getElementById('username').disabled = true;
     document.getElementById('start-button').disabled = true;
     document.getElementById('reset-button').disabled = false;
     document.querySelectorAll('.toggle-container .togglable').forEach(input => input.disabled = true);
@@ -139,7 +134,7 @@ const stopTask = (isComplete = false) => {
         // send the metrics to the server if the task is completed
         if (isComplete) {
             sockEnv.emit('saveMetrics', {
-                username: document.getElementById('username').value,
+                userinfo: userinfo,
                 taskCompletionTime: taskCompletionSec,
                 errorRate: { numInvalidSubtaskSelections, numSubtaskSelections, rate: errorRate },
                 interactionTime: { len, mean, std },
@@ -165,8 +160,7 @@ const resetTask = () => {
     console.assert(!isStarted, 'Task is not stopped');
     sockEnv.emit('taskReset', () => {
         updateTaskStatusMsg('Environment reset. Ready.');
-        document.getElementById('username').disabled = false;
-        document.getElementById('start-button').disabled = !isNameValid();
+        document.getElementById('start-button').disabled = false;
         document.getElementById('reset-button').disabled = true;
         document.querySelectorAll('.toggle-container .togglable').forEach(input => input.disabled = false);
     });
