@@ -24,6 +24,7 @@ user = [
     "mne",
     "pandas",
     "pyxdf",
+    "tinydb",
 ]
 
 [build-system]

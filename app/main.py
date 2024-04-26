@@ -2,7 +2,6 @@ import json
 import os
 import secrets
 import urllib
-from datetime import datetime
 from pathlib import Path
 
 import socketio
@@ -184,9 +183,9 @@ async def task_stop(sid):
 async def save_metrics(sid, data):
     if sid not in envs:
         return False
-    env_id = env_info[modes[sid]]["env_id"]
+    data["env_id"] = env_info[modes[sid]]["env_id"]
     try:
-        filepath = log_dir / env_id / data["username"] / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        filepath = log_dir / data["username"] / f"{data['expId']}.json"
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w") as f:
             json.dump(data, f, indent=4)

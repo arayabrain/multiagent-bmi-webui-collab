@@ -11,13 +11,14 @@ import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 const countdownSec = 3;
 
-let sockEnv, userinfo;
+let sockEnv;
 let commandLabels, commandColors;  // info from the env server
 let isStarted = false;  // if true, task is started and accepting subtask selection
 let isDataCollection = false;
+let userinfo, expId;
+let numSubtaskSelections, numInvalidSubtaskSelections;  // error rate
 const countdownTimer = new easytimer.Timer();
 const taskCompletionTimer = new easytimer.Timer();
-let numSubtaskSelections, numInvalidSubtaskSelections;  // error rate
 
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -35,6 +36,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     resetTask();
+
+    expId = dateFns.format(new Date(), 'yyyyMMdd_HHmmss');
 });
 
 const updateTaskStatusMsg = (msg) => {
@@ -134,7 +137,8 @@ const stopTask = (isComplete = false) => {
         // send the metrics to the server if the task is completed
         if (isComplete) {
             sockEnv.emit('saveMetrics', {
-                userinfo: userinfo,
+                userInfo: userinfo,
+                expId: expId,
                 taskCompletionTime: taskCompletionSec,
                 errorRate: { numInvalidSubtaskSelections, numSubtaskSelections, rate: errorRate },
                 interactionTime: { len, mean, std },
@@ -199,13 +203,14 @@ const connectEnv = () => {
         document.getElementById('toggle-gaze').addEventListener('change', (e) => onToggleGaze(e.target.checked));
         document.getElementById('toggle-mouse').addEventListener('change', (e) => onToggleMouse(e.target.checked));
         // subtask selection devices
-        document.getElementById('toggle-eeg').addEventListener('change', (e) => onToggleEEG(e.target.checked, onSubtaskSelectionEvent, commandLabels));
-        document.getElementById('toggle-keyboard').addEventListener('change', (e) => onToggleKeyboard(e.target.checked, onSubtaskSelectionEvent, commandLabels));
+        document.getElementById('toggle-eeg').addEventListener('change', (e) =>
+            onToggleEEG(e.target.checked, onSubtaskSelectionEvent, commandLabels, userinfo.username, expId));
+        document.getElementById('toggle-keyboard').addEventListener('change', (e) =>
+            onToggleKeyboard(e.target.checked, onSubtaskSelectionEvent, commandLabels, userinfo.username, expId));
         // both
-        setGamepadHandler(onSubtaskSelectionEvent, commandLabels);
+        setGamepadHandler(onSubtaskSelectionEvent, commandLabels, userinfo.username, expId);
         // dispatch events for initial state
         document.querySelectorAll('.toggle-container .togglable').forEach(input => input.dispatchEvent(new Event('change')));
-
 
         // if a video is ready, create charts
         document.querySelector('video').addEventListener('canplay', () => createCharts(commandColors, commandLabels));

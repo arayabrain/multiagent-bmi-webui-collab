@@ -2,12 +2,16 @@ import { updateConnectionStatusElement } from './utils.js';
 
 let sockEEG;
 
-export const onToggleEEG = (checked, commandHandler, commandLabels) => {
+export const onToggleEEG = (checked, commandHandler, commandLabels, userId, expId) => {
     if (checked) {
         updateConnectionStatusElement('connecting', 'toggle-eeg');
         sockEEG = io.connect(`http://localhost:8002`, { transports: ['websocket'] });
         sockEEG.on('connect', () => {
-            sockEEG.emit('init', { commandLabels: commandLabels });
+            sockEEG.emit('init', {
+                commandLabels: commandLabels,
+                userId: userId,
+                expId: expId,
+            });
             updateConnectionStatusElement('connected', 'toggle-eeg');
             console.log("EEG server connected");
         });

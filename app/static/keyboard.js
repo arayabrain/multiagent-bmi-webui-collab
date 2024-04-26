@@ -1,4 +1,4 @@
-export const onToggleKeyboard = (checked, commandHandler, commandLabels) => {
+export const onToggleKeyboard = (checked, commandHandler, commandLabels, userId, expId) => {
     // set key map
     // cancel: 0, others: 1, 2, ...
     const keyMap = {};
