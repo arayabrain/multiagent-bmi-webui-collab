@@ -15,7 +15,6 @@ This might require getting reading permission to the repository.
     ```bash
     git clone --recurse-submodules -j8 \
     git@github.com:arayabrain/robohive-multi.git
-    git checkout hri-new-config
     pip install -e robohive-multi/.
     pip install -e robohive-multi/robohive/.
     pip install -e robohive-multi/vtils/.
