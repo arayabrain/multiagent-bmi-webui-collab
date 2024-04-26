@@ -15,8 +15,8 @@
             </div>
         </div>
         <div class="row justify-content-center">
-            <div class="col-12 col-md-4">
-                <form id="usernameForm" class="mb-3">
+            <div class="col-md-4">
+                <form id="usernameForm">
                     <input type="text" class="form-control mb-2" name="username" placeholder="Enter your username"
                         required autocomplete="username">
                     <input type="number" class="form-control mb-2" name="age" min="0" placeholder="Enter your age"
@@ -32,6 +32,42 @@
                 <button type="button" id="resetButton" class="btn btn-secondary mt-2 w-100"
                     style="display: none;">Reset</button>
             </div>
+        </div>
+
+        <div class="row mt-5 hidden-before-submit">
+            <div class="col-12 text-center">
+                <h2>Select Devices</h2>
+            </div>
+        </div>
+        <div class="row justify-content-center hidden-before-submit">
+            <div class="col-md-4"></div>
+            <!-- Robot Selection Devices -->
+            <div class="col-md-2 text-start">
+                <div class="form-check form-switch">
+                    <input class="form-check-input togglable" type="checkbox" id="toggle-mouse" checked>
+                    <label class="form-check-label" for="toggle-mouse">Mouse</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="toggle-gamepad">
+                    <label class="form-check-label" for="toggle-gamepad">Gamepad</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input togglable" type="checkbox" id="toggle-gaze">
+                    <label class="form-check-label" for="toggle-gaze">Eye Tracker</label>
+                </div>
+            </div>
+            <!-- Subtask Selection Devices -->
+            <div class="col-md-2 text-start">
+                <div class="form-check form-switch">
+                    <input class="form-check-input togglable" type="checkbox" id="toggle-keyboard" checked>
+                    <label class="form-check-label" for="toggle-keyboard">Keyboard</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input togglable" type="checkbox" id="toggle-eeg">
+                    <label class="form-check-label" for="toggle-eeg">EEG/EMG</label>
+                </div>
+            </div>
+            <div class="col-md-4"></div>
         </div>
 
         <div class="row mt-5 hidden-before-submit">

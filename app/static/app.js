@@ -15,19 +15,21 @@ let sockEnv;
 let commandLabels, commandColors;  // info from the env server
 let isStarted = false;  // if true, task is started and accepting subtask selection
 let isDataCollection = false;
-let userinfo, expId;
+let userinfo;
 let numSubtaskSelections, numInvalidSubtaskSelections;  // error rate
 const countdownTimer = new easytimer.Timer();
 const taskCompletionTimer = new easytimer.Timer();
-
+const expId = dateFns.format(new Date(), 'yyyyMMdd_HHmmss');
 
 document.addEventListener("DOMContentLoaded", async () => {
     connectEnv();
 
     // username input
+    // TODO: use sessionStorage
     const res = await fetch('/api/getuser');
     userinfo = await res.json();
     document.getElementById('username').textContent = `User: ${userinfo.username}`;
+
     // buttons
     document.getElementById('start-button').addEventListener('click', startTask);
     document.getElementById('reset-button').addEventListener('click', () => {
@@ -36,8 +38,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     resetTask();
-
-    expId = dateFns.format(new Date(), 'yyyyMMdd_HHmmss');
 });
 
 const updateTaskStatusMsg = (msg) => {
@@ -142,13 +142,7 @@ const stopTask = (isComplete = false) => {
                 taskCompletionTime: taskCompletionSec,
                 errorRate: { numInvalidSubtaskSelections, numSubtaskSelections, rate: errorRate },
                 interactionTime: { len, mean, std },
-                devices: {
-                    mouse: document.getElementById('toggle-mouse').checked,
-                    gamepad: document.getElementById('toggle-gamepad').checked,
-                    gaze: document.getElementById('toggle-gaze').checked,
-                    keyboard: document.getElementById('toggle-keyboard').checked,
-                    eeg: document.getElementById('toggle-eeg').checked,
-                }
+                devices: JSON.parse(sessionStorage.getItem('deviceSelection')),
             }, (res) => {
                 if (res) {
                     updateLog('Metrics saved.');
@@ -157,6 +151,14 @@ const stopTask = (isComplete = false) => {
                 }
             });
         }
+    }
+
+    // Popup for repeat or back to menu
+    // This ensures the expId is not reused
+    if (isComplete) {
+        const modal = document.getElementById('task-complete-modal');
+        const modalInstance = new bootstrap.Modal(modal);
+        modalInstance.show();
     }
 }
 
@@ -198,22 +200,19 @@ const connectEnv = () => {
         commandLabels = labels;
         updateLog(`Environment initialized`);
 
-        // setup toggle switches
-        // robot selection devices
-        document.getElementById('toggle-gaze').addEventListener('change', (e) => onToggleGaze(e.target.checked));
-        document.getElementById('toggle-mouse').addEventListener('change', (e) => onToggleMouse(e.target.checked));
-        // subtask selection devices
-        document.getElementById('toggle-eeg').addEventListener('change', (e) =>
-            onToggleEEG(e.target.checked, onSubtaskSelectionEvent, commandLabels, userinfo.username, expId));
-        document.getElementById('toggle-keyboard').addEventListener('change', (e) =>
-            onToggleKeyboard(e.target.checked, onSubtaskSelectionEvent, commandLabels, userinfo.username, expId));
-        // both
-        setGamepadHandler(onSubtaskSelectionEvent, commandLabels, userinfo.username, expId);
-        // dispatch events for initial state
-        document.querySelectorAll('.toggle-container .togglable').forEach(input => input.dispatchEvent(new Event('change')));
-
         // if a video is ready, create charts
         document.querySelector('video').addEventListener('canplay', () => createCharts(commandColors, commandLabels));
+
+        // initialize the selected devices
+        const deviceSelection = JSON.parse(sessionStorage.getItem('deviceSelection'));
+        // robot selection devices
+        if (deviceSelection.mouse) onToggleMouse(true);
+        if (deviceSelection.gaze) onToggleGaze(true);
+        // subtask selection devices
+        if (deviceSelection.keyboard) onToggleKeyboard(true, onSubtaskSelectionEvent, commandLabels, userinfo.username, expId);
+        if (deviceSelection.eeg) onToggleEEG(true, onSubtaskSelectionEvent, commandLabels, userinfo.username, expId);
+        // both
+        if (deviceSelection.gamepad) setGamepadHandler(true, onSubtaskSelectionEvent, commandLabels, userinfo.username, expId);
     });
     sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods }) => {
         // interaction time

@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', async () => {
+    document.querySelectorAll('.togglable').forEach(
+        input => input.addEventListener('change', saveDeviceSelection)
+    );
+    initDeviceSelectionToggles();
+
     // check if the user info is already set
     const res = await fetch('/api/getuser');
     const userinfo = await res.json();
@@ -76,5 +81,31 @@ const resetForm = async () => {
     } else {
         showError('Failed to reset user info');
     }
+}
+
+const saveDeviceSelection = () => {
+    // save the device state
+    const state = {
+        mouse: document.getElementById('toggle-mouse').checked,
+        keyboard: document.getElementById('toggle-keyboard').checked,
+        gamepad: document.getElementById('toggle-gamepad').checked,
+        eeg: document.getElementById('toggle-eeg').checked,
+        gaze: document.getElementById('toggle-gaze').checked,
+    };
+    sessionStorage.setItem('deviceSelection', JSON.stringify(state));
+}
+
+const initDeviceSelectionToggles = () => {
+    const state = JSON.parse(sessionStorage.getItem('deviceSelection'));
+    if (!state) {
+        saveDeviceSelection();
+        return;
+    }
+    // set the state
+    document.getElementById('toggle-mouse').checked = state.mouse;
+    document.getElementById('toggle-keyboard').checked = state.keyboard;
+    document.getElementById('toggle-gamepad').checked = state.gamepad;
+    document.getElementById('toggle-eeg').checked = state.eeg;
+    document.getElementById('toggle-gaze').checked = state.gaze;
 }
 

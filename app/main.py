@@ -183,9 +183,9 @@ async def task_stop(sid):
 async def save_metrics(sid, data):
     if sid not in envs:
         return False
-    data["env_id"] = env_info[modes[sid]]["env_id"]
+    data["envId"] = env_info[modes[sid]]["env_id"]
     try:
-        filepath = log_dir / data["username"] / f"{data['expId']}.json"
+        filepath = log_dir / data["userInfo"]["username"] / f"{data['expId']}.json"
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w") as f:
             json.dump(data, f, indent=4)
