@@ -63,23 +63,5 @@ Also check the network settings of your anti-virus software.
 
 
 ## Run
-Activate your virtual environment, then:
-1. Run environment server:
-    ```bash
-    python app/main.py
-    ```
-    and open `https://${server ip}:8000/` in your browser.  
-    You will see a warning because we are using a self-signed certificate, but please ignore it and proceed with the connection.
-2. Run devices for selecting a robot to control  
-    You can select a robot that by moving the cursor using various devices.
-    - Mouse
-    - Gamepad
-    - Pupil Core
-        - Please see the [README](app/devices/eye/README.md).
-3. Run devices for selecting commands
-    - Keyboard
-        - Use the number keys (1, 2, 3, 4) to enter commands.
-    - EEG/EMG
-        - Please see the [README](app/devices/eeg/README.md).
+See [user_guide.md](user_guide.md) for usage instructions.
 
-(TODO: update on data-collection mode)
