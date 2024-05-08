@@ -31,7 +31,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById('start-button').addEventListener('click', startTask);
     document.getElementById('reset-button').addEventListener('click', () => {
         stopTask();
-        resetTask();
+        if (isDataCollection) {
+            location.reload();  // Force data collection recorder to restart
+        } else {
+            resetTask();
+        }
     });
 
     resetTask();
@@ -74,13 +78,8 @@ const startTask = async () => {
     updateLog('\nStarted.');
 
     if (isDataCollection) {
-        document.addEventListener('dataCollectionOnset', async (event) => {
-            sendDataCollectionOnset(event);  // eeg server; TODO: also for other devices?
-            updateLog(`Cue: ${event.detail.cue}`);
-        });
-        document.addEventListener('dataCollectionCompleted', async () => {
-            stopTask(true);
-        });
+        document.addEventListener('dataCollectionOnset', onDataCollectionOnset);
+        document.addEventListener('dataCollectionCompleted', onDataCollectionCompleted);
         startDataCollection(commandColors, commandLabels);
     } else {
         // start the metrics measurement
@@ -89,6 +88,17 @@ const startTask = async () => {
 
     isStarted = true;
 }
+
+
+const onDataCollectionOnset = async (event) => {
+    sendDataCollectionOnset(event);  // eeg server; TODO: also for other devices?
+    updateLog(`Cue: ${event.detail.cue}`);
+};
+
+const onDataCollectionCompleted = async () => {
+    stopTask(true);
+};
+
 
 const stopTask = (isComplete = false) => {
     if (!isStarted) {
@@ -116,6 +126,8 @@ const stopTask = (isComplete = false) => {
 
     if (isDataCollection) {
         stopDataCollection();
+        document.removeEventListener('dataCollectionOnset', onDataCollectionOnset);
+        document.removeEventListener('dataCollectionCompleted', onDataCollectionCompleted);
     } else {
         // show logs
         if (taskCompletionSec > 0) {
