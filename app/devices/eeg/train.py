@@ -74,10 +74,10 @@ def train(X, y, labels, baseline, save_path):
 @click.option("--baseline-duration", "-bdur", default=5.0, help="Duration of the baseline in seconds.")
 def main(user_id, exp_id, load_latest_recording, window_duration, baseline_duration):
     save_root = Path(__file__).parent / "logs"
-    db_manager = DatabaseManager(save_root / "data.yaml")
+    db_manager = DatabaseManager(save_root / "data.json")
 
     if load_latest_recording:
-        user_id, exp_id = db_manager.get_latest_recording_info(user_id)
+        user_id, exp_id = db_manager.get_latest_recording_info()
     elif user_id is None or exp_id is None:
         raise ValueError("Specify user_id and exp_id or use --load-latest-recording")
     print(f"Training for user {user_id} and experiment {exp_id}")
@@ -90,7 +90,7 @@ def main(user_id, exp_id, load_latest_recording, window_duration, baseline_durat
     train(X, y, labels, baseline, model_save_path)
 
     # update the latest model info
-    db_manager.update_model_info(user_id, model_save_path)
+    db_manager.update_model_path(user_id, model_save_path)
 
 
 if __name__ == "__main__":

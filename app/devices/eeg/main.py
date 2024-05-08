@@ -85,7 +85,7 @@ def main(
     exp_id = None
 
     save_root = Path(__file__).parent / "logs"
-    db_manager = DatabaseManager(save_root / "data.yaml")
+    db_manager = DatabaseManager(save_root / "data.json")
 
     runners: list[Any] = []
 
