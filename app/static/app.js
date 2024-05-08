@@ -2,7 +2,7 @@ import { createCharts, resetChartData, updateChartColor, updateChartData, update
 import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTimeHistory, resetInteractionTimer, setSockEnv } from './cursor.js';
 import { startDataCollection, stopDataCollection } from './dataCollection.js';
 import { initEEG, sendDataCollectionOnset } from './eeg.js';
-import { setGamepadHandler } from './gamepad.js';
+import { initGamepad } from './gamepad.js';
 import { initGaze } from './gaze.js';
 import { initKeyboard } from './keyboard.js';
 import { initMouse } from './mouse.js';
@@ -221,7 +221,7 @@ const connectEnv = () => {
         if (deviceSelection.keyboard) initKeyboard(onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
         if (deviceSelection.eeg) initEEG(onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
         // both
-        if (deviceSelection.gamepad) setGamepadHandler(onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
+        if (deviceSelection.gamepad) initGamepad(onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
     });
     sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods }) => {
         // interaction time

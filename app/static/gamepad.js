@@ -5,7 +5,7 @@ const sampleRate = 60;  // Hz
 const sensitivity = 40;
 let _commandHandler, keyMap, prevPressed, intervalId = null;
 
-export const setGamepadHandler = (commandHandler, commandLabels, userId, expId) => {
+export const initGamepad = (commandHandler, commandLabels, userId, expId) => {
     _commandHandler = commandHandler;
     // set key map (for Xbox 360 controller)
     keyMap = {
