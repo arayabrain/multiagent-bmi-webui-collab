@@ -1,8 +1,9 @@
 import { updateCursorAndFocus } from './cursor.js';
+import { updateDeviceStatus } from './utils.js';
 
 const sampleRate = 60;  // Hz
 const sensitivity = 40;
-let _commandHandler, keyMap, prevPressed, intervalId;
+let _commandHandler, keyMap, prevPressed, intervalId = null;
 
 export const setGamepadHandler = (commandHandler, commandLabels, userId, expId) => {
     _commandHandler = commandHandler;
@@ -27,9 +28,9 @@ const connect = (event) => {
         "Gamepad connected at index %d: %s. %d buttons, %d axes.",
         gamepad.index, gamepad.id, gamepad.buttons.length, gamepad.axes.length
     );
-    if (getActiveGamepadsCount() === 1) {
-        document.getElementById('toggle-gamepad').checked = true;
+    if (!intervalId) {
         intervalId = setInterval(gamepadsLoop, 1000 / sampleRate);
+        updateDeviceStatus('Gamepad', 'connected');
     }
 }
 
@@ -41,7 +42,8 @@ const disconnect = (event) => {
     );
     if (getActiveGamepadsCount() === 0) {
         clearInterval(intervalId);
-        document.getElementById('toggle-gamepad').checked = false;
+        intervalId = null;
+        updateDeviceStatus('Gamepad', 'disconnected');
     }
 }
 

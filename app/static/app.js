@@ -1,11 +1,11 @@
 import { createCharts, resetChartData, updateChartColor, updateChartData, updateChartLock } from './chart.js';
 import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTimeHistory, resetInteractionTimer, setSockEnv } from './cursor.js';
 import { startDataCollection, stopDataCollection } from './dataCollection.js';
-import { onToggleEEG, sendDataCollectionOnset } from './eeg.js';
+import { initEEG, sendDataCollectionOnset } from './eeg.js';
 import { setGamepadHandler } from './gamepad.js';
-import { onToggleGaze } from './gaze.js';
-import { onToggleKeyboard } from './keyboard.js';
-import { onToggleMouse } from './mouse.js';
+import { initGaze } from './gaze.js';
+import { initKeyboard } from './keyboard.js';
+import { initMouse } from './mouse.js';
 import { binStr2Rgba } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     connectEnv();
 
     userinfo = JSON.parse(sessionStorage.getItem('userinfo'));
-    document.getElementById('username').textContent = `User: ${userinfo.name}`;
+    document.getElementById('username-area').textContent = `User: ${userinfo.name}`;
 
     // buttons
     document.getElementById('start-button').addEventListener('click', startTask);
@@ -203,13 +203,13 @@ const connectEnv = () => {
         // initialize the selected devices
         const deviceSelection = JSON.parse(sessionStorage.getItem('deviceSelection'));
         // robot selection devices
-        if (deviceSelection.mouse) onToggleMouse(true);
-        if (deviceSelection.gaze) onToggleGaze(true);
+        if (deviceSelection.mouse) initMouse();
+        if (deviceSelection.gaze) initGaze();
         // subtask selection devices
-        if (deviceSelection.keyboard) onToggleKeyboard(true, onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
-        if (deviceSelection.eeg) onToggleEEG(true, onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
+        if (deviceSelection.keyboard) initKeyboard(onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
+        if (deviceSelection.eeg) initEEG(onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
         // both
-        if (deviceSelection.gamepad) setGamepadHandler(true, onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
+        if (deviceSelection.gamepad) setGamepadHandler(onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
     });
     sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods }) => {
         // interaction time

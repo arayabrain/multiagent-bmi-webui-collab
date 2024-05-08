@@ -1,32 +1,28 @@
 import { updateCursorAndFocus } from './cursor.js';
-import { updateConnectionStatusElement } from './utils.js';
+import { updateDeviceStatus } from './utils.js';
 let sockGaze;
 let surfaceOrigin, surfaceSize;
 
-export const onToggleGaze = (checked) => {
-    if (checked) {
-        updateConnectionStatusElement('connecting', 'toggle-gaze');
-        sockGaze = io.connect(`http://localhost:8001`, { transports: ['websocket'] });  // TODO: https?
-        sockGaze.on('connect', () => {
-            updateConnectionStatusElement('connected', 'toggle-gaze');
-            console.log("Gaze server connected");
-        });
-        sockGaze.on('disconnect', () => {
-            updateConnectionStatusElement('disconnected', 'toggle-gaze');
-            console.log("Gaze server disconnected");
-        });
-        sockGaze.on('reconnect_attempt', () => {  // TODO: not working
-            console.log("Gaze server reconnecting...");
-        });
-        sockGaze.on('gaze', (gaze) => {
-            const mappedGaze = mapGazeToSurface(gaze.x, gaze.y);
-            updateCursorAndFocus(...mappedGaze);
-        });
-        showAprilTags();
-    } else {
-        if (sockGaze) sockGaze.disconnect();
-        hideAprilTags();
-    }
+export const initGaze = () => {
+    updateDeviceStatus('Gaze', 'connecting...');
+    sockGaze = io.connect(`http://localhost:8001`, { transports: ['websocket'] });  // TODO: https?
+    sockGaze.on('connect', () => {
+        updateDeviceStatus('Gaze', 'connected');
+        console.log("Gaze server connected");
+    });
+    sockGaze.on('disconnect', () => {
+        updateDeviceStatus('Gaze', 'disconnected');
+        console.log("Gaze server disconnected");
+    });
+    sockGaze.on('reconnect_attempt', () => {  // TODO: not working
+        updateDeviceStatus('Gaze', 'reconnecting...');
+        console.log("Gaze server reconnecting...");
+    });
+    sockGaze.on('gaze', (gaze) => {
+        const mappedGaze = mapGazeToSurface(gaze.x, gaze.y);
+        updateCursorAndFocus(...mappedGaze);
+    });
+    showAprilTags();
 }
 
 const showAprilTags = () => {

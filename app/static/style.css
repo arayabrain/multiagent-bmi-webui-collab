@@ -6,8 +6,6 @@ html {
     justify-content: center;
     align-items: center;
     font-size: 18px;
-    cursor: none;
-    /* Hide the mouse cursor */
 }
 
 #cursor {
@@ -15,7 +13,7 @@ html {
     z-index: 10000;
     pointer-events: none;
     display: none;
-    /* Hide the cursor by default */
+    /* Hide the custom cursor by default */
 
     width: 30px;
     height: 30px;

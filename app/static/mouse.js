@@ -1,13 +1,11 @@
 import { updateCursorAndFocus } from './cursor.js';
+import { updateDeviceStatus } from './utils.js';
 
-export const onToggleMouse = (checked) => {
-    if (checked) {
-        document.addEventListener('mousemove', onMousemove);
-        document.body.style.cursor = 'none';  // hide mouse cursor
-    } else {
-        document.removeEventListener('mousemove', onMousemove);
-        document.body.style.cursor = 'auto';  // show mouse cursor
-    }
+
+export const initMouse = () => {
+    document.addEventListener('mousemove', onMousemove);
+    document.body.style.cursor = 'none';  // hide mouse cursor
+    updateDeviceStatus('Mouse', 'connected');
 }
 
 const onMousemove = (event) => {
