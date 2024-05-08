@@ -24,11 +24,8 @@ const expId = dateFns.format(new Date(), 'yyyyMMdd_HHmmss');
 document.addEventListener("DOMContentLoaded", async () => {
     connectEnv();
 
-    // username input
-    // TODO: use sessionStorage
-    const res = await fetch('/api/getuser');
-    userinfo = await res.json();
-    document.getElementById('username').textContent = `User: ${userinfo.username}`;
+    userinfo = JSON.parse(sessionStorage.getItem('userinfo'));
+    document.getElementById('username').textContent = `User: ${userinfo.name}`;
 
     // buttons
     document.getElementById('start-button').addEventListener('click', startTask);
@@ -137,7 +134,7 @@ const stopTask = (isComplete = false) => {
         // send the metrics to the server if the task is completed
         if (isComplete) {
             sockEnv.emit('saveMetrics', {
-                userInfo: userinfo,
+                userinfo: userinfo,
                 expId: expId,
                 taskCompletionTime: taskCompletionSec,
                 errorRate: { numInvalidSubtaskSelections, numSubtaskSelections, rate: errorRate },
@@ -209,10 +206,10 @@ const connectEnv = () => {
         if (deviceSelection.mouse) onToggleMouse(true);
         if (deviceSelection.gaze) onToggleGaze(true);
         // subtask selection devices
-        if (deviceSelection.keyboard) onToggleKeyboard(true, onSubtaskSelectionEvent, commandLabels, userinfo.username, expId);
-        if (deviceSelection.eeg) onToggleEEG(true, onSubtaskSelectionEvent, commandLabels, userinfo.username, expId);
+        if (deviceSelection.keyboard) onToggleKeyboard(true, onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
+        if (deviceSelection.eeg) onToggleEEG(true, onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
         // both
-        if (deviceSelection.gamepad) setGamepadHandler(true, onSubtaskSelectionEvent, commandLabels, userinfo.username, expId);
+        if (deviceSelection.gamepad) setGamepadHandler(true, onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
     });
     sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods }) => {
         // interaction time

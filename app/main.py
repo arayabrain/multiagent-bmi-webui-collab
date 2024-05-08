@@ -10,7 +10,6 @@ from aiortc import RTCPeerConnection
 from aiortc.contrib.media import MediaRelay
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.exceptions import HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -65,39 +64,8 @@ async def index(request: Request):
     )
 
 
-@app.post("/api/setuser")
-async def set_user(request: Request):
-    data = await request.form()
-    username = data.get("username")
-    age = data.get("age")
-    gender = data.get("gender")
-    if username and age and gender:  # TODO: verify
-        request.session["userinfo"] = {
-            "username": username,
-            "age": age,
-            "gender": gender,
-        }
-        request.session["access_granted"] = True
-        return request.session["userinfo"]
-    else:
-        raise HTTPException(status_code=400, detail="Invalid user info")
-
-
-@app.post("/api/resetuser")
-async def reset_user(request: Request):
-    request.session.pop("userinfo", None)
-    request.session.pop("access_granted", None)
-    return {"success": True}
-
-
-@app.get("/api/getuser")
-async def get_user(request: Request):
-    return request.session.get("userinfo")
-
-
 async def response(request: Request, mode: str):
-    if not request.session.get("access_granted"):
-        return RedirectResponse(url="/")
+    # TODO: check userinfo and device selection are properly set
     return templates.TemplateResponse(
         "app.html",
         {
@@ -185,7 +153,7 @@ async def save_metrics(sid, data):
         return False
     data["envId"] = env_info[modes[sid]]["env_id"]
     try:
-        filepath = log_dir / data["userInfo"]["username"] / f"{data['expId']}.json"
+        filepath = log_dir / data["userinfo"]["name"] / f"{data['expId']}.json"
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w") as f:
             json.dump(data, f, indent=4)

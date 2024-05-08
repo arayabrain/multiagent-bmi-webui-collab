@@ -15,10 +15,10 @@
             </div>
         </div>
         <div class="row justify-content-center">
-            <div class="col-md-4">
-                <form id="usernameForm">
-                    <input type="text" class="form-control mb-2" name="username" placeholder="Enter your username"
-                        required autocomplete="username">
+            <div class="col-md-3">
+                <form id="userinfoForm">
+                    <input type="text" class="form-control mb-2" name="name" placeholder="Enter your name" required
+                        autocomplete="name">
                     <input type="number" class="form-control mb-2" name="age" min="0" placeholder="Enter your age"
                         required autocomplete="age">
                     <select class="form-control mb-2" name="gender" required>
@@ -26,25 +26,21 @@
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
                     </select>
-                    <button type="submit" class="btn btn-primary mt-2 w-100">Submit</button>
                 </form>
-                <div id="resultArea" class="ps-4 fs-5"></div>
-                <button type="button" id="resetButton" class="btn btn-secondary mt-2 w-100"
-                    style="display: none;">Reset</button>
             </div>
         </div>
 
-        <div class="row mt-5 hidden-before-submit">
+        <div class="row mt-5">
             <div class="col-12 text-center">
                 <h2>Select Devices</h2>
             </div>
         </div>
-        <div class="row justify-content-center hidden-before-submit">
+        <div class="row justify-content-center">
             <div class="col-md-4"></div>
             <!-- Robot Selection Devices -->
             <div class="col-md-2 text-start">
                 <div class="form-check form-switch">
-                    <input class="form-check-input togglable" type="checkbox" id="toggle-mouse" checked>
+                    <input class="form-check-input togglable" type="checkbox" id="toggle-mouse">
                     <label class="form-check-label" for="toggle-mouse">Mouse</label>
                 </div>
                 <div class="form-check form-switch">
@@ -59,7 +55,7 @@
             <!-- Subtask Selection Devices -->
             <div class="col-md-2 text-start">
                 <div class="form-check form-switch">
-                    <input class="form-check-input togglable" type="checkbox" id="toggle-keyboard" checked>
+                    <input class="form-check-input togglable" type="checkbox" id="toggle-keyboard">
                     <label class="form-check-label" for="toggle-keyboard">Keyboard</label>
                 </div>
                 <div class="form-check form-switch">
@@ -70,26 +66,26 @@
             <div class="col-md-4"></div>
         </div>
 
-        <div class="row mt-5 hidden-before-submit">
+        <div class="row mt-5">
             <div class="col-12 text-center">
                 <h2>Select a Mode</h2>
             </div>
         </div>
-        <div class="row justify-content-center hidden-before-submit">
+        <div class="row justify-content-center">
             <div class="col-md-4 text-center">
-                <a href="/data-collection" class="hover-effect text-decoration-none">
+                <a href="/data-collection" class="mode-link hover-effect text-decoration-none">
                     <div class="fs-4 link-text">Data Collection</div>
                     <img src="/static/img/data_collection.png" alt="Data Collection" class="img-fluid">
                 </a>
             </div>
             <div class="col-md-4 text-center">
-                <a href="/single-robot" class="hover-effect text-decoration-none">
+                <a href="/single-robot" class="mode-link hover-effect text-decoration-none">
                     <div class="fs-4 link-text">Single Robot</div>
                     <img src="/static/img/single_robot.png" alt="Single Robot" class="img-fluid">
                 </a>
             </div>
             <div class="col-md-4 text-center">
-                <a href="/multi-robot" class="hover-effect text-decoration-none">
+                <a href="/multi-robot" class="mode-link hover-effect text-decoration-none">
                     <div class="fs-4 link-text">Multi Robot</div>
                     <img src="/static/img/multi_robot.png" alt="Multi Robot" class="img-fluid">
                 </a>
