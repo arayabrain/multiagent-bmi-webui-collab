@@ -9,29 +9,18 @@
 </head>
 
 <body>
-    <div class="container mt-5 bg-white rounded">
+    <div class="container mt-5 bg-white rounded fs-5">
+        <!-- Userinfo display -->
         <div class="row">
-            <div class="col-12 text-center">
-                <h2>Enter User Information</h2>
-            </div>
-        </div>
-        <div class="row justify-content-center">
-            <div class="col-md-3">
-                <form id="userinfoForm">
-                    <input type="text" class="form-control mb-2" name="name" placeholder="Enter your name" required
-                        autocomplete="name">
-                    <input type="number" class="form-control mb-2" name="age" min="0" placeholder="Enter your age"
-                        required autocomplete="age">
-                    <select class="form-control mb-2" name="gender" required>
-                        <option value="">Select Gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                    </select>
-                </form>
+            <div class="col-12 d-flex justify-content-end align-items-center">
+                <div class="user-info">
+                    <span id="displayUserInfo"></span>
+                    <button id="resetUserInfo" class="btn btn-secondary ms-2">Reset User</button>
+                </div>
             </div>
         </div>
 
-        <div class="row mt-5">
+        <div class="row">
             <div class="col-12 text-center">
                 <h2>Select Devices</h2>
             </div>

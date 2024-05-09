@@ -56,16 +56,39 @@ env_info = {
 }
 
 
+@app.get("/register")
+async def register(request: Request):
+    return templates.TemplateResponse(
+        "register.html",
+        {"request": request},
+    )
+
+
+@app.post("/api/setuser")
+async def setuser(request: Request, userinfo: dict):
+    # TODO: userinfo is basically validated in the frontend, but do it more strictly?
+    request.session["userinfo"] = userinfo
+    return True
+
+
+@app.get("/api/getuser")
+async def getuser(request: Request):
+    return request.session.get("userinfo")
+
+
 @app.get("/")
 async def index(request: Request):
+    if "userinfo" not in request.session:
+        return RedirectResponse(url="/register")
     return templates.TemplateResponse(
         "index.html",
         {"request": request},
     )
 
 
-async def response(request: Request, mode: str):
-    # TODO: check userinfo and device selection are properly set
+async def task_page(request: Request, mode: str):
+    if "userinfo" not in request.session:
+        return RedirectResponse(url="/register")
     return templates.TemplateResponse(
         "app.html",
         {
@@ -77,17 +100,17 @@ async def response(request: Request, mode: str):
 
 @app.get("/data-collection")
 async def data_collection(request: Request):
-    return await response(request, "data-collection")
+    return await task_page(request, "data-collection")
 
 
 @app.get("/single-robot")
 async def single_robot(request: Request):
-    return await response(request, "single-robot")
+    return await task_page(request, "single-robot")
 
 
 @app.get("/multi-robot")
 async def multi_robot(request: Request):
-    return await response(request, "multi-robot")
+    return await task_page(request, "multi-robot")
 
 
 @sio.event

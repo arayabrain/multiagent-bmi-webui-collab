@@ -24,7 +24,9 @@ const expId = dateFns.format(new Date(), 'yyyyMMdd_HHmmss');
 document.addEventListener("DOMContentLoaded", async () => {
     connectEnv();
 
-    userinfo = JSON.parse(sessionStorage.getItem('userinfo'));
+    // get userinfo
+    const response = await fetch('/api/getuser');
+    userinfo = await response.json();
     document.getElementById('username-area').textContent = `User: ${userinfo.name}`;
 
     // buttons

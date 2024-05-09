@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    document.querySelector('#userinfoForm').addEventListener('input', saveUserinfo);
-    initUserinfo();
+    displayUserInfo();
+    document.getElementById('resetUserInfo').addEventListener('click', () => {
+        window.location.href = '/register';
+    });
 
     document.querySelectorAll('.togglable').forEach(
         input => input.addEventListener('change', saveDeviceSelection)
@@ -10,13 +12,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const modeLinks = document.querySelectorAll('.mode-link');
     modeLinks.forEach(link => {
         link.addEventListener('click', (event) => {
-            // validate the user info
-            const userinfo = JSON.parse(sessionStorage.getItem('userinfo'));
-            const isUserinfoSet = userinfo && userinfo.name && userinfo.age && userinfo.gender;
             // validate the device selection
             const deviceSelection = JSON.parse(sessionStorage.getItem('deviceSelection'));
-            const isDeviceSelected = deviceSelection && Object.values(deviceSelection).some(device => device);  // TODO: validate robot selection and subtask selection respectively
-            if (!isUserinfoSet || !isDeviceSelected) {
+            const isDeviceSelected = deviceSelection && Object.values(deviceSelection).some(device => device);
+            // TODO: validate robot selection and subtask selection respectively
+            if (!isDeviceSelected) {
                 event.preventDefault();
                 alert('Please set the user info and device selection before proceeding.');
             }
@@ -24,27 +24,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-
-const saveUserinfo = () => {
-    const userinfo = {
-        name: document.querySelector('input[name="name"]').value,
-        age: document.querySelector('input[name="age"]').value,
-        gender: document.querySelector('select[name="gender"]').value,
-    };
-    sessionStorage.setItem('userinfo', JSON.stringify(userinfo));
-}
-
-const initUserinfo = () => {
-    // if previous one exists, use it, otherwise save the default
-    const userinfo = JSON.parse(sessionStorage.getItem('userinfo'));
+const displayUserInfo = async () => {
+    const response = await fetch('/api/getuser');
+    const userinfo = await response.json();
     if (!userinfo) {
-        saveUserinfo();
+        console.error('User info not found');
         return;
     }
-    document.querySelector('input[name="name"]').value = userinfo.name;
-    document.querySelector('input[name="age"]').value = userinfo.age;
-    document.querySelector('select[name="gender"]').value = userinfo.gender;
-}
+    document.getElementById('displayUserInfo').textContent = `${userinfo.name}`;
+};
 
 const saveDeviceSelection = () => {
     // save the device state
@@ -72,4 +60,3 @@ const initDeviceSelection = () => {
     document.getElementById('toggle-eeg').checked = state.eeg;
     document.getElementById('toggle-gaze').checked = state.gaze;
 }
-
