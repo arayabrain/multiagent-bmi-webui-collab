@@ -13,6 +13,7 @@ const saveUserinfo = async () => {
         name: document.querySelector('input[name="name"]').value,
         age: document.querySelector('input[name="age"]').value,
         gender: document.querySelector('select[name="gender"]').value,
+        handedness: document.querySelector('input[name="handedness"]').value,
     };
 
     const response = await fetch('/api/setuser', {
@@ -36,12 +37,14 @@ const initUserinfo = async () => {
     document.querySelector('input[name="name"]').value = userinfo.name;
     document.querySelector('input[name="age"]').value = userinfo.age;
     document.querySelector('select[name="gender"]').value = userinfo.gender;
+    document.querySelector(`input[name="handedness"][value="${userinfo.handedness}"]`).checked = true;
 }
 
 const clearForm = () => {
     document.querySelector('input[name="name"]').value = '';
     document.querySelector('input[name="age"]').value = '';
     document.querySelector('select[name="gender"]').value = '';
+    document.querySelector('input[name="handedness"][value="right"]').checked = true;
 }
 
 
