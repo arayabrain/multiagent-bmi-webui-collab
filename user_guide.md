@@ -8,7 +8,7 @@
     ```
 
 **Connect to WebUI**
-1. Access the web interface at `https://\${SERVER_IP}:8000`
+1. Access the web interface at `https://\${SERVER_IP}:8000`  
     <img src="assets/index_page.png" width="480">
 2. Enter the user information and check the devices you will use
 3. Start up the devices and make sure they are ready for connection
@@ -38,13 +38,13 @@
     ```
 2. Click the "Data Collection" link in the mode selection
     - The recorder connects to the browser
-3. When a prompt to start baseline measurement appears in the terminal, press Enter to start the measurement
+3. When a prompt to start baseline measurement appears in the terminal, press Enter to start the measurement  
     <img src="assets/recorder_prompt.png" width="640">
     - Logs show up every 5 seconds, but ignore them and just press the Enter key
-4. In the browser, press the "Start" button and follow the cues to collect data
+4. In the browser, press the "Start" button and follow the cues to collect data  
     <img src="assets/ui_data_collection.png" width="480">
     - Subjects must give a signal for 2 seconds at the same time "Go" is displayed
-5. When the data collection is completed, a popup appears
+5. When the data collection is completed, a popup appears  
     <img src="assets/ui_completed.png" width="480">
     - Click "Back to Menu" to return to the index page
 6. End the EEG recorder with Ctrl+C in the terminal
@@ -63,10 +63,10 @@
     python app/devices/eeg/main.py -e ${SERVER_IP} --load-latest-model
     ```
     - The script will load the latest trained model
-2. When a prompt to start baseline measurement appears in the terminal, press Enter to start the measurement
-3. Press the "Start" button and execute the task
+2. When a prompt to start baseline measurement appears in the terminal, press Enter to start the measurement  
+3. Press the "Start" button and execute the task  
     <img src="assets/ui_task.png" width="480">
-4. When the task is completed, a popup appears
+4. When the task is completed, a popup appears  
     <img src="assets/ui_completed.png" width="480">
     - Click "Back to Menu" to return to the index page
 5. End the EEG decoder & recorder with Ctrl+C in the terminal
