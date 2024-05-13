@@ -5,11 +5,11 @@ import subprocess
 
 import gym
 import numpy as np
-import robohive_multi  # Makes the environments accessible
+import robohive_multi  # Makes the environments accessible # noqa: F401 # type: ignore
 import socketio
 from aiortc import VideoStreamTrack
 from av import VideoFrame
-from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names, simulate_action
+from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names  # type: ignore
 
 # check if display is available on Linux
 if platform.system() == "Linux":
@@ -42,15 +42,11 @@ class EnvRunner:
         # key digits correspond to "rgb", values correspond to the rgb index in Mujoco?
         self.command_colors = list(self.env.color_dict.keys())
         self.num_subtasks = len(self.command_colors)
-        self.num_commands = self.num_subtasks
-        self.command_keys = list(map(str, range(1, self.num_commands + 1)))  # keyboard input: ["1", "2", ...]
-        self.command_labels = [f"color{i + 1}" for i in range(self.num_commands)]  # ["color1", "color2", ...]
+        self.command_labels = [f"color{i + 1}" for i in range(len(self.command_colors))]  # TODO: more meaningful names?
         if use_cancel_command:
             # add cancel command
             self.command_colors.append("000")
-            self.command_keys.append("0")
             self.command_labels.append("cancel")
-            self.num_commands += 1
 
         # states
         self.command: list[str] = [""] * self.num_agents  # command from user
@@ -58,7 +54,6 @@ class EnvRunner:
         self.next_acceptable_commands: list[list[str]] = list(
             map(self._get_next_acceptable_commands, self.command)
         )  # next acceptable commands for each agent
-        self.focus_id: int | None = None  # user focus
 
         # placeholders for frames to stream
         self.frames: list[np.ndarray | None] = [None] * self.num_agents
@@ -70,7 +65,6 @@ class EnvRunner:
         self.reset_cond = asyncio.Condition()
 
         # init policies
-        # horizon = 10
         horizon = 2  # TODO
         self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
 
@@ -108,15 +102,16 @@ class EnvRunner:
         # reset interface states
         await self.clear_commands()
         self.prev_executed_command = [""] * self.num_agents
-        # we don't reset focus_id
 
         self.is_reset = True
 
         return obs
 
     async def clear_commands(self):
+        # TODO: parallelize
         for idx_agent in range(self.num_agents):
-            self.next_acceptable_commands[idx_agent].append("")  # TODO: force=True?
+            # TODO: use something like force=True or the "cancel" command
+            self.next_acceptable_commands[idx_agent].append("")
             await self.update_and_notify_command("", idx_agent)
 
     async def reset(self):
@@ -195,7 +190,7 @@ class EnvRunner:
             c = command[idx_policy]
             if c == "":
                 # command not set
-                # TODO: is zero the initial state?
+                # TODO: use env.get_base_action()
                 a = np.zeros(self.a_dim_per_agent)
                 subtask_done = False
             elif c == "cancel":
