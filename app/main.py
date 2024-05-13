@@ -36,8 +36,8 @@ templates = Jinja2Templates(directory=app_dir / "templates")
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")  # TODO
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
+envs: dict[str, EnvRunner] = {}  # EnvRunners for each mode
 modes: dict[str, str] = {}  # mode for each client
-envs: dict[str, EnvRunner] = {}  # EnvRunners for each client
 peer_connections: dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
 
 env_info = {
@@ -124,9 +124,13 @@ async def connect(sid, environ):
         return
     mode = endpoint[1:]
     if mode in env_info:
-        env_id = env_info[mode]["env_id"]
-        env = EnvRunner(env_id, sio)
-        env.start()
+        if mode in envs:
+            env = envs[mode]
+        else:
+            env = EnvRunner(env_info[mode]["env_id"], sio)
+            env.start()
+            envs[mode] = env
+
         await sio.emit(
             "init",
             {
@@ -137,44 +141,54 @@ async def connect(sid, environ):
             to=sid,
         )
         modes[sid] = mode
-        envs[sid] = env
         peer_connections[sid] = createPeerConnection(sio)
 
 
 @sio.event
 async def disconnect(sid):
     print("Client disconnected:", sid)
-    # delete env
-    if sid in envs:
-        await envs[sid].stop()
-        del envs[sid]
     # close peer connection
     if sid in peer_connections:
         await peer_connections[sid].close()
         del peer_connections[sid]
 
+    # remove mode entry
+    assert sid in modes
+    mode = modes[sid]
+    del modes[sid]
+    # Check if no other clients are using this mode
+    if all(s != mode for s in modes.values()):
+        # stop and delete the environment
+        assert mode in envs
+        await envs[mode].stop()
+        del envs[mode]
+
 
 @sio.on("taskReset")
 async def task_reset(sid):
-    if sid not in envs:
-        return False
-    await envs[sid].reset()
+    mode = modes[sid]
+    await envs[mode].reset()
     return True
 
 
 @sio.on("taskStop")
 async def task_stop(sid):
-    if sid not in envs:
-        return False
-    await envs[sid].clear_commands()
+    mode = modes[sid]
+    await envs[mode].clear_commands()
     return True
+
+
+@sio.on("getStatus")
+async def get_status(sid):
+    mode = modes[sid]
+    return {"isReset": envs[mode].is_reset}
 
 
 @sio.on("saveMetrics")
 async def save_metrics(sid, data):
-    if sid not in envs:
-        return False
-    data["envId"] = env_info[modes[sid]]["env_id"]
+    mode = modes[sid]
+    assert mode in envs
+    data["envId"] = env_info[mode]["env_id"]
     try:
         filepath = log_dir / data["userinfo"]["name"] / f"{data['expId']}.json"
         filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -190,31 +204,35 @@ async def save_metrics(sid, data):
 
 @sio.on("focus")
 async def focus(sid, focus_id):
+    mode = modes[sid]
     print(f"focus: received {focus_id}")
-    if sid not in envs:
+    if mode not in envs:
         return False
-    envs[sid].focus_id = focus_id
+    envs[mode].focus_id = focus_id
 
 
 @sio.on("command")
 async def command(sid, data: dict):
-    if sid not in envs:
+    mode = modes[sid]
+    if mode not in envs:
         return False
     agent_id = data["agentId"]
     command_label = data["command"]
     print(f"command: {command_label} for agent {agent_id}")
-    await envs[sid].update_and_notify_command(command_label, agent_id)
+    await envs[mode].update_and_notify_command(command_label, agent_id)
 
 
 @sio.on("webrtc-offer-request")
 async def webrtc_offer_request(sid):
-    if sid not in peer_connections:
-        return False
+    assert sid in peer_connections
+    assert sid in modes
     pc = peer_connections[sid]
+    mode = modes[sid]
+    env = envs[mode]
     # add stream tracks
     relay = MediaRelay()
-    for i in range(envs[sid].num_agents):
-        track = relay.subscribe(ImageStreamTrack(envs[sid], i))
+    for i in range(env.num_agents):
+        track = relay.subscribe(ImageStreamTrack(env, i))
         pc.addTransceiver(track, direction="sendonly")
         print(f"Track {track.id} added to peer connection")
 

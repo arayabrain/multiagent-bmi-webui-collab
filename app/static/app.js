@@ -36,11 +36,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (isDataCollection) {
             location.reload();  // Force data collection recorder to restart
         } else {
-            resetTask();
+            resetClient();
         }
     });
 
-    resetTask();
+    // get env status and show status message
+    sockEnv.emit('getStatus', (status) => {
+        const msg = status.isReset ? 'Ready.' : 'Running...';
+        updateTaskStatusMsg(msg);
+    });
+    resetClient();
 });
 
 const updateTaskStatusMsg = (msg) => {
@@ -99,6 +104,7 @@ const onDataCollectionOnset = async (event) => {
 
 const onDataCollectionCompleted = async () => {
     stopTask(true);
+    resetServer();
 };
 
 
@@ -173,19 +179,21 @@ const stopTask = (isComplete = false) => {
     }
 }
 
-const resetTask = () => {
-    console.assert(!isStarted, 'Task is not stopped');
-    sockEnv.emit('taskReset', () => {
-        updateTaskStatusMsg('Environment reset. Ready.');
-        document.getElementById('start-button').disabled = false;
-        document.getElementById('reset-button').disabled = true;
-        document.querySelectorAll('.toggle-container .togglable').forEach(input => input.disabled = false);
-    });
+const resetClient = () => {
+    document.getElementById('start-button').disabled = false;
+    document.getElementById('reset-button').disabled = true;
     resetChartData();
     // reset metrics
     resetInteractionTimeHistory();
     numSubtaskSelections = 0;
     numInvalidSubtaskSelections = 0;
+}
+
+const resetServer = () => {
+    console.assert(!isStarted, 'Task is not stopped');
+    sockEnv.emit('taskReset', () => {
+        updateTaskStatusMsg('Environment reset. Ready.');
+    });
 }
 
 const connectEnv = () => {
@@ -268,7 +276,10 @@ const connectEnv = () => {
         updateLog(`Agent ${agentId}: Subtask "${subtask}" done`);
         if (getFocusId() === agentId) resetInteractionTimer();  // reset the timer if the agent is selected so that the time during the subtask is not counted
     });
-    sockEnv.on('taskDone', () => stopTask(true));
+    sockEnv.on('taskDone', () => {
+        stopTask(true);
+        resetServer();
+    });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
         pc = setupPeerConnection(sockEnv, document.querySelectorAll('video'));

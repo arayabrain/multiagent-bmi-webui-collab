@@ -53,6 +53,9 @@ async def handle_offer_request(pc: RTCPeerConnection, sio: socketio.AsyncServer)
 
 async def handle_answer(pc: RTCPeerConnection, data):
     print("/browser: Received WebRTC answer")
+    if pc.signalingState == "stable":
+        # TODO
+        return
     await pc.setRemoteDescription(RTCSessionDescription(type="answer", sdp=data["sdp"]))
 
 

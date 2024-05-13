@@ -65,7 +65,8 @@ class EnvRunner:
         self.frame_update_cond = asyncio.Condition()
 
         # env-side flag for reset request
-        self.reset_request = False
+        self.is_reset = False
+        self.need_reset = False
         self.reset_cond = asyncio.Condition()
 
         # init policies
@@ -109,6 +110,8 @@ class EnvRunner:
         self.prev_executed_command = [""] * self.num_agents
         # we don't reset focus_id
 
+        self.is_reset = True
+
         return obs
 
     async def clear_commands(self):
@@ -118,7 +121,7 @@ class EnvRunner:
 
     async def reset(self):
         """Request env to reset, and wait for the reset to be done."""
-        self.reset_request = True  # env-side flag
+        self.need_reset = True
         async with self.reset_cond:
             await self.reset_cond.wait()
         print("env reset")
@@ -142,12 +145,13 @@ class EnvRunner:
 
         while self.is_running:
             # check reset request
-            if self.reset_request:
-                # TODO: don't reset if already reset
-                obs = await self._reset()
+            if self.need_reset:
+                # don't reset if already reset
+                if not self.is_reset:
+                    obs = await self._reset()
                 async with self.reset_cond:
                     self.reset_cond.notify_all()
-                self.reset_request = False
+                self.need_reset = False
 
             action, subtask_dones = self._get_policy_action(obs, self.command, norm=False)
 
@@ -288,6 +292,8 @@ class EnvRunner:
                 "likelihoods": likelihoods,
             },
         )
+
+        self.is_reset = False  # Set to False when commands are updated
 
 
 class ImageStreamTrack(VideoStreamTrack):
