@@ -141,7 +141,7 @@ async def connect(sid, environ):
             to=sid,
         )
         modes[sid] = mode
-        peer_connections[sid] = createPeerConnection(sio)
+        peer_connections[sid] = createPeerConnection(sio, sid)
 
 
 @sio.event
@@ -236,7 +236,7 @@ async def webrtc_offer_request(sid):
         pc.addTransceiver(track, direction="sendonly")
         print(f"Track {track.id} added to peer connection")
 
-    await handle_offer_request(pc, sio)
+    await handle_offer_request(pc, sio, sid)
 
 
 @sio.on("webrtc-answer")

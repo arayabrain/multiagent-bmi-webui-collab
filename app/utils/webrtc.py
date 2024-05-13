@@ -3,7 +3,7 @@ from aiortc import RTCConfiguration, RTCPeerConnection, RTCSessionDescription  #
 from aiortc.sdp import candidate_from_sdp
 
 
-def createPeerConnection(sio: socketio.AsyncServer):
+def createPeerConnection(sio: socketio.AsyncServer, sid: str):
     config = RTCConfiguration()
     # config.iceServers = [RTCIceServer(urls="stun:stun.l.google.com:19302")]
     pc = RTCPeerConnection(config)
@@ -20,7 +20,7 @@ def createPeerConnection(sio: socketio.AsyncServer):
                 "sdpMid": candidate.sdpMid,
                 "sdpMLineIndex": candidate.sdpMLineIndex,
             }
-        await sio.emit("webrtc-ice", data)
+        await sio.emit("webrtc-ice", data, to=sid)
 
     @pc.on("signalingstatechange")
     def on_signalingstatechange():
@@ -41,13 +41,13 @@ def createPeerConnection(sio: socketio.AsyncServer):
     return pc
 
 
-async def handle_offer_request(pc: RTCPeerConnection, sio: socketio.AsyncServer):
+async def handle_offer_request(pc: RTCPeerConnection, sio: socketio.AsyncServer, sid: str):
     print("/browser: Received offer request")
     offer = await pc.createOffer()
     print("Setting local description...")
     await pc.setLocalDescription(offer)  # slow; takes 5s
     print("Local description set.")
-    await sio.emit("webrtc-offer", {"sdp": offer.sdp})
+    await sio.emit("webrtc-offer", {"sdp": offer.sdp}, to=sid)
     print("/browser: Sent WebRTC offer.")
 
 
