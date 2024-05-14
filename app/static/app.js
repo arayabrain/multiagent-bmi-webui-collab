@@ -37,6 +37,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             location.reload();  // Force data collection recorder to restart
         } else {
             resetClient();
+            resetServer();
         }
     });
 
@@ -113,6 +114,7 @@ const stopTask = (isComplete = false) => {
         // called by
         // - the stop&reset button during the countdown
         // - the stop&reset button after taskDone
+        // - the taskStopDone event from the server after pressing the stop&reset button
         if (countdownTimer.isRunning()) countdownTimer.stop();
         return;
     }
@@ -272,13 +274,16 @@ const connectEnv = () => {
             updateChartColor(agentId, command);
         }
     });
-    sockEnv.on('subtaskDone', ({ agentId, subtask }) => {
+    sockEnv.on('taskStopDone', () => {
+        document.getElementById('reset-button').click();  // If another user triggers a stop&reset, me also do it
+    });
+    sockEnv.on('subtaskDone', ({ agentId, subtask }) => {  // TODO: subtaskCompleted
         updateLog(`Agent ${agentId}: Subtask "${subtask}" done`);
         if (getFocusId() === agentId) resetInteractionTimer();  // reset the timer if the agent is selected so that the time during the subtask is not counted
     });
-    sockEnv.on('taskDone', () => {
+    sockEnv.on('taskDone', () => {  // TODO: taskCompleted
         stopTask(true);
-        resetServer();
+        resetServer();  // Reset the server in preparation for repeating the task
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");

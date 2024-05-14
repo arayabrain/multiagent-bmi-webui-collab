@@ -175,6 +175,8 @@ async def task_reset(sid):
 async def task_stop(sid):
     mode = modes[sid]
     await envs[mode].clear_commands()
+    # await envs[mode].stop()  # TODO
+    await sio.emit("taskStopDone")  # notify clients that the task is stopped
     return True
 
 
