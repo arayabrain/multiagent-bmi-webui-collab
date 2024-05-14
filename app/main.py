@@ -14,6 +14,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
+from typing import Dict
 
 from app.env import EnvRunner, ImageStreamTrack
 from app.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
@@ -36,9 +37,9 @@ templates = Jinja2Templates(directory=app_dir / "templates")
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")  # TODO
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
-modes: dict[str, str] = {}  # mode for each client
-envs: dict[str, EnvRunner] = {}  # EnvRunners for each client
-peer_connections: dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
+modes: Dict[str, str] = {}  # mode for each client
+envs: Dict[str, EnvRunner] = {}  # EnvRunners for each client
+peer_connections: Dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
 
 env_info = {
     "data-collection": {
