@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from tinydb import Query, TinyDB
-
+from typing import Tuple, Union
 
 class DatabaseManager:
     def __init__(self, db_path: Path):
@@ -18,7 +18,7 @@ class DatabaseManager:
             self.query.data_id == "latest_recording",
         )
 
-    def update_model_path(self, user_id: str, path: Path | str) -> None:
+    def update_model_path(self, user_id: str, path: Union[Path, str]) -> None:
         self.db.upsert(
             {
                 "data_id": user_id,
@@ -27,7 +27,7 @@ class DatabaseManager:
             self.query.data_id == user_id,
         )
 
-    def get_latest_recording_info(self) -> tuple[str, str]:
+    def get_latest_recording_info(self) -> Tuple[str, str]:
         data = self.db.get(self.query.data_id == "latest_recording")
         if data is None:
             raise ValueError("No recording found")

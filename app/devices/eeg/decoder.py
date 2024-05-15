@@ -4,6 +4,7 @@ import numpy as np
 import reactivex as rx
 import socketio
 from reactivex import operators as ops
+from typing import Union, Tuple
 
 from app.devices.utils.networking import extract_buffer
 from app.devices.utils.utils import array2str
@@ -17,7 +18,7 @@ class Decoder:
         input_observable: rx.Observable,
         model,
         window_size: int,
-        window_step: int | None = None,
+        window_step: Union[int, None] = None,
     ) -> None:
         self.input_observable = input_observable
         self.subscription = None
@@ -47,10 +48,10 @@ class Decoder:
         )
         self.is_running = True
 
-    def _decode(self, data: np.ndarray) -> tuple[int | None, np.ndarray]:
+    def _decode(self, data: np.ndarray) -> Tuple[Union[int, None], np.ndarray]:
         return self.model(data)
 
-    def _publish(self, data: tuple[int | None, np.ndarray]) -> None:
+    def _publish(self, data: Tuple[Union[int, None], np.ndarray]) -> None:
         if self.loop.is_closed():
             return
 
@@ -61,7 +62,7 @@ class Decoder:
         likelihoods_str = array2str(likelihoods)
         print(f"EEG class: {cls_str}, likelihoods: {likelihoods_str} ")  # trailing space in case of no line break
 
-    async def _emit(self, cls: int | None, likelihoods: np.ndarray) -> None:
+    async def _emit(self, cls: Union[int, None], likelihoods: np.ndarray) -> None:
         assert isinstance(self.sio, socketio.AsyncServer), "Socket is not set."
         await self.sio.emit("eeg", {"cls": cls, "likelihoods": likelihoods.tolist()})
 

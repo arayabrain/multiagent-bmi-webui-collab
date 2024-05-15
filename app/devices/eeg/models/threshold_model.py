@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+from typing import Union, Tuple
 
 from app.devices.utils.utils import root_mean_square
 
@@ -9,8 +10,8 @@ class ThresholdModel:
     def __init__(
         self,
         num_classes: int,
-        thres: np.ndarray | None,  # (num_classes,)
-        baseline: np.ndarray | None = None,  # (times, channels)
+        thres: Union[np.ndarray, None],  # (num_classes,)
+        baseline: Union[np.ndarray, None] = None,  # (times, channels)
         use_diff: bool = False,
     ):
         self.num_classes = num_classes
@@ -30,7 +31,7 @@ class ThresholdModel:
         if use_diff:
             self.prev_rms_ratio = np.ones(num_classes)
 
-    def __call__(self, data: np.ndarray) -> tuple[int | None, np.ndarray]:
+    def __call__(self, data: np.ndarray) -> Tuple[Union[int, None], np.ndarray]:
         rms = root_mean_square(data)  # (channel,)
         rms_ratio = rms / self.baseline_rms
         if not self.use_diff:

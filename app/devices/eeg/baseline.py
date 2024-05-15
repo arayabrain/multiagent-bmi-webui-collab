@@ -5,6 +5,7 @@ import click
 import numpy as np
 import reactivex as rx
 from reactivex import operators as ops
+from typing import Tuple, Union
 
 from app.devices.utils.networking import extract_buffer
 
@@ -15,7 +16,7 @@ def measure_baseline(
     baseline_ready_duration: float,
     input_freq: int,
     auto_start: bool = False,
-) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
+) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[None, None]]:
     """Measure the baseline of the signal from the input observable."""
     baseline: np.ndarray | None = None
     timestamp: np.ndarray | None = None
