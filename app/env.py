@@ -23,6 +23,8 @@ if platform.system() == "Linux":
 
 # NOTE: rendering is slow without GPU
 
+dt_step = 0.03
+
 
 class EnvRunner:
     def __init__(
@@ -54,10 +56,6 @@ class EnvRunner:
         self.next_acceptable_commands: list[list[str]] = list(
             map(self._get_next_acceptable_commands, self.command)
         )  # next acceptable commands for each agent
-
-        # placeholders for frames to stream
-        self.frames: list[np.ndarray | None] = [None] * self.num_agents
-        self.frame_update_cond = asyncio.Condition()
 
         # env-side flag for reset request
         self.is_reset = False
@@ -172,16 +170,7 @@ class EnvRunner:
 
             obs, _, done, _ = env.step(action)
 
-            # action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
-            # simulate_action(env.sim, action[np.newaxis, :], action_indices, render=False)
-            # done = False
-
-            await self._update_frame()
-
-            # if done or all([policy.done for policy in self.policies]):
-            #     obs = self._reset()
-
-            await asyncio.sleep(0.03)
+            await asyncio.sleep(dt_step)
 
     def _get_policy_action(self, obs, command, norm=True):
         actions = []
@@ -253,13 +242,6 @@ class EnvRunner:
 
         return action, subtask_dones
 
-    async def _update_frame(self):
-        visuals = self.env.get_visuals()
-        async with self.frame_update_cond:
-            for i in range(self.num_agents):
-                self.frames[i] = visuals[f"rgb:franka{i}_front_cam:256x256:2d"]
-            self.frame_update_cond.notify_all()
-
     async def update_and_notify_command(self, command, agent_id, likelihoods=None):
         # self.command should be updated only by this method
 
@@ -292,24 +274,18 @@ class EnvRunner:
 
 
 class ImageStreamTrack(VideoStreamTrack):
-    def __init__(self, env: EnvRunner, camera_idx: int):
+    def __init__(self, env_runner: EnvRunner, camera_idx: int):
         super().__init__()
-        self.camera_idx = camera_idx
-
-        # references to variables in EnvProcess
-        self.cond = env.frame_update_cond
-        self.frames = env.frames
+        self.env_runner = env_runner
+        self.key = f"rgb:franka{camera_idx}_front_cam:256x256:2d"
 
     async def recv(self):
-        async with self.cond:
-            await self.cond.wait()
-            frame = self.frames[self.camera_idx]
+        pts, time_base = await self.next_timestamp()  # 30fps
 
-        frame = VideoFrame.from_ndarray(frame, format="rgb24")
-        pts, time_base = await self.next_timestamp()
+        visuals = self.env_runner.env.get_visuals(visual_keys=[self.key])
+        frame = VideoFrame.from_ndarray(visuals[self.key], format="rgb24")
         frame.pts = pts
         frame.time_base = time_base
-
         return frame
 
 
