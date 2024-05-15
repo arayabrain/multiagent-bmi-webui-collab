@@ -164,13 +164,12 @@ class EnvRunner:
             c = command[idx_policy]
             if c == "":
                 # command not set
-                # TODO: use env.get_base_action()
-                a = np.zeros(self.a_dim_per_agent)
+                a = self._get_base_action()
                 subtask_done = False
             elif c == "cancel":
                 # cancel command
                 policy.reset(self.env)  # TODO: is this correct?
-                a = np.zeros(self.a_dim_per_agent)
+                a = self._get_base_action()
                 # TODO: check if robot posture has been reset
                 subtask_done = True
             else:
@@ -194,7 +193,7 @@ class EnvRunner:
                 if len(policy.subtask_target_obj_idxs) == 0:
                     # invalid command
                     policy.reset(self.env)  # TODO: is this correct?
-                    a = np.zeros(self.a_dim_per_agent)
+                    a = self._get_base_action()
                     subtask_done = True
                 else:
                     policy.current_target_indx = policy.subtask_target_obj_idxs[0]
@@ -226,6 +225,12 @@ class EnvRunner:
             action = self.policies[0].norm_act(action[action_indices])
 
         return action, subtask_dones
+
+    def _get_base_action(self):
+        # TODO: fix and use env.get_base_action()
+        low = self.env.action_space.low[: self.a_dim_per_agent]
+        high = self.env.action_space.high[: self.a_dim_per_agent]
+        return low + (high - low) / 2  # (a_dim_per_agent, )
 
     async def update_and_notify_command(self, command, agent_id, likelihoods=None):
         # self.command should be updated only by this method
