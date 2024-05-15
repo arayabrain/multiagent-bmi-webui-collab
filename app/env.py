@@ -57,14 +57,12 @@ class EnvRunner:
             map(self._get_next_acceptable_commands, self.command)
         )  # next acceptable commands for each agent
 
-        # env-side flag for reset request
-        self.is_reset = False
-        self.need_reset = False
-        self.reset_cond = asyncio.Condition()
-
         # init policies
         horizon = 2  # TODO
         self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
+
+        # reset env for rendering
+        self._reset_env()
 
     async def _notify(self, event, data=None):
         if self._sio is None:
@@ -84,11 +82,17 @@ class EnvRunner:
             # If manipulation command is set, only cancel command is acceptable
             return ["cancel"]
 
-    async def _reset(self):
-        # TODO: separate env/policy-side reset and interface-side reset
+    async def reset(self):
+        # reset interface (EnvRunner) states
+        await self._clear_commands()
+        self.prev_executed_command = [""] * self.num_agents
 
+        # reset env
+        obs = self._reset_env()
+        return obs
+
+    def _reset_env(self):
         obs = self.env.reset()
-
         # reset policies
         # TODO: move this to MotionPlannerPolicy to reset internally?
         for policy in self.policies:
@@ -96,56 +100,37 @@ class EnvRunner:
             policy.subtask_target_obj_idxs = []
             policy.done_obj_idxs = []
             policy.done_subtasks = []
-
-        # reset interface states
-        await self.clear_commands()
-        self.prev_executed_command = [""] * self.num_agents
-
-        self.is_reset = True
-
         return obs
 
-    async def clear_commands(self):
+    async def _clear_commands(self):
         # TODO: parallelize
         for idx_agent in range(self.num_agents):
             # TODO: use something like force=True or the "cancel" command
             self.next_acceptable_commands[idx_agent].append("")
             await self.update_and_notify_command("", idx_agent)
 
-    async def reset(self):
-        """Request env to reset, and wait for the reset to be done."""
-        self.need_reset = True
-        async with self.reset_cond:
-            await self.reset_cond.wait()
-        print("env reset")
-
     def start(self):
         self.is_running = True
-        self.task = asyncio.create_task(self._run())
+        obs = self._reset_env()
+        self.task = asyncio.create_task(self._run(obs))
+        print("env loop started")
 
     async def stop(self):
         self.is_running = False
+        # cancel the task
         self.task.cancel()
         try:
             await self.task
         except asyncio.CancelledError:
-            print("env_process cancelled")
+            print("env loop stopped")
+        # reset
+        await self.reset()
 
-    async def _run(self):
-        print("env_process started")
+    async def _run(self, init_obs):
         env = self.env
-        obs = await self._reset()
+        obs = init_obs
 
         while self.is_running:
-            # check reset request
-            if self.need_reset:
-                # don't reset if already reset
-                if not self.is_reset:
-                    obs = await self._reset()
-                async with self.reset_cond:
-                    self.reset_cond.notify_all()
-                self.need_reset = False
-
             action, subtask_dones = self._get_policy_action(obs, self.command, norm=False)
 
             # check if subtask is done
@@ -269,8 +254,6 @@ class EnvRunner:
                 "likelihoods": likelihoods,
             },
         )
-
-        self.is_reset = False  # Set to False when commands are updated
 
 
 class ImageStreamTrack(VideoStreamTrack):

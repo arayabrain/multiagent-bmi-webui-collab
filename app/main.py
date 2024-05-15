@@ -164,19 +164,28 @@ async def disconnect(sid):
         del envs[mode]
 
 
-@sio.on("taskReset")
-async def task_reset(sid):
+@sio.on("taskStart")
+async def task_start(sid):
     mode = modes[sid]
-    await envs[mode].reset()
+    env = envs[mode]
+    if env.is_running:
+        # Ignore the second and subsequent "start" in multi-user situation
+        return True
+
+    env.start()
     return True
 
 
 @sio.on("taskStop")
 async def task_stop(sid):
     mode = modes[sid]
-    await envs[mode].clear_commands()
-    # await envs[mode].stop()  # TODO
-    await sio.emit("taskStopDone")  # notify clients that the task is stopped
+    env = envs[mode]
+    if not env.is_running:
+        # Ignore the second and subsequent "stop" in multi-user situation
+        return True
+
+    await env.stop()
+    await sio.emit("taskStopDone")  # notify clients that the env is stopped
     return True
 
 

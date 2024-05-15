@@ -37,7 +37,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             location.reload();  // Force data collection recorder to restart
         } else {
             resetClient();
-            resetServer();
         }
     });
 
@@ -80,10 +79,11 @@ const startTask = async () => {
     document.getElementById('reset-button').disabled = false;
     document.querySelectorAll('.toggle-container .togglable').forEach(input => input.disabled = true);
 
-    // countdown
-    if (!await countdown(countdownSec)) return;
-    updateTaskStatusMsg('Running...');
-    updateLog('\nStarted.');
+    if (!await countdown(countdownSec)) return;  // countdown
+    sockEnv.emit('taskStart', () => {
+        updateTaskStatusMsg('Running...');
+        updateLog('\nStarted.');
+    });
 
     if (isDataCollection) {
         document.addEventListener('dataCollectionOnset', onDataCollectionOnset);
@@ -105,7 +105,7 @@ const onDataCollectionOnset = async (event) => {
 
 const onDataCollectionCompleted = async () => {
     stopTask(true);
-    resetServer();
+    // resetServer();
 };
 
 
@@ -189,13 +189,6 @@ const resetClient = () => {
     resetInteractionTimeHistory();
     numSubtaskSelections = 0;
     numInvalidSubtaskSelections = 0;
-}
-
-const resetServer = () => {
-    console.assert(!isStarted, 'Task is not stopped');
-    sockEnv.emit('taskReset', () => {
-        updateTaskStatusMsg('Environment reset. Ready.');
-    });
 }
 
 const connectEnv = () => {
@@ -283,7 +276,6 @@ const connectEnv = () => {
     });
     sockEnv.on('taskDone', () => {  // TODO: taskCompleted
         stopTask(true);
-        resetServer();  // Reset the server in preparation for repeating the task
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
