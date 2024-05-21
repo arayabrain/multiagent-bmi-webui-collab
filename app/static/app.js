@@ -1,5 +1,5 @@
 import { createCharts, resetChartData, updateChartColor, updateChartData, updateChartLock } from './chart.js';
-import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTimeHistory, resetInteractionTimer, setSockEnv } from './cursor.js';
+import { getFocusId, getInteractionTime, resetInteractionTimer, setSockEnv } from './cursor.js';
 import { startDataCollection, stopDataCollection } from './dataCollection.js';
 import { initEEG, sendDataCollectionOnset } from './eeg.js';
 import { initGamepad } from './gamepad.js';
@@ -16,10 +16,7 @@ let commandLabels, commandColors;  // info from the env server
 let isStarted = false;  // if true, task is started and accepting subtask selection
 let isDataCollection = false;
 let userinfo;
-let numSubtaskSelections, numInvalidSubtaskSelections;  // error rate
 const countdownTimer = new easytimer.Timer();
-const taskCompletionTimer = new easytimer.Timer();
-const expId = dateFns.format(new Date(), 'yyyyMMdd_HHmmss');
 
 document.addEventListener("DOMContentLoaded", async () => {
     connectEnv();
@@ -40,11 +37,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // get env status and show status message
-    sockEnv.emit('getStatus', (status) => {
-        const msg = status.isReset ? 'Ready.' : 'Running...';
-        updateTaskStatusMsg(msg);
-    });
     resetClient();
 });
 
@@ -80,18 +72,23 @@ const startTask = async () => {
     document.querySelectorAll('.toggle-container .togglable').forEach(input => input.disabled = true);
 
     if (!await countdown(countdownSec)) return;  // countdown
-    sockEnv.emit('taskStart', () => {
-        updateTaskStatusMsg('Running...');
-        updateLog('\nStarted.');
-    });
+
+    sockEnv.emit(
+        'taskStart',
+        {
+            userinfo: userinfo,
+            deviceSelection: JSON.parse(sessionStorage.getItem('deviceSelection')),
+        },
+        () => {
+            updateTaskStatusMsg('Running...');
+            updateLog('\nStarted.');
+        }
+    );
 
     if (isDataCollection) {
         document.addEventListener('dataCollectionOnset', onDataCollectionOnset);
         document.addEventListener('dataCollectionCompleted', onDataCollectionCompleted);
         startDataCollection(commandColors, commandLabels);
-    } else {
-        // start the metrics measurement
-        taskCompletionTimer.start({ precision: 'secondTenths' });
     }
 
     isStarted = true;
@@ -105,7 +102,6 @@ const onDataCollectionOnset = async (event) => {
 
 const onDataCollectionCompleted = async () => {
     stopTask(true);
-    // resetServer();
 };
 
 
@@ -120,12 +116,6 @@ const stopTask = (isComplete = false) => {
     }
     isStarted = false;
 
-    // stop the metrics measurement and get the results
-    const taskCompletionSec = taskCompletionTimer.getTotalTimeValues().secondTenths / 10;
-    const errorRate = numSubtaskSelections === 0 ? null : numInvalidSubtaskSelections / numSubtaskSelections;
-    const { len, mean, std } = getInteractionTimeStats();
-    taskCompletionTimer.stop();
-
     // stop the agents
     const status = isComplete ? 'Completed!' : 'Stopped.';
     updateLog(`\n${status}`);
@@ -138,38 +128,6 @@ const stopTask = (isComplete = false) => {
         stopDataCollection();
         document.removeEventListener('dataCollectionOnset', onDataCollectionOnset);
         document.removeEventListener('dataCollectionCompleted', onDataCollectionCompleted);
-    } else {
-        // show logs
-        if (taskCompletionSec > 0) {
-            updateLog(`Time:`);
-            updateLog(`${taskCompletionSec.toFixed(1)} sec`, 2);
-        }
-        if (len !== 0) {
-            updateLog(`Average time for ${len} interactions:`);
-            updateLog(`${mean.toFixed(2)} ± ${std.toFixed(2)} sec`, 2);
-        }
-        if (errorRate !== null) {
-            updateLog(`Error rate:`);
-            updateLog(`${numInvalidSubtaskSelections}/${numSubtaskSelections} = ${errorRate.toFixed(2)}`, 2);
-        }
-
-        // send the metrics to the server if the task is completed
-        if (isComplete) {
-            sockEnv.emit('saveMetrics', {
-                userinfo: userinfo,
-                expId: expId,
-                taskCompletionTime: taskCompletionSec,
-                errorRate: { numInvalidSubtaskSelections, numSubtaskSelections, rate: errorRate },
-                interactionTime: { len, mean, std },
-                devices: JSON.parse(sessionStorage.getItem('deviceSelection')),
-            }, (res) => {
-                if (res) {
-                    updateLog('Metrics saved.');
-                } else {
-                    updateLog('Failed to save metrics.');
-                }
-            });
-        }
     }
 
     // Popup for repeat or back to menu
@@ -185,10 +143,6 @@ const resetClient = () => {
     document.getElementById('start-button').disabled = false;
     document.getElementById('reset-button').disabled = true;
     resetChartData();
-    // reset metrics
-    resetInteractionTimeHistory();
-    numSubtaskSelections = 0;
-    numInvalidSubtaskSelections = 0;
 }
 
 const connectEnv = () => {
@@ -207,7 +161,11 @@ const connectEnv = () => {
         // request WebRTC offer to the server
         sockEnv.emit('webrtc-offer-request');
     });
-    sockEnv.on('init', ({ isDataCollection: idc, commandLabels: labels, commandColors: colors }) => {
+    sockEnv.on('status', (status) => {
+        const msg = status.isRunning ? 'Running...' : 'Ready.';
+        updateTaskStatusMsg(msg);
+    });
+    sockEnv.on('init', ({ expId, isDataCollection: idc, commandLabels: labels, commandColors: colors }) => {
         isDataCollection = idc;
         // commandColors: ["001", "010", ...]
         commandColors = colors.map(c => binStr2Rgba(c, 0.3));
@@ -228,20 +186,10 @@ const connectEnv = () => {
         // both
         if (deviceSelection.gamepad) initGamepad(onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
     });
-    sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods }) => {
-        // interaction time
-        if (command !== '') {
-            // record the interaction if the command is now acceptable
-            // regardless of whether the command is "valid" (hasSubtaskNotDone) subtask selection
-            if (isNowAcceptable) {
-                const sec = recordInteractionTime();
-                updateLog(`Agent ${agentId}: Interaction recorded, ${sec.toFixed(1)}s`);
-            }
-            // reset interaction timer regardless of hasSubtaskNotDone and isNowAcceptable
-            resetInteractionTimer();
+    sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods, interactionTime }) => {
+        if (interactionTime) {
+            updateLog(`Agent ${agentId}: Interaction time ${interactionTime.toFixed(1)}s`);
         }
-
-        // error rate and chart update
         if (!isNowAcceptable) {
             // Command was not updated because agent was already executing an action
             // Currently we do not count this as a subtask selection
@@ -252,14 +200,10 @@ const connectEnv = () => {
             // We consider this as an "invalid" subtask selection and count as an error
             updateLog(`Agent ${agentId}: Command update failed`);
             updateLog(`Task "${command}" is already done`, 2);
-
             console.assert(command !== '', 'empty command');
-            numInvalidSubtaskSelections++;
-            numSubtaskSelections++;
         } else {
             // Command was valid and updated
             if (command !== '') {
-                numSubtaskSelections++;
                 updateLog(`Agent ${agentId}: Command updated to "${command}"`);
                 if (likelihoods !== null) updateChartData(agentId, likelihoods);  // sync the chart data before updating the lock status
             }
@@ -319,10 +263,15 @@ const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
     }
     // send the command and likelihoods to the server
     if (commandLabel !== '') {
+        // get the interaction time
+        const interactionTime = getInteractionTime();
+        resetInteractionTimer();
+
         sockEnv.emit('command', {
             agentId: agentId,
             command: commandLabel,
             likelihoods: likelihoods,
+            interactionTime: interactionTime,
         });
     }
     // update the chart

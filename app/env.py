@@ -31,10 +31,14 @@ class EnvRunner:
         self,
         env_id: str,
         sio: socketio.AsyncServer = None,
+        on_completed=None,
         use_cancel_command: bool = False,
     ) -> None:
         self.is_running = False
         self._sio = sio
+
+        # callbacks
+        self.on_completed = on_completed
 
         self.env = gym.make(env_id)
         self.num_agents = self.env.nrobots
@@ -150,6 +154,8 @@ class EnvRunner:
             # TODO: sync with policy.done?
             if all([len(policy.done_subtasks) == self.num_subtasks for policy in self.policies]):
                 await self._notify("taskDone")
+                if self.on_completed is not None:
+                    self.on_completed()
                 for policy in self.policies:
                     policy.done_subtasks = []  # TODO: not intuitive
 
@@ -232,8 +238,9 @@ class EnvRunner:
         high = self.env.action_space.high[: self.a_dim_per_agent]
         return low + (high - low) / 2  # (a_dim_per_agent, )
 
-    async def update_and_notify_command(self, command, agent_id, likelihoods=None):
+    async def update_and_notify_command(self, command, agent_id, likelihoods=None, interaction_time=None):
         # self.command should be updated only by this method
+        # likelihoods and interaction_time would be None when called internally
 
         # check if the command is valid
         is_now_acceptable = command in self.next_acceptable_commands[agent_id]
@@ -247,18 +254,24 @@ class EnvRunner:
             self.command[agent_id] = command
             self.next_acceptable_commands[agent_id] = next_acceptable_commands
 
-        # notify the given command regardless of validity
-        await self._notify(
-            "command",
-            {
-                "agentId": agent_id,
-                "command": command,
-                "nextAcceptableCommands": next_acceptable_commands,
-                "isNowAcceptable": is_now_acceptable,
-                "hasSubtaskNotDone": has_subtask_not_done,
-                "likelihoods": likelihoods,
-            },
-        )
+        # remove interaction time if the command is not acceptable
+        if not is_now_acceptable:
+            interaction_time = None
+
+        data = {
+            "agentId": agent_id,
+            "command": command,
+            "nextAcceptableCommands": next_acceptable_commands,
+            "isNowAcceptable": is_now_acceptable,
+            "hasSubtaskNotDone": has_subtask_not_done,
+            "likelihoods": likelihoods,
+            "interactionTime": interaction_time,
+        }
+
+        # send the command info to update the charts and debug log in the frontend
+        await self._notify("command", data)
+
+        return data
 
 
 class ImageStreamTrack(VideoStreamTrack):
@@ -275,9 +288,3 @@ class ImageStreamTrack(VideoStreamTrack):
         frame.pts = pts
         frame.time_base = time_base
         return frame
-
-
-if __name__ == "__main__":
-    runner = EnvRunner("FrankaPickPlaceMulti4Robots4Col-v0")
-    runner.is_running = True
-    asyncio.run(runner._run())

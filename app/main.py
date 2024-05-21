@@ -1,7 +1,7 @@
-import json
 import os
 import secrets
-import urllib
+import urllib.parse
+from datetime import datetime
 from pathlib import Path
 
 import socketio
@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.env import EnvRunner, ImageStreamTrack
+from app.utils.metrics import InteractionRecorder, compute_metrics, taskCompletionTimer
 from app.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
 
 load_dotenv()
@@ -39,6 +40,12 @@ socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 envs: dict[str, EnvRunner] = {}  # EnvRunners for each mode
 modes: dict[str, str] = {}  # mode for each client
 peer_connections: dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
+sid2ids: dict[str, str] = {}  # user id for each client that will be used to record interactions
+
+# metrics
+exp_ids: dict[str, str] = {}  # exp_id for each mode
+task_completion_timers: dict[str, taskCompletionTimer] = {}  # taskCompletionTimer for each mode
+interaction_recorders: dict[str, InteractionRecorder] = {}  # InteractionRecorder for each mode
 
 env_info = {
     "data-collection": {
@@ -118,30 +125,46 @@ async def connect(sid, environ):
     print("Client connected:", sid)
     query = urllib.parse.parse_qs(environ.get("QUERY_STRING", ""))
     endpoint = query.get("endpoint", [None])[0]
-    print(f"endpoint: {endpoint}")
+    print(f"endpoint: {endpoint}")  # like "/multi-robot"
 
-    if endpoint is None:
-        return
     mode = endpoint[1:]
-    if mode in env_info:
-        if mode in envs:
-            env = envs[mode]
-        else:
-            env = EnvRunner(env_info[mode]["env_id"], sio)
-            env.start()
-            envs[mode] = env
+    if mode not in env_info:
+        return False
 
-        await sio.emit(
-            "init",
-            {
-                "isDataCollection": mode == "data-collection",
-                "commandLabels": env.command_labels,
-                "commandColors": env.command_colors,
-            },
-            to=sid,
+    # get existing env or create a new one
+    if mode in envs:
+        env = envs[mode]
+    else:
+        env = EnvRunner(
+            env_info[mode]["env_id"],
+            sio,
+            on_completed=lambda: on_completed(mode),
         )
-        modes[sid] = mode
-        peer_connections[sid] = createPeerConnection(sio, sid)
+        envs[mode] = env
+
+    # set exp_id if not set
+    if mode not in exp_ids:
+        exp_ids[mode] = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    await sio.emit(
+        "init",
+        {
+            "expId": exp_ids[mode],
+            "isDataCollection": mode == "data-collection",
+            "commandLabels": env.command_labels,
+            "commandColors": env.command_colors,
+        },
+        to=sid,
+    )
+    modes[sid] = mode
+    peer_connections[sid] = createPeerConnection(sio, sid)
+
+    # send initial server status
+    await sio.emit("status", {"isRunning": env.is_running}, to=sid)
+
+    # create stuff for metrics
+    interaction_recorders[mode] = InteractionRecorder()
+    task_completion_timers[mode] = taskCompletionTimer()
 
 
 @sio.event
@@ -164,15 +187,42 @@ async def disconnect(sid):
         del envs[mode]
 
 
+def on_completed(mode: str):
+    task_completion_timers[mode].stop()
+
+    exp_id = exp_ids[mode]
+    exp_log_dir = log_dir / exp_id
+    exp_log_dir.mkdir(parents=True, exist_ok=True)
+
+    info = {"total": {"taskCompletionTime": task_completion_timers[mode].elapsed}}
+    # TODO?: add env/task information to info
+    interaction_recorders[mode].save(exp_log_dir, info=info)
+
+    compute_metrics(exp_log_dir, save=True)
+
+    exp_ids.pop(mode)  # remove exp_id
+
+
 @sio.on("taskStart")
-async def task_start(sid):
+async def task_start(sid, data):
     mode = modes[sid]
     env = envs[mode]
-    if env.is_running:
-        # Ignore the second and subsequent "start" in multi-user situation
-        return True
 
-    env.start()
+    # Initialize metrics and start env only for the first "start"
+    if not env.is_running:
+        interaction_recorders[mode].reset()
+        task_completion_timers[mode].start()
+        env.start()
+
+    interaction_recorders[mode].add_user(
+        data["userinfo"]["name"],
+        {
+            "userinfo": data["userinfo"],
+            "deviceSelection": data["deviceSelection"],
+        },
+    )
+    sid2ids[sid] = data["userinfo"]["name"]
+
     return True
 
 
@@ -180,37 +230,12 @@ async def task_start(sid):
 async def task_stop(sid):
     mode = modes[sid]
     env = envs[mode]
-    if not env.is_running:
-        # Ignore the second and subsequent "stop" in multi-user situation
-        return True
 
-    await env.stop()
-    await sio.emit("taskStopDone")  # notify clients that the env is stopped
+    if env.is_running:
+        await env.stop()
+        await sio.emit("taskStopDone")  # notify clients that the env is stopped
+
     return True
-
-
-@sio.on("getStatus")
-async def get_status(sid):
-    mode = modes[sid]
-    return {"isReset": envs[mode].is_reset}
-
-
-@sio.on("saveMetrics")
-async def save_metrics(sid, data):
-    mode = modes[sid]
-    assert mode in envs
-    data["envId"] = env_info[mode]["env_id"]
-    try:
-        filepath = log_dir / data["userinfo"]["name"] / f"{data['expId']}.json"
-        filepath.parent.mkdir(parents=True, exist_ok=True)
-        with open(filepath, "w") as f:
-            json.dump(data, f, indent=4)
-        print(f"Metrics saved to {filepath}")
-        return True
-    except Exception as e:
-        print(f"Error saving metrics: {e}")
-        print(f"data:\n{data}")
-        return False
 
 
 @sio.on("focus")
@@ -225,18 +250,32 @@ async def focus(sid, focus_id):
 @sio.on("command")
 async def command(sid, data: dict):
     mode = modes[sid]
-    if mode not in envs:
-        return False
     agent_id = data["agentId"]
     command_label = data["command"]
     print(f"command: {command_label} for agent {agent_id}")
-    await envs[mode].update_and_notify_command(command_label, agent_id)
+    res = await envs[mode].update_and_notify_command(
+        command_label,
+        agent_id,
+        data["likelihoods"],
+        data["interactionTime"],
+    )
+    if res["interactionTime"] is not None:  # TODO: recording only acceptable interactions
+        interaction_recorders[mode].record(
+            sid2ids[sid],
+            {
+                "userId": sid2ids[sid],
+                "agentId": res["agentId"],
+                "command": res["command"],
+                "isNowAcceptable": res["isNowAcceptable"],
+                "hasSubtaskNotDone": res["hasSubtaskNotDone"],
+                "likelihoods": res["likelihoods"],
+                "interactionTime": res["interactionTime"],
+            },
+        )
 
 
 @sio.on("webrtc-offer-request")
 async def webrtc_offer_request(sid):
-    assert sid in peer_connections
-    assert sid in modes
     pc = peer_connections[sid]
     mode = modes[sid]
     env = envs[mode]
@@ -252,15 +291,11 @@ async def webrtc_offer_request(sid):
 
 @sio.on("webrtc-answer")
 async def webrtc_answer(sid, data):
-    if sid not in peer_connections:
-        return False
     await handle_answer(peer_connections[sid], data)
 
 
 @sio.on("webrtc-ice")
 async def webrtc_ice(sid, data):
-    if sid not in peer_connections:
-        return False
     await handle_candidate(peer_connections[sid], data)
 
 
