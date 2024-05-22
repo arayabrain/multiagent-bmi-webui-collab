@@ -1,5 +1,6 @@
 import os
 import secrets
+import string
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
@@ -40,7 +41,7 @@ socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 envs: dict[str, EnvRunner] = {}  # EnvRunners for each mode
 modes: dict[str, str] = {}  # mode for each client
 peer_connections: dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
-sid2ids: dict[str, str] = {}  # user id for each client that will be used to record interactions
+sid2userid: dict[str, str] = {}  # user id for each client that will be used to record interactions
 
 # metrics
 exp_ids: dict[str, str] = {}  # exp_id for each mode
@@ -123,15 +124,21 @@ async def multi_robot(request: Request):
 @sio.event
 async def connect(sid, environ):
     print("Client connected:", sid)
+
+    # generate user id
+    alphabet = string.ascii_uppercase + string.digits
+    user_id = "".join(secrets.choice(alphabet) for _ in range(8))
+    sid2userid[sid] = user_id
+
+    # get mode
     query = urllib.parse.parse_qs(environ.get("QUERY_STRING", ""))
     endpoint = query.get("endpoint", [None])[0]
     print(f"endpoint: {endpoint}")  # like "/multi-robot"
-
     mode = endpoint[1:]
     if mode not in env_info:
         return False
 
-    # get existing env or create a new one
+    # get or create a new one
     if mode in envs:
         env = envs[mode]
     else:
@@ -162,14 +169,20 @@ async def connect(sid, environ):
     # send initial server status
     await sio.emit("status", {"isRunning": env.is_running}, to=sid)
 
-    # create stuff for metrics
-    interaction_recorders[mode] = InteractionRecorder()
-    task_completion_timers[mode] = taskCompletionTimer()
+    # get or create metrics
+    if mode not in interaction_recorders:
+        interaction_recorders[mode] = InteractionRecorder()
+    if mode not in task_completion_timers:
+        task_completion_timers[mode] = taskCompletionTimer()
 
 
 @sio.event
 async def disconnect(sid):
     print("Client disconnected:", sid)
+    # remove id
+    if sid in sid2userid:
+        del sid2userid[sid]
+
     # close peer connection
     if sid in peer_connections:
         await peer_connections[sid].close()
@@ -179,12 +192,17 @@ async def disconnect(sid):
     assert sid in modes
     mode = modes[sid]
     del modes[sid]
+
     # Check if no other clients are using this mode
-    if all(s != mode for s in modes.values()):
+    if all(m != mode for m in modes.values()):
         # stop and delete the environment
-        assert mode in envs
-        await envs[mode].stop()
+        if envs[mode].is_running:
+            await envs[mode].stop()
         del envs[mode]
+        print(f"Environment for {mode} is deleted")
+        # delete metrics
+        del interaction_recorders[mode]
+        del task_completion_timers[mode]
 
 
 def on_completed(mode: str):
@@ -215,13 +233,12 @@ async def task_start(sid, data):
         env.start()
 
     interaction_recorders[mode].add_user(
-        data["userinfo"]["name"],
+        sid2userid[sid],
         {
             "userinfo": data["userinfo"],
             "deviceSelection": data["deviceSelection"],
         },
     )
-    sid2ids[sid] = data["userinfo"]["name"]
 
     return True
 
@@ -260,18 +277,8 @@ async def command(sid, data: dict):
         data["interactionTime"],
     )
     if res["interactionTime"] is not None:  # TODO: recording only acceptable interactions
-        interaction_recorders[mode].record(
-            sid2ids[sid],
-            {
-                "userId": sid2ids[sid],
-                "agentId": res["agentId"],
-                "command": res["command"],
-                "isNowAcceptable": res["isNowAcceptable"],
-                "hasSubtaskNotDone": res["hasSubtaskNotDone"],
-                "likelihoods": res["likelihoods"],
-                "interactionTime": res["interactionTime"],
-            },
-        )
+        res.pop("nextAcceptableCommands")  # delete unnecessary item
+        interaction_recorders[mode].record(sid2userid[sid], res)
 
 
 @sio.on("webrtc-offer-request")

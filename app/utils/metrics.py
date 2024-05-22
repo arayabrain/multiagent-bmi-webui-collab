@@ -37,25 +37,25 @@ class InteractionRecorder:
 
     def record(self, user_id: str, data: dict):
         assert user_id in self.userinfo, "User not added"
-        self.history.append(data)
+        self.history.append({"userId": user_id, **data})
 
     def save(self, save_dir: Path, info: Optional[Dict] = None):
         """Save the interaction history and info (e.g. user info).
         History is saved to a jsonl file as follows:
         [
-            {"userId": "user1", "agentId": "agent1", "command": "color1", ...}
-            {"userId": "user2", "agentId": "agent1", "command": "color2", ...}
+            {"userId": "abcd0123", "agentId": "agent1", "command": "color1", ...}
+            {"userId": "efgh4567", "agentId": "agent3", "command": "color2", ...}
             ...
         ]
         Info is saved to a json file keyed by user id as follows:
         {
-            "user1": {
-                "userinfo": {"name": user1, "age": 20, "gender": "male"},
+            "abcd0123": {
+                "userinfo": {"name": "John", "age": 20, "gender": "male"},
                 "deviceSelection": {"mouse": true, "keyboard": true, "gamepad": false, "eeg": false, "gaze": false},
                 "taskCompletionTime": 100.0,
             },
-            "user2": {
-                "userinfo": {"name": user2, "age": 21, "gender": "female"},
+            "efgh4567": {
+                "userinfo": {"name": "Jane", "age": 21, "gender": "female"},
                 "deviceSelection": {"mouse": true, "keyboard": true, "gamepad": false, "eeg": false, "gaze": false},
                 "taskCompletionTime": 20.0,
             },
@@ -78,7 +78,7 @@ def compute_metrics(exp_log_dir: Path, save=False):
     """
     Given the interaction history, compute metrics and save the summary to a json file like:
     {
-        "user1": {
+        "abcd0123": {
             "interactionTime": {
                 "mean": 0.5,
                 "std": 1.0,
@@ -89,7 +89,7 @@ def compute_metrics(exp_log_dir: Path, save=False):
                 "error_rate": 0.1,
             }
         },
-        "user2": {...},
+        "efgh4567": {...},
         "total": {
             "taskCompletionTime": 100.0,
             "interactionTime": {
