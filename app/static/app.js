@@ -1,21 +1,28 @@
 import { createCharts, resetChartData, updateChartColor, updateChartData, updateChartLock } from './chart.js';
 import { getFocusId, getInteractionTime, resetInteractionTimer, setSockEnv } from './cursor.js';
 import { startDataCollection, stopDataCollection } from './dataCollection.js';
-import { initEEG, sendDataCollectionOnset } from './eeg.js';
-import { initGamepad } from './gamepad.js';
-import { initGaze } from './gaze.js';
-import { initKeyboard } from './keyboard.js';
-import { initMouse } from './mouse.js';
+import { init as initEEG, sendDataCollectionOnset } from './eeg.js';
+import { init as initGamepad } from './gamepad.js';
+import { init as initGaze } from './gaze.js';
+import { init as initKeyboard } from './keyboard.js';
+import { init as initMouse } from './mouse.js';
 import { binStr2Rgba } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
-const countdownSec = 3;
+const robotSelectionDeviceInitFuncs = {
+    mouse: initMouse,
+    gaze: initGaze,
+};
+const subtaskSelectionDeviceInitFuncs = {
+    keyboard: initKeyboard,
+    gamepad: initGamepad,
+    eeg: initEEG,
+};
 
-let sockEnv;
-let commandLabels, commandColors;  // info from the env server
+const countdownSec = 3;
+let sockEnv, userinfo, commandLabels, commandColors;
 let isStarted = false;  // if true, task is started and accepting subtask selection
 let isDataCollection = false;
-let userinfo;
 const countdownTimer = new easytimer.Timer();
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -177,14 +184,12 @@ const connectEnv = () => {
 
         // initialize the selected devices
         const deviceSelection = JSON.parse(sessionStorage.getItem('deviceSelection'));
-        // robot selection devices
-        if (deviceSelection.mouse) initMouse();
-        if (deviceSelection.gaze) initGaze();
-        // subtask selection devices
-        if (deviceSelection.keyboard) initKeyboard(onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
-        if (deviceSelection.eeg) initEEG(onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
-        // both
-        if (deviceSelection.gamepad) initGamepad(onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
+        Object.keys(robotSelectionDeviceInitFuncs).forEach(device => {
+            if (deviceSelection[device]) robotSelectionDeviceInitFuncs[device]();
+        });
+        Object.keys(subtaskSelectionDeviceInitFuncs).forEach(device => {
+            if (deviceSelection[device]) subtaskSelectionDeviceInitFuncs[device](onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
+        });
     });
     sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods, interactionTime }) => {
         if (interactionTime) {

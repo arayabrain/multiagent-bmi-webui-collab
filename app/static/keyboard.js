@@ -1,6 +1,6 @@
 import { updateDeviceStatus } from './utils.js';
 
-export const initKeyboard = (commandHandler, commandLabels, userId, expId) => {
+export const init = (commandHandler, commandLabels, userId, expId) => {
     // set key map
     // cancel: 0, others: 1, 2, ...
     const keyMap = {};
