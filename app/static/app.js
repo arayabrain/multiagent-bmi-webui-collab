@@ -76,7 +76,6 @@ const countdown = async (sec) => {
 const startTask = async () => {
     document.getElementById('start-button').disabled = true;
     document.getElementById('reset-button').disabled = false;
-    document.querySelectorAll('.toggle-container .togglable').forEach(input => input.disabled = true);
 
     if (!await countdown(countdownSec)) return;  // countdown
 

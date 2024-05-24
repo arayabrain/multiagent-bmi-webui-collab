@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = '/register';
     });
 
-    document.querySelectorAll('.togglable').forEach(
+    document.querySelectorAll('.form-check-input').forEach(
         input => input.addEventListener('change', saveDeviceSelection)
     );
     initDeviceSelection();
@@ -37,7 +37,7 @@ const displayUserInfo = async () => {
 const saveDeviceSelection = () => {
     // save the device state
     const state = {};
-    document.querySelectorAll('.togglable').forEach(input => {
+    document.querySelectorAll('.form-check-input').forEach(input => {
         const device = input.id.split('-')[1];
         state[device] = input.checked;
     });
