@@ -13,7 +13,7 @@ const saveUserinfo = async () => {
         name: document.querySelector('input[name="name"]').value,
         age: document.querySelector('input[name="age"]').value,
         gender: document.querySelector('select[name="gender"]').value,
-        handedness: document.querySelector('input[name="handedness"]').value,
+        handedness: document.querySelector('input[name="handedness"]:checked').value,
     };
 
     const response = await fetch('/api/setuser', {
