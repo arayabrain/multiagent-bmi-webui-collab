@@ -16,7 +16,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.env import EnvRunner, ImageStreamTrack
+from app.camera import ImageStreamTrack
+from app.env import EnvRunner
 from app.utils.metrics import InteractionRecorder, compute_metrics, taskCompletionTimer
 from app.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
 
@@ -138,7 +139,7 @@ async def connect(sid, environ):
     if mode not in env_info:
         return False
 
-    # get or create a new one
+    # get or create env
     if mode in envs:
         env = envs[mode]
     else:
@@ -287,9 +288,10 @@ async def webrtc_offer_request(sid):
     mode = modes[sid]
     env = envs[mode]
     # add stream tracks
+    # TODO: reuse resources?
     relay = MediaRelay()
     for i in range(env.num_agents):
-        track = relay.subscribe(ImageStreamTrack(env, i))
+        track = relay.subscribe(ImageStreamTrack(env.env.get_visuals, i))
         pc.addTransceiver(track, direction="sendonly")
         print(f"Track {track.id} added to peer connection")
 

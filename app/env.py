@@ -7,8 +7,7 @@ import gym
 import numpy as np
 import robohive_multi  # Makes the environments accessible # noqa: F401 # type: ignore
 import socketio
-from aiortc import VideoStreamTrack
-from av import VideoFrame
+
 from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names  # type: ignore
 
 # check if display is available on Linux
@@ -274,17 +273,3 @@ class EnvRunner:
         return data
 
 
-class ImageStreamTrack(VideoStreamTrack):
-    def __init__(self, env_runner: EnvRunner, camera_idx: int):
-        super().__init__()
-        self.env_runner = env_runner
-        self.key = f"rgb:franka{camera_idx}_front_cam:256x256:2d"
-
-    async def recv(self):
-        pts, time_base = await self.next_timestamp()  # 30fps
-
-        visuals = self.env_runner.env.get_visuals(visual_keys=[self.key])
-        frame = VideoFrame.from_ndarray(visuals[self.key], format="rgb24")
-        frame.pts = pts
-        frame.time_base = time_base
-        return frame
