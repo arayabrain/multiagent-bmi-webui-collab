@@ -19,11 +19,9 @@ const subtaskSelectionDeviceInitFuncs = {
     eeg: initEEG,
 };
 
-const countdownSec = 3;
 let sockEnv, userinfo, commandLabels, commandColors;
 let isStarted = false;  // if true, task is started and accepting subtask selection
 let isDataCollection = false;
-const countdownTimer = new easytimer.Timer();
 
 document.addEventListener("DOMContentLoaded", async () => {
     connectEnv();
@@ -34,17 +32,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById('username-area').textContent = `User: ${userinfo.name}`;
 
     // buttons
-    document.getElementById('start-button').addEventListener('click', startTask);
-    document.getElementById('reset-button').addEventListener('click', () => {
-        stopTask();
-        if (isDataCollection) {
-            location.reload();  // Force data collection recorder to restart
-        } else {
-            resetClient();
-        }
-    });
+    document.getElementById('start-button').addEventListener('click', () => requestServerStart());
+    document.getElementById('reset-button').addEventListener('click', () => requestServerStop());
 
-    resetClient();
+    clientReset();
 });
 
 const updateTaskStatusMsg = (msg) => {
@@ -57,39 +48,28 @@ const updateLog = (msg, numSpace = 0) => {
     log.scrollTop = log.scrollHeight;
 }
 
-const countdown = async (sec) => {
-    const _updateCountdownMsg = () => updateTaskStatusMsg(`Start in ${countdownTimer.getTimeValues().seconds} sec...`);
+const requestServerStart = () => {
+    document.getElementById('start-button').disabled = true;
+    document.getElementById('reset-button').disabled = true;  // disable during the countdown
 
-    countdownTimer.start({ countdown: true, startValues: { seconds: sec } });
-    _updateCountdownMsg();
-    countdownTimer.addEventListener('secondsUpdated', _updateCountdownMsg);
-
-    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve('timeout'), (sec + 1) * 1000));
-    const countdownPromise = new Promise((resolve) => countdownTimer.addEventListener('targetAchieved', () => resolve('targetAchieved')));
-    const result = await Promise.race([timeoutPromise, countdownPromise]);
-
-    countdownTimer.stop();
-    countdownTimer.removeEventListener('secondsUpdated', _updateCountdownMsg);
-    return result === 'targetAchieved';
+    // request the server to start the environment
+    sockEnv.emit('requestServerStart');
+    // "isStart" will be set to true by "serverStartDone" event from the server
 }
 
-const startTask = async () => {
-    document.getElementById('start-button').disabled = true;
-    document.getElementById('reset-button').disabled = false;
+const onServerStartDone = () => {
+    document.getElementById('reset-button').disabled = false;  // allow stop&reset
+}
 
-    if (!await countdown(countdownSec)) return;  // countdown
+const clientStart = () => {
+    document.getElementById('start-button').disabled = true;  // disable start button for clients who have not pressed it
 
-    sockEnv.emit(
-        'taskStart',
-        {
-            userinfo: userinfo,
-            deviceSelection: JSON.parse(sessionStorage.getItem('deviceSelection')),
-        },
-        () => {
-            updateTaskStatusMsg('Running...');
-            updateLog('\nStarted.');
-        }
-    );
+    sockEnv.emit('addUser', {
+        userinfo: userinfo,
+        deviceSelection: JSON.parse(sessionStorage.getItem('deviceSelection')),
+    }, () => {
+        updateLog('User added to the environment');
+    });
 
     if (isDataCollection) {
         document.addEventListener('dataCollectionOnset', onDataCollectionOnset);
@@ -97,38 +77,37 @@ const startTask = async () => {
         startDataCollection(commandColors, commandLabels);
     }
 
-    isStarted = true;
+    isStarted = true;  // allow subtask selection
 }
 
-
+// Data collection event handlers
 const onDataCollectionOnset = async (event) => {
     sendDataCollectionOnset(event);  // eeg server; TODO: also for other devices?
     updateLog(`Cue: ${event.detail.cue}`);
 };
 
 const onDataCollectionCompleted = async () => {
-    stopTask(true);
+    requestServerStop(true);
 };
 
 
-const stopTask = (isComplete = false) => {
+const requestServerStop = (isCompleted = false) => {
+    document.getElementById('start-button').disabled = true;
+    document.getElementById('reset-button').disabled = true;
+    sockEnv.emit('requestServerStop', isCompleted);
+}
+
+const clientStop = (isCompleted = false) => {
+    document.getElementById('reset-button').disabled = true;  // disable stop&reset button for clients who have not pressed it
+
     if (!isStarted) {
         // called by
         // - the stop&reset button during the countdown
         // - the stop&reset button after taskDone
         // - the taskStopDone event from the server after pressing the stop&reset button
-        if (countdownTimer.isRunning()) countdownTimer.stop();
         return;
     }
     isStarted = false;
-
-    // stop the agents
-    const status = isComplete ? 'Completed!' : 'Stopped.';
-    updateLog(`\n${status}`);
-    sockEnv.emit('taskStop', () => {
-        updateTaskStatusMsg(status);
-        updateLog('Agent stopped.');
-    });
 
     if (isDataCollection) {
         stopDataCollection();
@@ -136,16 +115,19 @@ const stopTask = (isComplete = false) => {
         document.removeEventListener('dataCollectionCompleted', onDataCollectionCompleted);
     }
 
-    // Popup for repeat or back to menu
-    // This ensures the expId is not reused
-    if (isComplete) {
+    if (isCompleted) {
+        // Popup for repeat or back to menu
+        // This ensures the expId is not reused
         const modal = document.getElementById('task-complete-modal');
         const modalInstance = new bootstrap.Modal(modal);
         modalInstance.show();
+    } else {
+        if (isDataCollection) location.reload();  // Force data collection recorder to restart
+        else clientReset();
     }
 }
 
-const resetClient = () => {
+const clientReset = () => {
     document.getElementById('start-button').disabled = false;
     document.getElementById('reset-button').disabled = true;
     resetChartData();
@@ -167,9 +149,9 @@ const connectEnv = () => {
         // request WebRTC offer to the server
         sockEnv.emit('webrtc-offer-request');
     });
-    sockEnv.on('status', (status) => {
-        const msg = status.isRunning ? 'Running...' : 'Ready.';
-        updateTaskStatusMsg(msg);
+    sockEnv.on('status', (message) => {
+        updateTaskStatusMsg(message);
+        updateLog(`Server: ${message}`);
     });
     sockEnv.on('init', ({ expId, isDataCollection: idc, commandLabels: labels, commandColors: colors }) => {
         isDataCollection = idc;
@@ -215,15 +197,12 @@ const connectEnv = () => {
             updateChartColor(agentId, command);
         }
     });
-    sockEnv.on('taskStopDone', () => {
-        document.getElementById('reset-button').click();  // If another user triggers a stop&reset, me also do it
-    });
+    sockEnv.on('requestClientStart', clientStart);
+    sockEnv.on('serverStartDone', onServerStartDone);
+    sockEnv.on('requestClientStop', clientStop);
     sockEnv.on('subtaskDone', ({ agentId, subtask }) => {  // TODO: subtaskCompleted
         updateLog(`Agent ${agentId}: Subtask "${subtask}" done`);
         if (getFocusId() === agentId) resetInteractionTimer();  // reset the timer if the agent is selected so that the time during the subtask is not counted
-    });
-    sockEnv.on('taskDone', () => {  // TODO: taskCompleted
-        stopTask(true);
     });
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");

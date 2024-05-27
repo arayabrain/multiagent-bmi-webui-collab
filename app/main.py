@@ -1,3 +1,4 @@
+import asyncio
 import os
 import secrets
 import string
@@ -63,6 +64,7 @@ env_info = {
         "num_agents": 4,
     },
 }
+countdown_sec = 3
 
 
 @app.get("/register")
@@ -89,15 +91,26 @@ async def getuser(request: Request):
 async def index(request: Request):
     if "userinfo" not in request.session:
         return RedirectResponse(url="/register")
+
+    flash = request.session.pop("flash", None)
     return templates.TemplateResponse(
         "index.html",
-        {"request": request},
+        {"request": request, "flash": flash},
     )
 
 
 async def task_page(request: Request, mode: str):
     if "userinfo" not in request.session:
         return RedirectResponse(url="/register")
+
+    # restrict users from joining in the middle of an experiment
+    if mode in envs and envs[mode].is_running:
+        request.session["flash"] = {
+            "message": "The experiment is already running.\nPlease wait for it to finish.",
+            "category": "warning",
+        }
+        return RedirectResponse(url="/")
+
     return templates.TemplateResponse(
         "app.html",
         {
@@ -146,7 +159,7 @@ async def connect(sid, environ):
         env = EnvRunner(
             env_info[mode]["env_id"],
             sio,
-            on_completed=lambda: on_completed(mode),
+            on_completed=lambda: asyncio.create_task(on_completed(mode)),
         )
         envs[mode] = env
 
@@ -165,10 +178,13 @@ async def connect(sid, environ):
         to=sid,
     )
     modes[sid] = mode
+    await sio.enter_room(sid, mode)
+
     peer_connections[sid] = createPeerConnection(sio, sid)
 
     # send initial server status
-    await sio.emit("status", {"isRunning": env.is_running}, to=sid)
+    assert not env.is_running
+    await sio.emit("status", "Ready.", to=sid)  # TODO
 
     # get or create metrics
     if mode not in interaction_recorders:
@@ -206,53 +222,64 @@ async def disconnect(sid):
         del task_completion_timers[mode]
 
 
-def on_completed(mode: str):
+async def on_completed(mode: str):
     task_completion_timers[mode].stop()
 
-    exp_id = exp_ids[mode]
+    exp_id = exp_ids.pop(mode)
     exp_log_dir = log_dir / exp_id
     exp_log_dir.mkdir(parents=True, exist_ok=True)
 
     info = {"total": {"taskCompletionTime": task_completion_timers[mode].elapsed}}
     # TODO?: add env/task information to info
     interaction_recorders[mode].save(exp_log_dir, info=info)
-
     compute_metrics(exp_log_dir, save=True)
 
-    exp_ids.pop(mode)  # remove exp_id
+    await _server_stop(mode, is_completed=True)
 
 
-@sio.on("taskStart")
-async def task_start(sid, data):
+@sio.on("addUser")
+async def add_user(sid, data):
+    # NOTE: call this after "taskStartRequested" since the interaction recorder is reset at the start
+    mode = modes[sid]
+    interaction_recorders[mode].add_user(sid2userid[sid], data)
+    return True
+
+
+@sio.on("requestServerStart")
+async def server_start(sid):
     mode = modes[sid]
     env = envs[mode]
+    assert not env.is_running
 
-    # Initialize metrics and start env only for the first "start"
-    if not env.is_running:
-        interaction_recorders[mode].reset()
-        task_completion_timers[mode].start()
-        env.start()
+    # Initialize metrics and start env
+    interaction_recorders[mode].reset()
+    task_completion_timers[mode].start()
+    # start all clients in the mode
+    await sio.emit("requestClientStart", room=mode)
+    env.start()
 
-    interaction_recorders[mode].add_user(
-        sid2userid[sid],
-        {
-            "userinfo": data["userinfo"],
-            "deviceSelection": data["deviceSelection"],
-        },
-    )
+    # countdown
+    for i in range(countdown_sec, 0, -1):
+        await sio.emit("status", f"Start in {i} sec...", room=mode)
+        await asyncio.sleep(1)
+
+    await sio.emit("serverStartDone", room=mode)
+    await sio.emit("status", "Running...", room=mode)
 
     return True
 
 
-@sio.on("taskStop")
-async def task_stop(sid):
-    mode = modes[sid]
+@sio.on("requestServerStop")
+async def server_stop(sid, is_completed: bool = False):
+    return await _server_stop(modes[sid], is_completed)
+
+
+async def _server_stop(mode, is_completed: bool = False):
     env = envs[mode]
-
-    if env.is_running:
-        await env.stop()
-        await sio.emit("taskStopDone")  # notify clients that the env is stopped
-
+    assert env.is_running
+    await env.stop()
+    await sio.emit("requestClientStop", is_completed, room=mode)  # notify clients that the env is stopped
+    await sio.emit("status", "Completed!" if is_completed else "Stopped.", room=mode)
     return True
 
 

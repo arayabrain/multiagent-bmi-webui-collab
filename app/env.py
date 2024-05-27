@@ -7,7 +7,6 @@ import gym
 import numpy as np
 import robohive_multi  # Makes the environments accessible # noqa: F401 # type: ignore
 import socketio
-
 from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names  # type: ignore
 
 # check if display is available on Linux
@@ -152,7 +151,6 @@ class EnvRunner:
             # check if all tasks are done
             # TODO: sync with policy.done?
             if all([len(policy.done_subtasks) == self.num_subtasks for policy in self.policies]):
-                await self._notify("taskDone")
                 if self.on_completed is not None:
                     self.on_completed()
                 for policy in self.policies:
@@ -271,5 +269,3 @@ class EnvRunner:
         await self._notify("command", data)
 
         return data
-
-
