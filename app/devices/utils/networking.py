@@ -12,10 +12,11 @@ import reactivex as rx
 import socketio
 from pylsl import LostError, StreamInfo, StreamInlet, StreamOutlet, local_clock
 from reactivex import operators as ops
+from typing import List, Tuple
 
 
 # Gets a specified stream from stream information and creates a stream inlet
-def get_stream_inlet(stream_infos: list[StreamInfo], **kwargs) -> StreamInlet:
+def get_stream_inlet(stream_infos: List[StreamInfo], **kwargs) -> StreamInlet:
     assert len(kwargs) >= 1, "No stream filter provided"
 
     for stream_info in stream_infos:
@@ -82,10 +83,10 @@ def create_observable_from_stream_inlet(stream: StreamInlet) -> rx.Observable:
     return rx.create(push_chunks).pipe(ops.share())
 
 
-def extract_buffer(buf: list) -> tuple:
+def extract_buffer(buf: list) -> Tuple:
     """Extract data and timestamps from the buffer.
     Args:
-        buf: list of tuple (data, timestamp)
+        buf: list of Tuple (data, timestamp)
             data: list of float, shape (channels,)
             timestamp: float
     Returns:
