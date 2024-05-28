@@ -9,7 +9,6 @@ from pathlib import Path
 import socketio
 import uvicorn
 from aiortc import RTCPeerConnection
-from aiortc.contrib.media import MediaRelay
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
@@ -17,8 +16,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.camera import ImageStreamTrack
 from app.env import EnvRunner
+from app.stream import StreamManager
 from app.utils.metrics import InteractionRecorder, compute_metrics, taskCompletionTimer
 from app.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
 
@@ -41,6 +40,8 @@ sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")  # TODO
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
 envs: dict[str, EnvRunner] = {}  # EnvRunners for each mode
+stream_manager = StreamManager()  # manage streams for each mode
+
 modes: dict[str, str] = {}  # mode for each client
 peer_connections: dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
 sid2userid: dict[str, str] = {}  # user id for each client that will be used to record interactions
@@ -162,6 +163,7 @@ async def connect(sid, environ):
             on_completed=lambda: asyncio.create_task(on_completed(mode)),
         )
         envs[mode] = env
+        stream_manager.setup(mode, env.env.get_visuals, env.num_agents)
 
     # set exp_id if not set
     if mode not in exp_ids:
@@ -212,6 +214,8 @@ async def disconnect(sid):
 
     # Check if no other clients are using this mode
     if all(m != mode for m in modes.values()):
+        # cleanup streams
+        await stream_manager.cleanup(mode)
         # stop and delete the environment
         if envs[mode].is_running:
             await envs[mode].stop()
@@ -313,12 +317,9 @@ async def command(sid, data: dict):
 async def webrtc_offer_request(sid):
     pc = peer_connections[sid]
     mode = modes[sid]
-    env = envs[mode]
     # add stream tracks
-    # TODO: reuse resources?
-    relay = MediaRelay()
-    for i in range(env.num_agents):
-        track = relay.subscribe(ImageStreamTrack(env.env.get_visuals, i))
+    tracks = stream_manager.get_tracks(mode)
+    for track in tracks:
         pc.addTransceiver(track, direction="sendonly")
         print(f"Track {track.id} added to peer connection")
 

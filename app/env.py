@@ -266,6 +266,6 @@ class EnvRunner:
         }
 
         # send the command info to update the charts and debug log in the frontend
-        await self._notify("command", data)
+        await self._notify("command", data)  # TODO: add room
 
         return data
