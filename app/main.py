@@ -159,8 +159,8 @@ async def connect(sid, environ):
     else:
         env = EnvRunner(
             env_info[mode]["env_id"],
-            sio,
-            on_completed=lambda: asyncio.create_task(on_completed(mode)),
+            notify_fn=lambda event, data: sio.emit(event, data, room=mode),
+            on_completed_fn=lambda: asyncio.create_task(on_completed(mode)),
         )
         envs[mode] = env
         stream_manager.setup(mode, env.env.get_visuals, env.num_agents)
@@ -184,15 +184,14 @@ async def connect(sid, environ):
 
     peer_connections[sid] = createPeerConnection(sio, sid)
 
-    # send initial server status
-    assert not env.is_running
-    await sio.emit("status", "Ready.", to=sid)  # TODO
-
     # get or create metrics
     if mode not in interaction_recorders:
         interaction_recorders[mode] = InteractionRecorder()
     if mode not in task_completion_timers:
         task_completion_timers[mode] = taskCompletionTimer()
+
+    # send initial server status
+    await sio.emit("status", "Ready.", to=sid)
 
 
 @sio.event
