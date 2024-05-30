@@ -28,15 +28,15 @@ class EnvRunner:
     def __init__(
         self,
         env_id: str,
-        sio: socketio.AsyncServer = None,
-        on_completed=None,
+        notify_fn=None,  # function to send message to all clients in the same mode
+        on_completed_fn=None,  # function to call when all subtasks are done
         use_cancel_command: bool = False,
     ) -> None:
         self.is_running = False
-        self._sio = sio
 
         # callbacks
-        self.on_completed = on_completed
+        self.notify_fn = notify_fn
+        self.on_completed_fn = on_completed_fn
 
         self.env = gym.make(env_id)
         self.num_agents = self.env.nrobots
@@ -65,11 +65,6 @@ class EnvRunner:
 
         # reset env for rendering
         self._reset_env()
-
-    async def _notify(self, event, data=None):
-        if self._sio is None:
-            return
-        await self._sio.emit(event, data)
 
     def _get_next_acceptable_commands(self, current_command):
         """Return next acceptable commands for the given command."""
@@ -143,7 +138,7 @@ class EnvRunner:
 
                     policy = self.policies[idx_agent]
                     policy.reset(self.env)  # TODO: is this correct?
-                    await self._notify("subtaskDone", {"agentId": idx_agent, "subtask": self.command[idx_agent]})
+                    await self.notify_fn("subtaskDone", {"agentId": idx_agent, "subtask": self.command[idx_agent]})
                     # reset command
                     self.next_acceptable_commands[idx_agent].append("")  # TODO
                     await self.update_and_notify_command("", idx_agent)
@@ -151,8 +146,8 @@ class EnvRunner:
             # check if all tasks are done
             # TODO: sync with policy.done?
             if all([len(policy.done_subtasks) == self.num_subtasks for policy in self.policies]):
-                if self.on_completed is not None:
-                    self.on_completed()
+                if self.on_completed_fn is not None:
+                    self.on_completed_fn()
                 for policy in self.policies:
                     policy.done_subtasks = []  # TODO: not intuitive
 
@@ -266,6 +261,6 @@ class EnvRunner:
         }
 
         # send the command info to update the charts and debug log in the frontend
-        await self._notify("command", data)  # TODO: add room
+        await self.notify_fn("command", data)
 
         return data
