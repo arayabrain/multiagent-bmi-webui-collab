@@ -65,3 +65,7 @@ Also check the network settings of your anti-virus software.
 ## Run
 See [user_guide.md](user_guide.md) for usage instructions.
 
+
+## Development
+See [development.md](development.md) for instructions on development (adding a new device etc.).
+

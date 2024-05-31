@@ -5,11 +5,9 @@ import subprocess
 
 import gym
 import numpy as np
-import robohive_multi  # Makes the environments accessible
+import robohive_multi  # Makes the environments accessible # noqa: F401 # type: ignore
 import socketio
-from aiortc import VideoStreamTrack
-from av import VideoFrame
-from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names, simulate_action
+from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names  # type: ignore
 
 # check if display is available on Linux
 if platform.system() == "Linux":
@@ -23,16 +21,22 @@ if platform.system() == "Linux":
 
 # NOTE: rendering is slow without GPU
 
+dt_step = 0.03
+
 
 class EnvRunner:
     def __init__(
         self,
         env_id: str,
-        sio: socketio.AsyncServer = None,
+        notify_fn=None,  # function to send message to all clients in the same mode
+        on_completed_fn=None,  # function to call when all subtasks are done
         use_cancel_command: bool = False,
     ) -> None:
         self.is_running = False
-        self._sio = sio
+
+        # callbacks
+        self.notify_fn = notify_fn
+        self.on_completed_fn = on_completed_fn
 
         self.env = gym.make(env_id)
         self.num_agents = self.env.nrobots
@@ -42,15 +46,11 @@ class EnvRunner:
         # key digits correspond to "rgb", values correspond to the rgb index in Mujoco?
         self.command_colors = list(self.env.color_dict.keys())
         self.num_subtasks = len(self.command_colors)
-        self.num_commands = self.num_subtasks
-        self.command_keys = list(map(str, range(1, self.num_commands + 1)))  # keyboard input: ["1", "2", ...]
-        self.command_labels = [f"color{i + 1}" for i in range(self.num_commands)]  # ["color1", "color2", ...]
+        self.command_labels = [f"color{i + 1}" for i in range(len(self.command_colors))]  # TODO: more meaningful names?
         if use_cancel_command:
             # add cancel command
             self.command_colors.append("000")
-            self.command_keys.append("0")
             self.command_labels.append("cancel")
-            self.num_commands += 1
 
         # states
         self.command: list[str] = [""] * self.num_agents  # command from user
@@ -58,25 +58,13 @@ class EnvRunner:
         self.next_acceptable_commands: list[list[str]] = list(
             map(self._get_next_acceptable_commands, self.command)
         )  # next acceptable commands for each agent
-        self.focus_id: int | None = None  # user focus
-
-        # placeholders for frames to stream
-        self.frames: list[np.ndarray | None] = [None] * self.num_agents
-        self.frame_update_cond = asyncio.Condition()
-
-        # env-side flag for reset request
-        self.reset_request = False
-        self.reset_cond = asyncio.Condition()
 
         # init policies
-        # horizon = 10
         horizon = 2  # TODO
         self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
 
-    async def _notify(self, event, data=None):
-        if self._sio is None:
-            return
-        await self._sio.emit(event, data)
+        # reset env for rendering
+        self._reset_env()
 
     def _get_next_acceptable_commands(self, current_command):
         """Return next acceptable commands for the given command."""
@@ -91,11 +79,17 @@ class EnvRunner:
             # If manipulation command is set, only cancel command is acceptable
             return ["cancel"]
 
-    async def _reset(self):
-        # TODO: separate env/policy-side reset and interface-side reset
+    async def reset(self):
+        # reset interface (EnvRunner) states
+        await self._clear_commands()
+        self.prev_executed_command = [""] * self.num_agents
 
+        # reset env
+        obs = self._reset_env()
+        return obs
+
+    def _reset_env(self):
         obs = self.env.reset()
-
         # reset policies
         # TODO: move this to MotionPlannerPolicy to reset internally?
         for policy in self.policies:
@@ -103,52 +97,37 @@ class EnvRunner:
             policy.subtask_target_obj_idxs = []
             policy.done_obj_idxs = []
             policy.done_subtasks = []
-
-        # reset interface states
-        await self.clear_commands()
-        self.prev_executed_command = [""] * self.num_agents
-        # we don't reset focus_id
-
         return obs
 
-    async def clear_commands(self):
+    async def _clear_commands(self):
+        # TODO: parallelize
         for idx_agent in range(self.num_agents):
-            self.next_acceptable_commands[idx_agent].append("")  # TODO: force=True?
+            # TODO: use something like force=True or the "cancel" command
+            self.next_acceptable_commands[idx_agent].append("")
             await self.update_and_notify_command("", idx_agent)
-
-    async def reset(self):
-        """Request env to reset, and wait for the reset to be done."""
-        self.reset_request = True  # env-side flag
-        async with self.reset_cond:
-            await self.reset_cond.wait()
-        print("env reset")
 
     def start(self):
         self.is_running = True
-        self.task = asyncio.create_task(self._run())
+        obs = self._reset_env()
+        self.task = asyncio.create_task(self._run(obs))
+        print("env loop started")
 
     async def stop(self):
         self.is_running = False
+        # cancel the task
         self.task.cancel()
         try:
             await self.task
         except asyncio.CancelledError:
-            print("env_process cancelled")
+            print("env loop stopped")
+        # reset
+        await self.reset()
 
-    async def _run(self):
-        print("env_process started")
+    async def _run(self, init_obs):
         env = self.env
-        obs = await self._reset()
+        obs = init_obs
 
         while self.is_running:
-            # check reset request
-            if self.reset_request:
-                # TODO: don't reset if already reset
-                obs = await self._reset()
-                async with self.reset_cond:
-                    self.reset_cond.notify_all()
-                self.reset_request = False
-
             action, subtask_dones = self._get_policy_action(obs, self.command, norm=False)
 
             # check if subtask is done
@@ -159,7 +138,7 @@ class EnvRunner:
 
                     policy = self.policies[idx_agent]
                     policy.reset(self.env)  # TODO: is this correct?
-                    await self._notify("subtaskDone", {"agentId": idx_agent, "subtask": self.command[idx_agent]})
+                    await self.notify_fn("subtaskDone", {"agentId": idx_agent, "subtask": self.command[idx_agent]})
                     # reset command
                     self.next_acceptable_commands[idx_agent].append("")  # TODO
                     await self.update_and_notify_command("", idx_agent)
@@ -167,22 +146,14 @@ class EnvRunner:
             # check if all tasks are done
             # TODO: sync with policy.done?
             if all([len(policy.done_subtasks) == self.num_subtasks for policy in self.policies]):
-                await self._notify("taskDone")
+                if self.on_completed_fn is not None:
+                    self.on_completed_fn()
                 for policy in self.policies:
                     policy.done_subtasks = []  # TODO: not intuitive
 
             obs, _, done, _ = env.step(action)
 
-            # action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
-            # simulate_action(env.sim, action[np.newaxis, :], action_indices, render=False)
-            # done = False
-
-            await self._update_frame()
-
-            # if done or all([policy.done for policy in self.policies]):
-            #     obs = self._reset()
-
-            await asyncio.sleep(0.03)
+            await asyncio.sleep(dt_step)
 
     def _get_policy_action(self, obs, command, norm=True):
         actions = []
@@ -191,13 +162,12 @@ class EnvRunner:
             c = command[idx_policy]
             if c == "":
                 # command not set
-                # TODO: is zero the initial state?
-                a = np.zeros(self.a_dim_per_agent)
+                a = self._get_base_action()
                 subtask_done = False
             elif c == "cancel":
                 # cancel command
                 policy.reset(self.env)  # TODO: is this correct?
-                a = np.zeros(self.a_dim_per_agent)
+                a = self._get_base_action()
                 # TODO: check if robot posture has been reset
                 subtask_done = True
             else:
@@ -221,7 +191,7 @@ class EnvRunner:
                 if len(policy.subtask_target_obj_idxs) == 0:
                     # invalid command
                     policy.reset(self.env)  # TODO: is this correct?
-                    a = np.zeros(self.a_dim_per_agent)
+                    a = self._get_base_action()
                     subtask_done = True
                 else:
                     policy.current_target_indx = policy.subtask_target_obj_idxs[0]
@@ -254,15 +224,15 @@ class EnvRunner:
 
         return action, subtask_dones
 
-    async def _update_frame(self):
-        visuals = self.env.get_visuals()
-        async with self.frame_update_cond:
-            for i in range(self.num_agents):
-                self.frames[i] = visuals[f"rgb:franka{i}_front_cam:256x256:2d"]
-            self.frame_update_cond.notify_all()
+    def _get_base_action(self):
+        # TODO: fix and use env.get_base_action()
+        low = self.env.action_space.low[: self.a_dim_per_agent]
+        high = self.env.action_space.high[: self.a_dim_per_agent]
+        return low + (high - low) / 2  # (a_dim_per_agent, )
 
-    async def update_and_notify_command(self, command, agent_id, likelihoods=None):
+    async def update_and_notify_command(self, command, agent_id, likelihoods=None, interaction_time=None):
         # self.command should be updated only by this method
+        # likelihoods and interaction_time would be None when called internally
 
         # check if the command is valid
         is_now_acceptable = command in self.next_acceptable_commands[agent_id]
@@ -276,43 +246,21 @@ class EnvRunner:
             self.command[agent_id] = command
             self.next_acceptable_commands[agent_id] = next_acceptable_commands
 
-        # notify the given command regardless of validity
-        await self._notify(
-            "command",
-            {
-                "agentId": agent_id,
-                "command": command,
-                "nextAcceptableCommands": next_acceptable_commands,
-                "isNowAcceptable": is_now_acceptable,
-                "hasSubtaskNotDone": has_subtask_not_done,
-                "likelihoods": likelihoods,
-            },
-        )
+        # remove interaction time if the command is not acceptable
+        if not is_now_acceptable:
+            interaction_time = None
 
+        data = {
+            "agentId": agent_id,
+            "command": command,
+            "nextAcceptableCommands": next_acceptable_commands,
+            "isNowAcceptable": is_now_acceptable,
+            "hasSubtaskNotDone": has_subtask_not_done,
+            "likelihoods": likelihoods,
+            "interactionTime": interaction_time,
+        }
 
-class ImageStreamTrack(VideoStreamTrack):
-    def __init__(self, env: EnvRunner, camera_idx: int):
-        super().__init__()
-        self.camera_idx = camera_idx
+        # send the command info to update the charts and debug log in the frontend
+        await self.notify_fn("command", data)
 
-        # references to variables in EnvProcess
-        self.cond = env.frame_update_cond
-        self.frames = env.frames
-
-    async def recv(self):
-        async with self.cond:
-            await self.cond.wait()
-            frame = self.frames[self.camera_idx]
-
-        frame = VideoFrame.from_ndarray(frame, format="rgb24")
-        pts, time_base = await self.next_timestamp()
-        frame.pts = pts
-        frame.time_base = time_base
-
-        return frame
-
-
-if __name__ == "__main__":
-    runner = EnvRunner("FrankaPickPlaceMulti4Robots4Col-v0")
-    runner.is_running = True
-    asyncio.run(runner._run())
+        return data

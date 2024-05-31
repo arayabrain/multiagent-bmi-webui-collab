@@ -3,7 +3,6 @@ let sockEnv;
 let cursor, videos;
 let focusId = null;
 const interactionTimer = new easytimer.Timer();
-const interactionTimeHistory = [];
 
 // initialize the timer config
 interactionTimer.start({ precision: 'secondTenths' });
@@ -73,25 +72,10 @@ const _updateAndNotifyFocus = (newId) => {
     resetInteractionTimer();
 }
 
-export const recordInteractionTime = () => {
+export const getInteractionTime = () => {
     interactionTimer.pause();
     const sec = interactionTimer.getTotalTimeValues().secondTenths / 10;
-    interactionTimeHistory.push(sec);
     return sec;
 }
 
 export const resetInteractionTimer = () => interactionTimer.reset();
-
-export const getInteractionTimeStats = () => {
-    let mean = null, std = null;
-    const len = interactionTimeHistory.length;
-    if (len !== 0) {
-        mean = math.mean(interactionTimeHistory);
-        std = math.std(interactionTimeHistory);
-    }
-    return { len, mean, std };
-}
-
-export const resetInteractionTimeHistory = () => {
-    interactionTimeHistory.length = 0;
-}
