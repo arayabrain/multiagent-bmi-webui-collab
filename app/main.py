@@ -40,17 +40,17 @@ templates = Jinja2Templates(directory=app_dir / "templates")
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")  # TODO
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
-envs: dict[str, EnvRunner] = {}  # EnvRunners for each mode
+envs: Dict[str, EnvRunner] = {}  # EnvRunners for each mode
 stream_manager = StreamManager()  # manage streams for each mode
 
-modes: dict[str, str] = {}  # mode for each client
-envs: dict[str, EnvRunner] = {}  # EnvRunners for each client
-peer_connections: dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
+modes: Dict[str, str] = {}  # mode for each client
+envs: Dict[str, EnvRunner] = {}  # EnvRunners for each client
+peer_connections: Dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
 
-sid2userid: dict[str, str] = {} # user_id for each sid
-exp_ids: dict[str, str] = {}  # exp_id for each mode
-task_completion_timers: dict[str, taskCompletionTimer] = {}  # taskCompletionTimer for each mode
-interaction_recorders: dict[str, InteractionRecorder] = {} 
+sid2userid: Dict[str, str] = {} # user_i d for each sid
+exp_ids: Dict[str, str] = {}  # exp_id for each mode
+task_completion_timers: Dict[str, taskCompletionTimer] = {}  # taskCompletionTimer for each mode
+interaction_recorders: Dict[str, InteractionRecorder] = {} 
 
 env_info = {
     "data-collection": {
@@ -183,7 +183,7 @@ async def connect(sid, environ):
     modes[sid] = mode
     await sio.enter_room(sid, mode)
 
-    peer_connections[sid] = createPeerConnection(sio, sid)
+    peer_connections[sid] = createPeerConnection(sio, sid) #HD
 
     # get or create metrics
     if mode not in interaction_recorders:
@@ -193,6 +193,9 @@ async def connect(sid, environ):
 
     # send initial server status
     await sio.emit("status", "Ready.", to=sid)
+
+    # Broadcast the updated list of connected user IDs to all clients
+    await sio.emit("user_list_update", list(sid2userid.values()))
 
 
 @sio.event
@@ -224,6 +227,8 @@ async def disconnect(sid):
         # delete metrics
         del interaction_recorders[mode]
         del task_completion_timers[mode]
+
+    await sio.emit("user_list_update", list(sid2userid.values())) #HD
 
 
 async def on_completed(mode: str):
@@ -286,14 +291,6 @@ async def _server_stop(mode, is_completed: bool = False):
     await sio.emit("status", "Completed!" if is_completed else "Stopped.", room=mode)
     return True
 
-
-@sio.on("focus")
-async def focus(sid, focus_id):
-    mode = modes[sid]
-    print(f"focus: received {focus_id}")
-    if mode not in envs:
-        return False
-    envs[mode].focus_id = focus_id
 
 
 @sio.on("command")

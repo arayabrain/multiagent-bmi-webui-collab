@@ -63,8 +63,8 @@ class Decoder:
         print(f"EEG class: {class_str}, likelihoods: {likelihoods_str} ")  # trailing space in case of no line break
 
     async def _emit(self, cls: Union[int, None], likelihoods: np.ndarray) -> None:
-        assert isinstance(self.sio, socketio.AsyncServer), "Socket is not set."
-        await self.sio.emit("eeg", {"classId": class_id, "likelihoods": likelihoods.tolist()})
+            assert isinstance(self.sio, socketio.AsyncServer), "Socket is not set."
+            await self.sio.emit("eeg", {"classId": class_id, "likelihoods": likelihoods.tolist()})
 
     def stop(self) -> None:
         if self.subscription is not None:
