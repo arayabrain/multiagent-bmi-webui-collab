@@ -62,8 +62,8 @@ env_info = {
         "num_agents": 1,
     },
     "multi-robot": {
-        "env_id": "FrankaPickPlaceMulti4Robots4Col-v1",
-        "num_agents": 4,
+        "env_id": "FrankaProcedural16Robots4Col-v0",
+        "num_agents": 16,
     },
 }
 countdown_sec = 3
