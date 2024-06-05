@@ -1,7 +1,7 @@
 
 let sockEnv;
 let cursor, videos;
-let focusId = null;
+// let focusId = null;
 const interactionTimer = new easytimer.Timer();
 
 // initialize the timer config
@@ -15,62 +15,62 @@ document.addEventListener("DOMContentLoaded", () => {
 
 export const setSockEnv = (sock) => sockEnv = sock;
 
-export const getFocusId = () => focusId;
+// export const getFocusId = () => focusId;
 
-export const updateCursorAndFocus = (x, y, isDelta = false) => {
-    if (cursor.style.display != 'block')
-        cursor.style.display = 'block';
+// export const updateCursorAndFocus = (x, y, isDelta = false) => {
+//     if (cursor.style.display != 'block')
+//         cursor.style.display = 'block';
 
-    if (isDelta) {
-        // x and y are diff values from the previous position
-        x += cursor.offsetLeft;
-        y += cursor.offsetTop;
-    }
+//     if (isDelta) {
+//         // x and y are diff values from the previous position
+//         x += cursor.offsetLeft;
+//         y += cursor.offsetTop;
+//     }
 
-    // Limit the cursor position within the window
-    const hw = cursor.offsetWidth / 2;
-    const hh = cursor.offsetHeight / 2;
-    x = Math.max(hw, Math.min(x, window.innerWidth - hw - 1));  // -hw-1 so that scroll bars do not appear
-    y = Math.max(hh, Math.min(y, window.innerHeight - hh - 1));
+//     // Limit the cursor position within the window
+//     const hw = cursor.offsetWidth / 2;
+//     const hh = cursor.offsetHeight / 2;
+//     x = Math.max(hw, Math.min(x, window.innerWidth - hw - 1));  // -hw-1 so that scroll bars do not appear
+//     y = Math.max(hh, Math.min(y, window.innerHeight - hh - 1));
 
-    cursor.style.left = `${x}px`;
-    cursor.style.top = `${y}px`;
+//     cursor.style.left = `${x}px`;
+//     cursor.style.top = `${y}px`;
 
-    // Focus the camera when the cursor is over it
-    // TODO: optimize this process
-    let newId = null;
-    for (const [i, video] of videos.entries()) {
-        const rect = video.getBoundingClientRect();
-        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-            newId = i;
-            break;
-        }
-    }
-    if (newId != focusId) _updateAndNotifyFocus(newId);
-}
+//     // Focus the camera when the cursor is over it
+//     // TODO: optimize this process
+//     let newId = null;
+//     for (const [i, video] of videos.entries()) {
+//         const rect = video.getBoundingClientRect();
+//         if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+//             newId = i;
+//             break;
+//         }
+//     }
+//     if (newId != focusId) _updateAndNotifyFocus(newId);
+// }
 
-const _updateAndNotifyFocus = (newId) => {
-    // remove border of the previous focused image
-    if (focusId != null) {
-        videos[focusId].style.border = "2px solid transparent";
-    }
-    // set border to the new focused image
-    if (newId != null) {
-        videos[newId].style.border = "2px solid red";
-    }
-    // update focusId
-    focusId = newId;
+// const _updateAndNotifyFocus = (newId) => {
+//     // remove border of the previous focused image
+//     if (focusId != null) {
+//         videos[focusId].style.border = "2px solid transparent";
+//     }
+//     // set border to the new focused image
+//     if (newId != null) {
+//         videos[newId].style.border = "2px solid red";
+//     }
+//     // update focusId
+//     focusId = newId;
 
-    // notify focusId to the server
-    if (sockEnv === undefined) {
-        console.error("sockEnv is not set. Call setSockEnv first.")
-        return;
-    }
-    if (sockEnv.connected) sockEnv.emit('focus', focusId);
+//     // notify focusId to the server
+//     if (sockEnv === undefined) {
+//         console.error("sockEnv is not set. Call setSockEnv first.")
+//         return;
+//     }
+//     if (sockEnv.connected) sockEnv.emit('focus', focusId);
 
-    // start the timer
-    resetInteractionTimer();
-}
+//     // start the timer
+//     resetInteractionTimer();
+// }
 
 export const getInteractionTime = () => {
     interactionTimer.pause();
