@@ -27,9 +27,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     connectEnv();
 
     // get userinfo
-    // const response = await fetch('/api/getuser');
-    // userinfo = await response.json();
-    // NOTE: userinfo is not user on the client side anymore
+    const response = await fetch('/api/getuser');
+    userinfo = await response.json();
 
     // buttons
     document.getElementById('start-button').addEventListener('click', () => requestServerStart());
