@@ -207,8 +207,12 @@ class EnvRunner:
                         done_obj_idx = policy.subtask_target_obj_idxs.pop(0)
                         policy.done_obj_idxs.append(done_obj_idx)
                         subtask_done = len(policy.subtask_target_obj_idxs) == 0
+                        # Turn off LED robot status indicator
+                        self.env.status_led_off(idx_policy)
                     else:
                         subtask_done = False
+                        # Turn off LED robot status indicator
+                        self.env.status_led_on(idx_policy)
 
             if subtask_done and c not in ["", "cancel"]:
                 # command and subtask are 1:1 relation for now
