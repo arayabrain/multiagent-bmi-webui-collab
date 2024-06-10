@@ -12,6 +12,8 @@ server = [
     "python-multipart",
     "itsdangerous",
     "python-dotenv",
+    "jsonlines",
+    "pandas",
 ]
 user = [
     "click",

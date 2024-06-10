@@ -1,33 +1,36 @@
 import { updateDeviceStatus } from './utils.js';
 
-let sockEEG;
-const name = 'EEG/EMG';
+const deviceName = 'EEG/EMG';
+const eventName = 'eeg';
+const port = 8002;
+let sock;
 
-export const initEEG = (commandHandler, commandLabels, userId, expId) => {
-    updateDeviceStatus(name, 'connecting...');
-    sockEEG = io.connect(`http://localhost:8002`, { transports: ['websocket'] });
-    sockEEG.on('connect', () => {
-        sockEEG.emit('init', {
+export const init = (commandHandler, commandLabels, userId, expId) => {
+    updateDeviceStatus(deviceName, 'connecting...');
+    sock = io.connect(`http://localhost:${port}`, { transports: ['websocket'] });
+
+    sock.on('connect', () => {
+        sock.emit('init', {
             commandLabels: commandLabels,
             userId: userId,
             expId: expId,
         });
-        updateDeviceStatus(name, 'connected');
+        updateDeviceStatus(deviceName, 'connected');
         console.log("EEG server connected");
     });
-    sockEEG.on('disconnect', () => {
-        updateDeviceStatus(name, 'disconnected');
+    sock.on('disconnect', () => {
+        updateDeviceStatus(deviceName, 'disconnected');
         console.log("EEG server disconnected");
     });
-    sockEEG.on('reconnect_attempt', () => {  // TODO: not working
-        updateDeviceStatus(name, 'reconnecting...');
+    sock.on('reconnect_attempt', () => {  // TODO: not working
+        updateDeviceStatus(deviceName, 'reconnecting...');
         console.log("EEG server reconnecting...");
     });
-    sockEEG.on('ping', (ack) => ack());
-    sockEEG.on('getTime', (ack) => ack(Date.now()));
-    sockEEG.on('eeg', ({ cls, likelihoods }) => commandHandler(cls, likelihoods));
+    sock.on(eventName, ({ classId, likelihoods }) => commandHandler(classId, likelihoods));
+    sock.on('ping', (ack) => ack());
+    sock.on('getTime', (ack) => ack(Date.now()));
 }
 
 export const sendDataCollectionOnset = (event) => {
-    if (sockEEG) sockEEG.emit('dataCollectionOnset', event.detail);
+    if (sock) sock.emit('dataCollectionOnset', event.detail);
 }
