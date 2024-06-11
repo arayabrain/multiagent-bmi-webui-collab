@@ -15,7 +15,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from typing import Dict
+from typing import Dict, List
 
 from app.env import EnvRunner
 from app.stream import StreamManager
@@ -48,6 +48,7 @@ envs: Dict[str, EnvRunner] = {}  # EnvRunners for each client
 peer_connections: Dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
 
 sid2userid: Dict[str, str] = {} # user_i d for each sid
+connectedUsers: List = [] # list of users that registered in their browsers
 exp_ids: Dict[str, str] = {}  # exp_id for each mode
 task_completion_timers: Dict[str, taskCompletionTimer] = {}  # taskCompletionTimer for each mode
 interaction_recorders: Dict[str, InteractionRecorder] = {} 
@@ -81,6 +82,7 @@ async def register(request: Request):
 async def setuser(request: Request, userinfo: dict):
     # TODO: userinfo is basically validated in the frontend, but do it more strictly?
     request.session["userinfo"] = userinfo
+    connectedUsers.append(userinfo["name"])
     return True
 
 
@@ -195,7 +197,8 @@ async def connect(sid, environ):
     await sio.emit("status", "Ready.", to=sid)
 
     # Broadcast the updated list of connected user IDs to all clients
-    await sio.emit("user_list_update", list(sid2userid.values()))
+    # await sio.emit("user_list_update", list(sid2userid.values()))
+    await sio.emit("user_list_update", connectedUsers)
 
 
 @sio.event
