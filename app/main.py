@@ -301,7 +301,8 @@ async def command(sid, data: dict):
     mode = modes[sid]
     agent_id = data["agentId"]
     command_label = data["command"]
-    print(f"command: {command_label} for agent {agent_id}")
+    userid = sid2userid[sid]
+    print(f"command: {command_label} for agent {agent_id} by user {userid}")
     res = await envs[mode].update_and_notify_command(
         command_label,
         agent_id,
@@ -311,6 +312,8 @@ async def command(sid, data: dict):
     if res["interactionTime"] is not None:  # TODO: recording only acceptable interactions
         res.pop("nextAcceptableCommands")  # delete unnecessary item
         interaction_recorders[mode].record(sid2userid[sid], res)
+        
+    await sio.emit('command_userid', {'userid': userid, 'command': command_label}, room=mode)
 
 
 @sio.on("webrtc-offer-request")
