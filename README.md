@@ -33,7 +33,7 @@ Web UI for the multi-agent robot arm environment
     # Both
     pip install -e '.[server,user]'
     ```
-5. (If you are launching a server) Generate a self-signed certificate for the server. If you are using other machines as clients, please add a publicly addressable IP for the server to `.keys/san.cnf`.
+5. (If you are launching a server) Generate a self-signed certificate for the server. If you are using other machines as clients, please add the accessible IP address of the server to `.keys/san.cnf`.
     ```cnf
     [ alt_names ]
     IP.1 = 127.0.0.1  # localhost
@@ -52,8 +52,7 @@ Web UI for the multi-agent robot arm environment
     sudo apt install libpugixml1v5  # Install dependencies
     sudo dpkg -i liblsl-1.16.2-focal_amd64.deb
     ```
-- On Windows, you need to open ports for the WebRTC UDP communication. Open Windows Firewall settings (`wf.msc`) and create a new inbound rule to allow UDP ports `49152-65535`. Also, check the network settings of any antivirus software.
-- You may need to comment out `max_episode_steps` of the environment you use to remove the episode time limit.
+- On Windows, you need to open ports for the WebRTC UDP communication. Open Windows Firewall settings (`wf.msc`) and create a new inbound rule to allow UDP ports `49152-65535`. Some antivirus software also implement additional firewall rules (ESET, Avast, etc...), so make sure to disable them or add exceptions if the robots are not being rendered into the UI.
     - `FrankaPickPlaceSingle4Col-v1` in `robohive_multi/envs/single_arms/__init__.py`
     - `FrankaPickPlaceMulti4Robots4Col-v1` in `robohive_multi/envs/multi_arms/__init__.py`
 
