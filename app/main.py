@@ -48,6 +48,7 @@ envs: Dict[str, EnvRunner] = {}  # EnvRunners for each client
 peer_connections: Dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
 
 sid2userid: Dict[str, str] = {} # user_i d for each sid
+sid2username: Dict[str, str] = {} # user_name for each sid
 connectedUsers: List = [] # list of users that registered in their browsers
 exp_ids: Dict[str, str] = {}  # exp_id for each mode
 task_completion_timers: Dict[str, taskCompletionTimer] = {}  # taskCompletionTimer for each mode
@@ -83,6 +84,7 @@ async def setuser(request: Request, userinfo: dict):
     # TODO: userinfo is basically validated in the frontend, but do it more strictly?
     request.session["userinfo"] = userinfo
     connectedUsers.append(userinfo["name"])
+
     return True
 
 
@@ -317,9 +319,12 @@ async def command(sid, data: dict):
 
 
 @sio.on("webrtc-offer-request")
-async def webrtc_offer_request(sid):
+async def webrtc_offer_request(sid, userinfo):
     pc = peer_connections[sid]
     mode = modes[sid]
+    sid2username[sid] = userinfo["name"]
+    print('sid:', sid, 'username:', userinfo["name"])
+
     # add stream tracks
     tracks = stream_manager.get_tracks(mode)
     for track in tracks:
