@@ -1,5 +1,5 @@
 
-// let sockEnv;
+let sockEnv;
 let cursor, videos;
 let focusId = null;
 const interactionTimer = new easytimer.Timer();
