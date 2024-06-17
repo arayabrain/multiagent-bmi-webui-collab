@@ -1,71 +1,64 @@
 # multiagent-bmi-webui
 Web UI for the multi-agent robot arm environment
 
-## Overview
 ![web interface image](assets/web_interface.png)
 
+## Overview
 ![overview image](assets/overview.png)
 
-
 ## Installation
-1. Create and activate a virtual environment. Tested with Python 3.10.
-2. Install [robohive-multi](https://github.com/arayabrain/robohive-multi) companion repository.
-This might require getting reading permission to the repository.
-
+1. (Recommended) Create and activate a virtual environment with Python 3.8.
     ```bash
-    git clone --recurse-submodules -j8 \
-    git@github.com:arayabrain/robohive-multi.git
+    micromamba create -n multiagent python=3.8 -y
+    micromamba activate multiagent
+    ```
+2. Install the [robohive-multi](https://github.com/arayabrain/robohive-multi) companion repository.
+    ```bash
+    git clone --recurse-submodules -j8 git@github.com:arayabrain/robohive-multi.git
     git checkout hri-new-config
-    pip install -e robohive-multi/.
     pip install -e robohive-multi/robohive/.
     pip install -e robohive-multi/vtils/.
+    pip install -e robohive-multi/.
     ```
-
-3. Clone this repository
-4. Install
+3. Clone this repository.
     ```bash
-    # server only
+    git clone git@github.com:arayabrain/multiagent-bmi-webui.git
+    ```
+4. Install this repository.
+    ```bash
+    # Server only
     pip install -e '.[server]'
-    # user only
+    # User only
     pip install -e '.[user]'
-    # both
+    # Both
     pip install -e '.[server,user]'
     ```
-5. (If you launch a server) Generate a self-signed certificate for the server  
-    If you're using a machine other than `localhost` (the same machine to start the UI/browser) as the server, please add the IP to `.keys/san.cnf`.
+5. (If you are launching a server) Generate a self-signed certificate for the server. If you are using other machines as clients, please add the accessible IP address of the server to `.keys/san.cnf`.
     ```cnf
     [ alt_names ]
     IP.1 = 127.0.0.1  # localhost
     IP.2 = <your server ip>
     ```
-    Then run the following commands to generate the certificate and keys:
+    Then, run the following commands to generate the certificate and keys:
     ```bash
     cd .keys
     openssl req -new -nodes -out server.csr -keyout server.key -config san.cnf
     openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt -extensions req_ext -extfile san.cnf
     ```
 
-- On Linux, you need to install `liblsl` to use the [LSL](https://github.com/sccn/liblsl).
-    Choose the appropriate version for your OS in the [release page](https://github.com/sccn/liblsl/releases) and then
+- On Linux, you need to install [`liblsl`](https://github.com/sccn/liblsl) in order to use LSL. Choose the appropriate version for your OS in the [release page](https://github.com/sccn/liblsl/releases) and then install.
     ```bash
-    wget https://github.com/sccn/liblsl/releases/download/v1.16.2/liblsl-1.16.2-focal_amd64.deb  # change to the appropriate one
-    sudo apt install libpugixml1v5  # dependencies
+    wget https://github.com/sccn/liblsl/releases/download/v1.16.2/liblsl-1.16.2-focal_amd64.deb  # Change to the appropriate OS
+    sudo apt install libpugixml1v5  # Install dependencies
     sudo dpkg -i liblsl-1.16.2-focal_amd64.deb
     ```
-
-- On windows, you need to open ports for the WebRTC UDP communication.
-Open Windows Firewall settings (`wf.msc`) and create a new inbound rule to allow UDP ports `49152-65535`.  
-Also check the network settings of your anti-virus software.
-
-- You may need to comment out `max_episode_steps` of the environment you use to remove the episode time limit.
+- On Windows, you need to open ports for the WebRTC UDP communication. Open Windows Firewall settings (`wf.msc`) and create a new inbound rule to allow UDP ports `49152-65535`.
+- Some antivirus software also implement additional firewall rules (ESET, Avast, etc...), so make sure to disable them or add exceptions if the robots are not being rendered into the UI.
     - `FrankaPickPlaceSingle4Col-v1` in `robohive_multi/envs/single_arms/__init__.py`
     - `FrankaPickPlaceMulti4Robots4Col-v1` in `robohive_multi/envs/multi_arms/__init__.py`
-
 
 ## Run
 See [user_guide.md](user_guide.md) for usage instructions.
 
-
 ## Development
-See [development.md](development.md) for instructions on development (adding a new device etc.).
-
+See [development.md](development.md) for instructions on development (adding a new device, etc.).

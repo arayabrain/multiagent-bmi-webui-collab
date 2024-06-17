@@ -29,7 +29,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     // get userinfo
     const response = await fetch('/api/getuser');
     userinfo = await response.json();
-    document.getElementById('username-area').textContent = `User: ${userinfo.name}`;
 
     // buttons
     document.getElementById('start-button').addEventListener('click', () => requestServerStart());
@@ -214,6 +213,24 @@ const connectEnv = () => {
     });
     sockEnv.on('disconnect', async () => {
         console.log('Env Server disconnected');
+    });
+
+    // Update the connected user names when the Python side sends and update
+    sockEnv.on('user_list_update', async (user_list) => {
+        console.log('Received user list update:');
+        console.log(user_list);
+        let usernameAreaDiv = document.getElementById("username-area");
+
+        // TODO:
+        // Delete all the children of usernameAreaDiv, if any
+        // Iterate over user_list, and for each user in there, add a
+        // <p> User ${userIdx}: userlist[$userIdx]</p> as child
+
+        console.log(usernameAreaDiv.children);
+        for (var i = 0; i < user_list.length; i++) {
+            // console.log(myStringArray[i]);
+        };
+
     });
 
     setSockEnv(sockEnv);

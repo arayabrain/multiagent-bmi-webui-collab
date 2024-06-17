@@ -168,3 +168,9 @@ old/
 *.key
 logs/
 MUJOCO_LOG.TXT
+
+# Ignore VSCode workspace files
+.vscode/*code-workspace
+
+# macOS system files
+.DS_Store
