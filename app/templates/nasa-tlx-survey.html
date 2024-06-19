@@ -68,16 +68,50 @@
 </head>
 
 <body>
- <!--
-    TODOs:
-    - 
- -->
+  <!-- Pre define fields metadata for form generation -->
+  {%
+    set NASATLXFields = {
+      'mentalDemandOptions': {
+        "inputID": "mental-demand",
+        "legend": "Mental Demand",
+        "description": "How mentally demanding was the task ?"
+      },
+
+      'physicalDemandOptions': {
+        "inputID": "physical-demand",
+        "legend": "Physical Demand",
+        "description": "How physically demanding was the task ?"
+      },
+
+      'temporalDemandOptions': {
+        "inputID": "temporal-demand",
+        "legend": "Temporal Demand",
+        "description": "How hurried or rushed was the pace of the task ?"
+      },
+
+      'performanceOptions': {
+        "inputID": "performance",
+        "legend": "Performance",
+        "description": "How successful were you in accomplishing what you were asked to do ?"
+      },
+
+      'effortOptions': {
+        "inputID": "effort",
+        "legend": "Effort",
+        "description": "How hard did you hve to work to accomplish your level of performance ?"
+      },
+
+      'frustrationOptions': {
+        "inputID": "frustration",
+        "legend": "Frustration",
+        "description": "How insecure, discouraged, irritated, stressed, and annoyed were you ?"
+      },
+    }
+  %}
   
   <div class="container">
 
-
     <form id="nasa-tlx-survey-form" method="post">
-
       <div>
         <span>Username:</span><span>TODO</span>
         <br/>
@@ -87,280 +121,36 @@
       <br/>
       <br/>
 
-      <!-- Mental demand -->
+      <!-- Systematically generate all the fields -->
+      {% for inputName, inputMeta in NASATLXFields.items() %}
       <fieldset>
-          <legend>Mental Demand</legend>
-          <span>How mentally demanding was the task ?</span>
+          <legend>{{inputMeta["legend"]}}</legend>
+          <span>{{inputMeta["description"]}}</span>
           <br/>
           <br/>
 
           <div class="nasa-tlx-field-container">
             <span class="low-label">Very Low</span>
 
+            {% for i in range(1, 7) %}
             <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-1" value="1">
-              <label class="form-check-label" for="mental-demand-1">1</label>
+              <input class="form-check-input" type="radio" name="{{inputMeta['inputName']}}" id="{{inputMeta['inputID']}}-{{i}}" value="{{i}}">
+              <label class="form-check-label" for="{{inputMeta['inputID']}}-{{i}}">{{i}}</label>
             </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-2" value="2">
-              <label class="form-check-label" for="mental-demand-2">2</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-3" value="3">
-              <label class="form-check-label" for="mental-demand-3">3</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-4" value="4">
-              <label class="form-check-label" for="mental-demand-4">4</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-5" value="5">
-              <label class="form-check-label" for="mental-demand-5">5</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-6" value="6">
-              <label class="form-check-label" for="mental-demand-6">6</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-7" value="7">
-              <label class="form-check-label" for="mental-demand-7">7</label>
-            </div>
+            {% endfor %}
 
             <span class="high-label">Very High</span>
           </div>
       </fieldset>
+      {% endfor %}
 
-      <!-- Physical demand -->
-      <fieldset>
-        <legend>Physical Demand</legend>
-        <span>How physically demanding was the task ?</span>
-        <br/>
-        <br/>
-
-        <div class="nasa-tlx-field-container">
-
-          <span class="low-label">Very Low</span>
-
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="physical-demand-1" value="1">
-            <label class="form-check-label" for="physical-demand-1">1</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="physical-demand-2" value="2">
-            <label class="form-check-label" for="physical-demand-2">2</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="physical-demand-3" value="3">
-            <label class="form-check-label" for="physical-demand-3">3</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="mephysicalntal-demand-4" value="4">
-            <label class="form-check-label" for="physical-demand-4">4</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="physical-demand-5" value="5">
-            <label class="form-check-label" for="physical-demand-5">5</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="physical-demand-6" value="6">
-            <label class="form-check-label" for="physical-demand-6">6</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="physical-demand-7" value="7">
-            <label class="form-check-label" for="physical-demand-7">7</label>
-          </div>
-
-          <span class="high-label">Very High</span>
-        </div>
-      </fieldset>
-
-      <!-- Temporal demand -->
-      <fieldset>
-        <legend>Temporal Demand</legend>
-        <span>How hurried or rushed was the pace of the task ?</span>
-        <br/>
-        <br/>
-
-        <div class="nasa-tlx-field-container">
-
-          <span class="low-label">Very Low</span>
-
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-1" value="1">
-            <label class="form-check-label" for="temporal-demand-1">1</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-2" value="2">
-            <label class="form-check-label" for="temporal-demand-2">2</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-3" value="3">
-            <label class="form-check-label" for="temporal-demand-3">3</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-4" value="4">
-            <label class="form-check-label" for="temporal-demand-4">4</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-5" value="5">
-            <label class="form-check-label" for="temporal-demand-5">5</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-6" value="6">
-            <label class="form-check-label" for="temporal-demand-6">6</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-7" value="7">
-            <label class="form-check-label" for="temporal-demand-7">7</label>
-          </div>
-
-          <span class="high-label">Very High</span>
-        </div>
-      </fieldset>
-
-      <!-- Performance -->
-      <fieldset>
-        <legend>Performance</legend>
-        <span>How successful were you in accomplishing what you were asked to do ?</span>
-        <br/>
-        <br/>
-
-        <div class="nasa-tlx-field-container">
-
-          <span class="low-label">Very Low</span>
-
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-1" value="1">
-            <label class="form-check-label" for="performance-1">1</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-2" value="2">
-            <label class="form-check-label" for="performance-2">2</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-3" value="3">
-            <label class="form-check-label" for="performance-3">3</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-4" value="4">
-            <label class="form-check-label" for="performance-4">4</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-5" value="5">
-            <label class="form-check-label" for="performance-5">5</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-6" value="6">
-            <label class="form-check-label" for="performance-6">6</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-7" value="7">
-            <label class="form-check-label" for="performance-7">7</label>
-          </div>
-
-          <span class="high-label">Very High</span>
-        </div>
-      </fieldset>
-
-      <!-- Effort -->
-      <fieldset>
-        <legend>Effort</legend>
-        <span>How hard did you hve to work to accomplish your level of performance ?</span>
-        <br/>
-        <br/>
-
-        <div class="nasa-tlx-field-container">
-
-          <span class="low-label">Very Low</span>
-
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="effortOptions" id="effort-1" value="1">
-            <label class="form-check-label" for="effort-1">1</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="effortOptions" id="effort-2" value="2">
-            <label class="form-check-label" for="effort-2">2</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="effortOptions" id="effort-3" value="3">
-            <label class="form-check-label" for="effort-3">3</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="effortOptions" id="effort-4" value="4">
-            <label class="form-check-label" for="effort-4">4</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="effortOptions" id="effort-5" value="5">
-            <label class="form-check-label" for="effort-5">5</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="effortOptions" id="effort-6" value="6">
-            <label class="form-check-label" for="effort-6">6</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="effortOptions" id="effort-7" value="7">
-            <label class="form-check-label" for="effort-7">7</label>
-          </div>
-
-          <span class="high-label">Very High</span>
-        </div>
-      </fieldset>
-
-      <!-- Frustration -->
-      <fieldset>
-        <legend>Frustration</legend>
-        <span>How insecure, discouraged, irritated, stressed, and annoyed were you ?</span>
-        <br/>
-        <br/>
-
-        <div class="nasa-tlx-field-container">
-
-          <span class="low-label">Very Low</span>
-
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-1" value="1">
-            <label class="form-check-label" for="frustration-1">1</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-2" value="2">
-            <label class="form-check-label" for="frustration-2">2</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-3" value="3">
-            <label class="form-check-label" for="frustration-3">3</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-4" value="4">
-            <label class="form-check-label" for="frustration-4">4</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-5" value="5">
-            <label class="form-check-label" for="frustration-5">5</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-6" value="6">
-            <label class="form-check-label" for="frustration-6">6</label>
-          </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-7" value="7">
-            <label class="form-check-label" for="frustration-7">7</label>
-          </div>
-
-          <span class="high-label">Very High</span>
-        </div>
-      </fieldset>
-
+      <!-- TODO: Free form comments ? -->
       <!-- <fieldset>
           <legend>Additional Information</legend>
           <label>Comments:</label>
           <textarea name="comments" rows="4"></textarea>
       </fieldset> -->
 
-      <!-- TODO: make it so all the fields are filled before the user can submit -->
-      <!-- <div class="button-container">
-        <input type="submit" class="btn btn-primary" id="submit-button" value="Submit">
-        <input type="reset" class="btn btn-secondary" id="reset-button" value="Reset">
-      </div> -->
       <div class="row justify-content-between">
         <div class="col-auto">
             <button type="submit" class="btn btn-primary" id="submit-button">Submit</button>
