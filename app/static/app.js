@@ -63,6 +63,7 @@ const onServerStartDone = () => {
 const clientStart = () => {
     document.getElementById('start-button').disabled = true;  // disable start button for clients who have not pressed it
 
+    // TODO: this seems never used ?
     sockEnv.emit('addUser', {
         userinfo: userinfo,
         deviceSelection: JSON.parse(sessionStorage.getItem('deviceSelection')),
@@ -73,6 +74,7 @@ const clientStart = () => {
     if (isDataCollection) {
         document.addEventListener('dataCollectionOnset', onDataCollectionOnset);
         document.addEventListener('dataCollectionCompleted', onDataCollectionCompleted);
+        // TODO: hide NASA TLX survey button in data coll mode ?
         startDataCollection(commandColors, commandLabels);
     }
 
@@ -170,6 +172,9 @@ const connectEnv = () => {
         Object.keys(subtaskSelectionDeviceInitFuncs).forEach(device => {
             if (deviceSelection[device]) subtaskSelectionDeviceInitFuncs[device](onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
         });
+
+        // Share userinfo across the session, for other modules to use
+        sessionStorage.setItem("userinfo", JSON.stringify(userinfo));
     });
     sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods, interactionTime }) => {
         if (interactionTime) {

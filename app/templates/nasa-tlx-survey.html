@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="description" content="FastAPI with WebSockets">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent BMI | NASA TLX Survey</title>
+
+    <link rel="icon" type="image/png" href="/static/img/favicon.png">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/log.css">
+    <link rel="stylesheet" href="/static/apriltag.css">
+    <style>
+
+      .nasa-tlx-field-container {
+        /* display: flex; */
+        /* flex-direction: row; */
+        /* align-items: center; */
+      }
+
+      /* .form-check {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+      } */
+
+      /* .form-check-input {
+        margin-bottom: 5px;
+      } */
+
+      .low-label {
+        order: 1;
+      }
+
+      .high-label {
+        order: 3;
+      }
+
+      .form-check-inline {
+        margin-right: 12px;
+        margin-left:  12px;
+      }
+
+      fieldset {
+        margin-bottom: 20px;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+      }
+
+      legend {
+          font-size: 1.2em;
+          font-weight: bold;
+          margin-bottom: 10px;
+      }
+
+      .low-label {
+        margin-right: 20px;
+      }
+
+      .high-label {
+        margin-left: 20px;
+      }
+    </style>
+</head>
+
+<body>
+ <!--
+    TODOs:
+    - 
+ -->
+  
+  <div class="container">
+
+
+    <form id="nasa-tlx-survey-form" method="post">
+
+      <div>
+        <span>Username:</span><span>TODO</span>
+        <br/>
+        <span>Devices:</span><span>TODO</span>
+        <br/>
+      </div>
+      <br/>
+      <br/>
+
+      <!-- Mental demand -->
+      <fieldset>
+          <legend>Mental Demand</legend>
+          <span>How mentally demanding was the task ?</span>
+          <br/>
+          <br/>
+
+          <div class="nasa-tlx-field-container">
+            <span class="low-label">Very Low</span>
+
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-1" value="1">
+              <label class="form-check-label" for="mental-demand-1">1</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-2" value="2">
+              <label class="form-check-label" for="mental-demand-2">2</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-3" value="3">
+              <label class="form-check-label" for="mental-demand-3">3</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-4" value="4">
+              <label class="form-check-label" for="mental-demand-4">4</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-5" value="5">
+              <label class="form-check-label" for="mental-demand-5">5</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-6" value="6">
+              <label class="form-check-label" for="mental-demand-6">6</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="mentalDemandOptions" id="mental-demand-7" value="7">
+              <label class="form-check-label" for="mental-demand-7">7</label>
+            </div>
+
+            <span class="high-label">Very High</span>
+          </div>
+      </fieldset>
+
+      <!-- Physical demand -->
+      <fieldset>
+        <legend>Physical Demand</legend>
+        <span>How physically demanding was the task ?</span>
+        <br/>
+        <br/>
+
+        <div class="nasa-tlx-field-container">
+
+          <span class="low-label">Very Low</span>
+
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="physical-demand-1" value="1">
+            <label class="form-check-label" for="physical-demand-1">1</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="physical-demand-2" value="2">
+            <label class="form-check-label" for="physical-demand-2">2</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="physical-demand-3" value="3">
+            <label class="form-check-label" for="physical-demand-3">3</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="mephysicalntal-demand-4" value="4">
+            <label class="form-check-label" for="physical-demand-4">4</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="physical-demand-5" value="5">
+            <label class="form-check-label" for="physical-demand-5">5</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="physical-demand-6" value="6">
+            <label class="form-check-label" for="physical-demand-6">6</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="physicalDemandOptions" id="physical-demand-7" value="7">
+            <label class="form-check-label" for="physical-demand-7">7</label>
+          </div>
+
+          <span class="high-label">Very High</span>
+        </div>
+      </fieldset>
+
+      <!-- Temporal demand -->
+      <fieldset>
+        <legend>Temporal Demand</legend>
+        <span>How hurried or rushed was the pace of the task ?</span>
+        <br/>
+        <br/>
+
+        <div class="nasa-tlx-field-container">
+
+          <span class="low-label">Very Low</span>
+
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-1" value="1">
+            <label class="form-check-label" for="temporal-demand-1">1</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-2" value="2">
+            <label class="form-check-label" for="temporal-demand-2">2</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-3" value="3">
+            <label class="form-check-label" for="temporal-demand-3">3</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-4" value="4">
+            <label class="form-check-label" for="temporal-demand-4">4</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-5" value="5">
+            <label class="form-check-label" for="temporal-demand-5">5</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-6" value="6">
+            <label class="form-check-label" for="temporal-demand-6">6</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="temporalDemandOptions" id="temporal-demand-7" value="7">
+            <label class="form-check-label" for="temporal-demand-7">7</label>
+          </div>
+
+          <span class="high-label">Very High</span>
+        </div>
+      </fieldset>
+
+      <!-- Performance -->
+      <fieldset>
+        <legend>Performance</legend>
+        <span>How successful were you in accomplishing what you were asked to do ?</span>
+        <br/>
+        <br/>
+
+        <div class="nasa-tlx-field-container">
+
+          <span class="low-label">Very Low</span>
+
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-1" value="1">
+            <label class="form-check-label" for="performance-1">1</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-2" value="2">
+            <label class="form-check-label" for="performance-2">2</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-3" value="3">
+            <label class="form-check-label" for="performance-3">3</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-4" value="4">
+            <label class="form-check-label" for="performance-4">4</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-5" value="5">
+            <label class="form-check-label" for="performance-5">5</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-6" value="6">
+            <label class="form-check-label" for="performance-6">6</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="performanceOptions" id="performance-7" value="7">
+            <label class="form-check-label" for="performance-7">7</label>
+          </div>
+
+          <span class="high-label">Very High</span>
+        </div>
+      </fieldset>
+
+      <!-- Effort -->
+      <fieldset>
+        <legend>Effort</legend>
+        <span>How hard did you hve to work to accomplish your level of performance ?</span>
+        <br/>
+        <br/>
+
+        <div class="nasa-tlx-field-container">
+
+          <span class="low-label">Very Low</span>
+
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="effortOptions" id="effort-1" value="1">
+            <label class="form-check-label" for="effort-1">1</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="effortOptions" id="effort-2" value="2">
+            <label class="form-check-label" for="effort-2">2</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="effortOptions" id="effort-3" value="3">
+            <label class="form-check-label" for="effort-3">3</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="effortOptions" id="effort-4" value="4">
+            <label class="form-check-label" for="effort-4">4</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="effortOptions" id="effort-5" value="5">
+            <label class="form-check-label" for="effort-5">5</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="effortOptions" id="effort-6" value="6">
+            <label class="form-check-label" for="effort-6">6</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="effortOptions" id="effort-7" value="7">
+            <label class="form-check-label" for="effort-7">7</label>
+          </div>
+
+          <span class="high-label">Very High</span>
+        </div>
+      </fieldset>
+
+      <!-- Frustration -->
+      <fieldset>
+        <legend>Frustration</legend>
+        <span>How insecure, discouraged, irritated, stressed, and annoyed were you ?</span>
+        <br/>
+        <br/>
+
+        <div class="nasa-tlx-field-container">
+
+          <span class="low-label">Very Low</span>
+
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-1" value="1">
+            <label class="form-check-label" for="frustration-1">1</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-2" value="2">
+            <label class="form-check-label" for="frustration-2">2</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-3" value="3">
+            <label class="form-check-label" for="frustration-3">3</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-4" value="4">
+            <label class="form-check-label" for="frustration-4">4</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-5" value="5">
+            <label class="form-check-label" for="frustration-5">5</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-6" value="6">
+            <label class="form-check-label" for="frustration-6">6</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="frustrationOptions" id="frustration-7" value="7">
+            <label class="form-check-label" for="frustration-7">7</label>
+          </div>
+
+          <span class="high-label">Very High</span>
+        </div>
+      </fieldset>
+
+      <!-- <fieldset>
+          <legend>Additional Information</legend>
+          <label>Comments:</label>
+          <textarea name="comments" rows="4"></textarea>
+      </fieldset> -->
+
+      <!-- TODO: make it so all the fields are filled before the user can submit -->
+      <!-- <div class="button-container">
+        <input type="submit" class="btn btn-primary" id="submit-button" value="Submit">
+        <input type="reset" class="btn btn-secondary" id="reset-button" value="Reset">
+      </div> -->
+      <div class="row justify-content-between">
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary" id="submit-button">Submit</button>
+        </div>
+        <div class="col-auto">
+            <button type="button" class="btn btn-secondary" id="clear-button">Clear</button>
+        </div>
+    </div>
+      
+    </form>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module" src="/static/nasa-tlx-survey.js"></script>
+</body>

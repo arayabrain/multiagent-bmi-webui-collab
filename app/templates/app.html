@@ -37,6 +37,14 @@
             <div class="button-container">
                 <button type="button" class="btn btn-primary" id="start-button" disabled>Start</button>
                 <button type="button" class="btn btn-danger" id="reset-button" disabled>Stop & Reset</button>
+                <!-- TODO: disable the NASA TLX Suvery button until the test was taken -->
+                <!-- TODO: Also add survey into the modal ? -->
+                <br/>
+                <button type="button" class="btn btn-warning" id="survey-button"
+                onclick="window.location.href='/nasa-tlx-survey'">NASA TLX Survey</button>
+                <!-- TODO: logic to disable back to menu if start was clicked already. -->
+                <button type="button" class="btn btn-secondary" id="hp-button"
+                    onclick="window.location.href='/'">Back to Menu</button>
             </div>
 
             <div id="task-status-message"></div>

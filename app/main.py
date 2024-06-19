@@ -85,6 +85,14 @@ async def setuser(request: Request, userinfo: dict):
     connectedUsers.append(userinfo["name"])
     return True
 
+@app.post("/api/save-nasa-tlx-data")
+async def save_nasa_tlx_data(request: Request, survey_data: dict):
+    # TODO: survey data saving
+    # - where do we store it ? which logs forlder ?
+    # - what should the file name be ? project_id/session_id/username_YYYYMMDD/device_1_device_2__nasatlx.json ?
+    # - save as JSON dict ?
+    # - anything else we need that is not in survey_data ?
+    return True
 
 @app.get("/api/getuser")
 async def getuser(request: Request):
@@ -124,6 +132,21 @@ async def task_page(request: Request, mode: str):
     )
 
 
+async def survey_page(request: Request, mode: str):
+    if "userinfo" not in request.session:
+        return RedirectResponse(url="/register")
+    
+    # TODO: shared same func "task_page" for serving ?
+    # TODO: might want to check that (valid) devices
+    # are set, otherwise the data saved might be useless
+    return templates.TemplateResponse(
+        "nasa-tlx-survey.html",
+        {
+            "request": request
+        }
+    )
+
+
 @app.get("/data-collection")
 async def data_collection(request: Request):
     return await task_page(request, "data-collection")
@@ -137,6 +160,11 @@ async def single_robot(request: Request):
 @app.get("/multi-robot")
 async def multi_robot(request: Request):
     return await task_page(request, "multi-robot")
+
+
+@app.get("/nasa-tlx-survey")
+async def nasa_tlx_survey(request: Request):
+    return await survey_page(request, "nasa-tlx-survery")
 
 
 @sio.event
