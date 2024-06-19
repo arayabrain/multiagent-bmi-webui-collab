@@ -63,7 +63,6 @@ const onServerStartDone = () => {
 const clientStart = () => {
     document.getElementById('start-button').disabled = true;  // disable start button for clients who have not pressed it
 
-    // TODO: this seems never used ?
     sockEnv.emit('addUser', {
         userinfo: userinfo,
         deviceSelection: JSON.parse(sessionStorage.getItem('deviceSelection')),
