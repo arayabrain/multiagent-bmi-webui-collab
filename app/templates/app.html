@@ -75,11 +75,13 @@
                     <h5 class="modal-title" id="taskCompleteModalLabel">Task Completed</h5>
                 </div>
                 <!-- <div class="modal-body"></div> -->
-                <div class="modal-footer">
+                <div class="modal-footer d-flex justify-content-between">
                     <button type="button" class="btn btn-primary" data-bs-dismiss="modal"
-                        onclick="window.location.reload()">Repeat Task</button>
+                        onclick="window.location.reload()">Repeat</button>
+                    <button type="button" class="btn btn-warning" id="survey-button"
+                        onclick="window.location.href='/nasa-tlx-survey'">NASA TLX</button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
-                        onclick="window.location.href='/'">Back to Menu</button>
+                        onclick="window.location.href='/'">Menu</button>
                 </div>
             </div>
         </div>

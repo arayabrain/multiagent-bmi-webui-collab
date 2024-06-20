@@ -49,7 +49,9 @@ const updateLog = (msg, numSpace = 0) => {
 
 const requestServerStart = () => {
     document.getElementById('start-button').disabled = true;
-    document.getElementById('reset-button').disabled = true;  // disable during the countdown
+    document.getElementById('reset-button').disabled = true;
+    document.getElementById('survey-button').disabled = true;
+    document.getElementById('hp-button').disabled = true; // disable during the countdown
 
     // request the server to start the environment
     sockEnv.emit('requestServerStart');
@@ -62,6 +64,8 @@ const onServerStartDone = () => {
 
 const clientStart = () => {
     document.getElementById('start-button').disabled = true;  // disable start button for clients who have not pressed it
+    document.getElementById('survey-button').disabled = true;  // disable main survey button
+    document.getElementById('hp-button').disabled = true;  // disable back to menu
 
     sockEnv.emit('addUser', {
         userinfo: userinfo,
@@ -94,11 +98,15 @@ const onDataCollectionCompleted = async () => {
 const requestServerStop = (isCompleted = false) => {
     document.getElementById('start-button').disabled = true;
     document.getElementById('reset-button').disabled = true;
+    document.getElementById('survey-button').disabled = true;  // disable main survey button
+    document.getElementById('hp-button').disabled = true;  // disable back to menu
     sockEnv.emit('requestServerStop', isCompleted);
 }
 
 const clientStop = (isCompleted = false) => {
     document.getElementById('reset-button').disabled = true;  // disable stop&reset button for clients who have not pressed it
+    document.getElementById('survey-button').disabled = true;  // disable main survey button
+    document.getElementById('hp-button').disabled = true;  // disable back to menu
 
     if (!isStarted) {
         // called by
@@ -130,6 +138,8 @@ const clientStop = (isCompleted = false) => {
 const clientReset = () => {
     document.getElementById('start-button').disabled = false;
     document.getElementById('reset-button').disabled = true;
+    document.getElementById('survey-button').disabled = false;
+    document.getElementById('hp-button').disabled = false;
     resetChartData();
 }
 

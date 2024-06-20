@@ -1,3 +1,5 @@
+import { updateDeviceStatus } from './utils.js';
+
 const NASATLXFieldToInputName = {
   "mental-demand": "mentalDemandOptions",
   "physical-demand": "physicalDemandOptions",
@@ -7,6 +9,14 @@ const NASATLXFieldToInputName = {
   "frustration": "frustrationOptions"
 }
 
+const deviceIDToPrettyName = {
+  "mouse": "Mouse",
+  "keyboard": "Keyboard",
+  "gamepad": "Gamepad",
+  "gaze": "Eye Tracker",
+  "eeg": "EMG/EEG"
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('#nasa-tlx-survey-form').addEventListener('submit', async event => {
       event.preventDefault();
@@ -14,11 +24,23 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.querySelector('#clear-button').addEventListener('click', clearForm);
   document.querySelector('#rndfill-button').addEventListener('click', randomFormFill);
+
+  // Display the current user name
+  document.getElementById("username-area").innerHTML = "User: " + JSON.parse(sessionStorage.userinfo).name;
+
+  // Display the selected devices
+  let connecteDevices = "Device(s) in use:";
+  Object.entries(JSON.parse(sessionStorage.deviceSelection)).forEach(([deviceID, isUsed]) => {
+    if (isUsed) {
+      connecteDevices += " " + deviceIDToPrettyName[deviceID];
+    };
+  });
+  document.getElementById("device-status-area").innerHTML = connecteDevices;
 });
 
 // For debug purposes, randomly fill the form before sending data
 const randomFormFill = () => {
-  
+
   Object.keys(NASATLXFieldToInputName).forEach(key => {
     // Get collection of radio buttons
     const radioButtons = document.getElementsByName(NASATLXFieldToInputName[key]);
@@ -35,15 +57,7 @@ const randomFormFill = () => {
 
 // Clears the form
 const clearForm = () => {
-  // Iterate over each key in NASATLXFieldToInputName
-  Object.keys(NASATLXFieldToInputName).forEach(key => {
-    // Get collection of radio buttons
-    const radioButtons = document.getElementsByName(NASATLXFieldToInputName[key]);
-    // Uncheck radio buttons of each field.
-    radioButtons.forEach(radio => {
-      radio.checked = false;
-    });
-  });
+  document.getElementById("nasa-tlx-survey-form").reset();
 }
 
 const saveNASATLXSurveyData = async () => {
