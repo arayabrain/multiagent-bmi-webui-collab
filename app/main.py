@@ -48,6 +48,7 @@ envs: Dict[str, EnvRunner] = {}  # EnvRunners for each client
 peer_connections: Dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
 
 sid2userid: Dict[str, str] = {} # user_i d for each sid
+sid2username: Dict[str, str] = {} # user_name for each sid
 connectedUsers: List = [] # list of users that registered in their browsers
 exp_ids: Dict[str, str] = {}  # exp_id for each mode
 task_completion_timers: Dict[str, taskCompletionTimer] = {}  # taskCompletionTimer for each mode
@@ -88,6 +89,8 @@ async def setuser(request: Request, userinfo: dict):
 @app.post("/api/save-nasa-tlx-data")
 async def save_nasa_tlx_data(request: Request, survey_data: dict):
     # TODO: survey data saving
+    #this will only save the survey data if the task has been completed. 
+    sub_log_dir = log_dir / exp_ids["nasa-tlx-survey"]
     # - where do we store it ? which logs forlder ?
     # - what should the file name be ? project_id/session_id/username_YYYYMMDD/device_1_device_2__nasatlx.json ?
     # - save as JSON dict ?
@@ -265,7 +268,7 @@ async def disconnect(sid):
     await sio.emit("user_list_update", connectedUsers) 
 
 
-async def on_completed(mode: str):
+async def on_completed(mode: str): # doesn't run if the server is stopped
     task_completion_timers[mode].stop()
 
     exp_id = exp_ids.pop(mode)
@@ -332,10 +335,11 @@ async def command(sid, data: dict):
     mode = modes[sid]
     agent_id = data["agentId"]
     command_label = data["command"]
-    print(f"command: {command_label} for agent {agent_id}")
+    username = sid2username[sid]
     res = await envs[mode].update_and_notify_command(
         command_label,
         agent_id,
+        username,
         data["likelihoods"],
         data["interactionTime"],
     )
@@ -343,11 +347,14 @@ async def command(sid, data: dict):
         res.pop("nextAcceptableCommands")  # delete unnecessary item
         interaction_recorders[mode].record(sid2userid[sid], res)
 
+    print(f"Command {command_label} by {username} is sent to {agent_id}")
+
 
 @sio.on("webrtc-offer-request")
-async def webrtc_offer_request(sid):
+async def webrtc_offer_request(sid, userinfo):
     pc = peer_connections[sid]
     mode = modes[sid]
+    sid2username[sid] = userinfo["name"]
     # add stream tracks
     tracks = stream_manager.get_tracks(mode)
     for track in tracks:
