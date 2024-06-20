@@ -59,10 +59,14 @@ env_info = {
         "num_agents": 1,
     },
     "single-robot": {
-        "env_id": "FrankaPickPlaceSingle4Col-v1",
+        "env_id": "FrankaProcedural1Robots4Col-v0",
         "num_agents": 1,
     },
     "multi-robot": {
+        "env_id": "FrankaProcedural4Robots4Col-v0",
+        "num_agents": 4,
+    },
+    "multi-robot-16": {
         "env_id": "FrankaProcedural16Robots4Col-v0",
         "num_agents": 16,
     },
@@ -138,6 +142,9 @@ async def single_robot(request: Request):
 async def multi_robot(request: Request):
     return await task_page(request, "multi-robot")
 
+@app.get("/multi-robot-16")
+async def multi_robot_16(request: Request):
+    return await task_page(request, "multi-robot-16")
 
 @sio.event
 async def connect(sid, environ):
