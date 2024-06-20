@@ -13,7 +13,25 @@ document.addEventListener('DOMContentLoaded', () => {
       await saveNASATLXSurveyData();
   });
   document.querySelector('#clear-button').addEventListener('click', clearForm);
+  document.querySelector('#rndfill-button').addEventListener('click', randomFormFill);
 });
+
+// For debug purposes, randomly fill the form before sending data
+const randomFormFill = () => {
+  
+  Object.keys(NASATLXFieldToInputName).forEach(key => {
+    // Get collection of radio buttons
+    const radioButtons = document.getElementsByName(NASATLXFieldToInputName[key]);
+    // Uncheck radio buttons of each field.
+    let valueToCheck = Math.floor(Math.random() * (7) + 1);
+
+    radioButtons.forEach(radio => {
+      if (parseInt(radio.value, 10) == valueToCheck) {
+        radio.checked = true;
+      }
+    });
+  });
+}
 
 // Clears the form
 const clearForm = () => {
