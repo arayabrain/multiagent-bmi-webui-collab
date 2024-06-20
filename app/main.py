@@ -152,7 +152,8 @@ async def connect(sid, environ):
     query = urllib.parse.parse_qs(environ.get("QUERY_STRING", ""))
     endpoint = query.get("endpoint", [None])[0]
     print(f"endpoint: {endpoint}")  # like "/multi-robot"
-    mode = endpoint[1:]
+    mode = endpoint[1:] #get mode here for connect
+
     if mode not in env_info:
         return False
 
@@ -164,19 +165,21 @@ async def connect(sid, environ):
             env_info[mode]["env_id"],
             notify_fn=lambda event, data: sio.emit(event, data, room=mode),
             on_completed_fn=lambda: asyncio.create_task(on_completed(mode)),
-        )
+            )
+        if mode == "data-collection":
+            mode = mode + user_id
         envs[mode] = env
         stream_manager.setup(mode, env.env.get_visuals, env.num_agents)
 
     # set exp_id if not set
     if mode not in exp_ids:
-        exp_ids[mode] = datetime.now().strftime("%Y%m%d_%H%M%S")
+        exp_ids[mode] = datetime.now().strftime("%Y%m%d_%H%M%S") #experiment ids are shared between clients if in same mode.
 
     await sio.emit(
         "init",
         {
             "expId": exp_ids[mode],
-            "isDataCollection": mode == "data-collection",
+            "isDataCollection": mode.startswith("data-collection"),
             "commandLabels": env.command_labels,
             "commandColors": env.command_colors,
         },
@@ -231,7 +234,7 @@ async def disconnect(sid):
         del interaction_recorders[mode]
         del task_completion_timers[mode]
 
-    await sio.emit("user_list_update", list(sid2userid.values())) #HD
+    await sio.emit("user_list_update", connectedUsers) 
 
 
 async def on_completed(mode: str):
