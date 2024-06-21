@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import secrets
 import string
@@ -88,11 +89,26 @@ async def setuser(request: Request, userinfo: dict):
 
 @app.post("/api/save-nasa-tlx-data")
 async def save_nasa_tlx_data(request: Request, survey_data: dict):
-    # TODO: survey data saving
-    # - where do we store it ? which logs forlder ?
-    # - what should the file name be ? project_id/session_id/username_YYYYMMDD/device_1_device_2__nasatlx.json ?
-    # - save as JSON dict ?
-    # - anything else we need that is not in survey_data ?
+    # TODO: define exp_id by single or multi user instead of mode,　ask for project id and create folder, replace exp_id with something stable for entire session.
+
+    # save in subject folders
+    username = survey_data['userinfo']['name']
+    mode = survey_data['mode']
+    exp_id = exp_ids.pop(mode) #change exp_id so not as strict as time
+    exp_log_dir = log_dir / exp_id
+    if not exp_log_dir.exists():
+        exp_log_dir.mkdir(parents=True, exist_ok=True)
+
+    sub_log_dir = exp_log_dir / f"{username}_{mode}"
+    if not sub_log_dir.exists():
+        sub_log_dir.mkdir(parents=True, exist_ok=True)
+
+    selected_devices = [device for device, is_selected in survey_data['device-selection'].items() if is_selected]
+
+    file_name = "_".join(selected_devices) + "_nasatlx.json"
+    with open(sub_log_dir / file_name, mode="w") as f:
+        json.dump(survey_data, f, indent=4)
+
     return True
 
 @app.get("/api/getuser")
@@ -269,14 +285,21 @@ async def disconnect(sid):
 async def on_completed(mode: str):
     task_completion_timers[mode].stop()
 
+    # create and populate session specific folders
     exp_id = exp_ids.pop(mode)
     exp_log_dir = log_dir / exp_id
     exp_log_dir.mkdir(parents=True, exist_ok=True)
 
     info = {"total": {"taskCompletionTime": task_completion_timers[mode].elapsed}}
-    # TODO?: add env/task information to info
+    # todo?: add env/task information to info
     interaction_recorders[mode].save(exp_log_dir, info=info)
     compute_metrics(exp_log_dir, save=True)
+
+    # # create subject specific folders
+    # usernames = list(sid2username.values())
+    # for username in usernames:
+    #     sub_log_dir = exp_log_dir / f"{username}_{mode}"
+    #     sub_log_dir.mkdir(parents=True, exist_ok=True)
 
     await _server_stop(mode, is_completed=True)
 
