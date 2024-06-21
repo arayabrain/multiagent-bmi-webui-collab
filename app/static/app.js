@@ -157,7 +157,6 @@ const connectEnv = () => {
     sockEnv.on('connect', () => {
         updateLog("Env server connected");
         // request WebRTC offer to the server
-        userinfo
         sockEnv.emit('webrtc-offer-request', userinfo);
     });
     sockEnv.on('status', (message) => {
