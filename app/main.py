@@ -62,7 +62,7 @@ env_info = {
         "env_id": "FrankaProcedural1Robots4Col-v0",
         "num_agents": 1,
     },
-    "multi-robot": {
+    "multi-robot-4": {
         "env_id": "FrankaProcedural4Robots4Col-v0",
         "num_agents": 4,
     },
@@ -138,9 +138,9 @@ async def single_robot(request: Request):
     return await task_page(request, "single-robot")
 
 
-@app.get("/multi-robot")
+@app.get("/multi-robot-4")
 async def multi_robot(request: Request):
-    return await task_page(request, "multi-robot")
+    return await task_page(request, "multi-robot-4")
 
 @app.get("/multi-robot-16")
 async def multi_robot_16(request: Request):
