@@ -6,7 +6,6 @@ import subprocess
 import gym
 import numpy as np
 import robohive_multi  # Makes the environments accessible # noqa: F401 # type: ignore
-import socketio
 from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names  # type: ignore
 
 # check if display is available on Linux
@@ -28,6 +27,7 @@ class EnvRunner:
     def __init__(
         self,
         env_id: str,
+        num_agents: int,
         notify_fn=None,  # function to send message to all clients in the same mode
         on_completed_fn=None,  # function to call when all subtasks are done
         use_cancel_command: bool = False,
@@ -38,9 +38,18 @@ class EnvRunner:
         self.notify_fn = notify_fn
         self.on_completed_fn = on_completed_fn
 
-        self.env = gym.make(env_id)
-        self.num_agents = self.env.nrobots
-        self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
+        if num_agents <= 4:
+            self.env = gym.make(env_id)
+        else:
+            # NOTE: builds sub_envs based on pattern:
+            # "FrankaProcedural{max_agents_per_env}Robots4Col-v0" * num_agents
+            self.env = MultiRobotSubEnvWrapper(num_agents=num_agents, max_agents_per_env=4)
+
+        self.num_agents = num_agents
+        if isinstance(self.env, MultiRobotSubEnvWrapper):
+            self.a_dim_per_agent = self.env.sub_envs[0].action_space.shape[0] // self.env.max_agents_per_env
+        else:
+            self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
 
         # self.env.color_dict: {"100": 0, "010": 1, ...}
         # key digits correspond to "rgb", values correspond to the rgb index in Mujoco?
@@ -61,7 +70,14 @@ class EnvRunner:
 
         # init policies
         horizon = 2  # TODO
-        self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
+        if isinstance(self.env, MultiRobotSubEnvWrapper):
+            n_agents_per_env = self.env.max_agents_per_env
+            self.policies = []
+            for idx, sub_env in enumerate(self.env.sub_envs):
+                self.policies.extend([MotionPlannerPolicy(sub_env, 
+                    *gen_robot_names(i), horizon) for i in range(n_agents_per_env)])
+        else:
+            self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
 
         # reset env for rendering
         self._reset_env()
@@ -92,8 +108,12 @@ class EnvRunner:
         obs = self.env.reset()
         # reset policies
         # TODO: move this to MotionPlannerPolicy to reset internally?
-        for policy in self.policies:
-            policy.reset(self.env)
+        for idx_policy, policy in enumerate(self.policies):
+            if isinstance(self.env, MultiRobotSubEnvWrapper):
+                sub_env_idx = idx_policy // self.env.max_agents_per_env
+                policy.reset(self.env.sub_envs[sub_env_idx])
+            else:
+                policy.reset(self.env)
             policy.subtask_target_obj_idxs = []
             policy.done_obj_idxs = []
             policy.done_subtasks = []
@@ -137,7 +157,11 @@ class EnvRunner:
                         continue
 
                     policy = self.policies[idx_agent]
-                    policy.reset(self.env)  # TODO: is this correct?
+                    if isinstance(self.env, MultiRobotSubEnvWrapper):
+                        sub_env_idx = idx_agent // self.env.max_agents_per_env
+                        policy.reset(self.env.sub_envs[sub_env_idx])
+                    else:
+                        policy.reset(self.env)  # TODO: is this correct?
                     await self.notify_fn("subtaskDone", {"agentId": idx_agent, "subtask": self.command[idx_agent]})
                     # reset command
                     self.next_acceptable_commands[idx_agent].append("")  # TODO
@@ -166,7 +190,11 @@ class EnvRunner:
                 subtask_done = False
             elif c == "cancel":
                 # cancel command
-                policy.reset(self.env)  # TODO: is this correct?
+                if isinstance(self.env, MultiRobotSubEnvWrapper):
+                    sub_env_idx = idx_policy // self.env.max_agents_per_env
+                    policy.reset(self.env.sub_envs[sub_env_idx])
+                else:
+                    policy.reset(self.env)  # TODO: is this correct?
                 a = self._get_base_action()
                 # TODO: check if robot posture has been reset
                 subtask_done = True
@@ -190,7 +218,11 @@ class EnvRunner:
 
                 if len(policy.subtask_target_obj_idxs) == 0:
                     # invalid command
-                    policy.reset(self.env)  # TODO: is this correct?
+                    if isinstance(self.env, MultiRobotSubEnvWrapper):
+                        sub_env_idx = idx_policy // self.env.max_agents_per_env
+                        policy.reset(self.env.sub_envs[sub_env_idx])
+                    else:
+                        policy.reset(self.env)  # TODO: is this correct?
                     a = self._get_base_action()
                     subtask_done = True
                 else:
@@ -268,3 +300,76 @@ class EnvRunner:
         await self.notify_fn("command", data)
 
         return data
+
+# Wrapper class to breakdown envs with 4+ agents
+# into multiple sub_envs to mitigate slow simulator speed
+class MultiRobotSubEnvWrapper():
+    def __init__(self, num_agents, max_agents_per_env=4):
+        # This class all the sub_envs have the same number of robots !
+        assert num_agents % max_agents_per_env == 0, \
+            f"Cannot break down env with {num_agents} into exact sub envs with {max_agents_per_env}."
+        self.max_agents_per_env = max_agents_per_env
+        self.n_sub_envs = num_agents // max_agents_per_env
+
+        # TODO: Needs to be adjusted to support other pattern of envs later on.
+        sub_env_name = f"FrankaProcedural{max_agents_per_env}Robots4Col-v0"
+
+        # A list of sub environments, total makes up the desired number of agents.
+        self.sub_envs = [gym.make(sub_env_name) for _ in range(self.n_sub_envs)]
+
+        # Attribute for compatibility with EnvRunner
+        self.action_space = self.sub_envs[0].action_space
+        self.color_dict = self.sub_envs[0].color_dict
+
+
+    def get_visuals(self):
+        # Accumulate and returns the visuals for stream_manager mainly
+        visuals = {}
+        visual_list = [sub_env.get_visuals() for sub_env in self.sub_envs]
+
+        sub_env_agent_idx = 0 # track current agent idx from POV of desired total num_agents.
+        for sub_env_visual_dict in visual_list:
+            for k, v in sub_env_visual_dict.items():
+                # TODO: generalize to work with patterns other than rgb:franka<i>_front_cam:256x256x2d ?
+                if not k.startswith("rgb:franka"):
+                    continue
+
+                # TODO: add support in stream manager for more flex
+                resolution = k.split(":")[2]
+                visuals[f"rgb:franka{sub_env_agent_idx}_front_cam:{resolution}:2d"] = v
+                sub_env_agent_idx += 1
+        
+        return visuals
+    
+    def step(self, action):
+        # Chunk the actions for the sub envs
+        sub_action_list = np.array(action).reshape(self.n_sub_envs, -1)
+
+        # TODO: do we need all_rewards, all_info ?
+        all_obs, all_done = [], []
+        for i, sub_env in enumerate(self.sub_envs):
+            sub_obs, _, sub_done, _ = sub_env.step(sub_action_list[i])
+            all_obs.append(sub_obs)
+            all_done.append(sub_done)
+        
+        # Fuse all_obs, all_done to look as if
+        # from the same env.
+
+        return np.array(all_obs).flatten(), None, bool(np.sum(all_done)), {}
+
+    def reset(self):
+        # TODO: what is the obs format to return ?
+        all_obs = [sub_env.reset() for sub_env in self.sub_envs]
+
+        return np.array(all_obs).flatten()
+
+    def status_led_setter(self, idx_policy, fn_name):
+        sub_env_idx = idx_policy // self.max_agents_per_env
+        sub_env_agent_idx = idx_policy % self.max_agents_per_env
+        getattr(self.sub_envs[sub_env_idx], fn_name)(sub_env_agent_idx)
+
+    def status_led_off(self, idx_policy):
+        self.status_led_setter(idx_policy, "status_led_off")
+    
+    def status_led_on(self, idx_policy):
+        self.status_led_setter(idx_policy, "status_led_on")

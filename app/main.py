@@ -170,6 +170,7 @@ async def connect(sid, environ):
     else:
         env = EnvRunner(
             env_info[mode]["env_id"],
+            num_agents=env_info[mode]["num_agents"],
             notify_fn=lambda event, data: sio.emit(event, data, room=mode),
             on_completed_fn=lambda: asyncio.create_task(on_completed(mode)),
             )
