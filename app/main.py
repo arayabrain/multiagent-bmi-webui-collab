@@ -48,6 +48,7 @@ envs: Dict[str, EnvRunner] = {}  # EnvRunners for each client
 peer_connections: Dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
 
 sid2userid: Dict[str, str] = {} # user_i d for each sid
+sid2username: Dict[str, str] = {} # user_name for each sid
 connectedUsers: List = [] # list of users that registered in their browsers
 exp_ids: Dict[str, str] = {}  # exp_id for each mode
 task_completion_timers: Dict[str, taskCompletionTimer] = {}  # taskCompletionTimer for each mode
@@ -332,22 +333,29 @@ async def command(sid, data: dict):
     mode = modes[sid]
     agent_id = data["agentId"]
     command_label = data["command"]
-    print(f"command: {command_label} for agent {agent_id}")
+    username = sid2username[sid]
     res = await envs[mode].update_and_notify_command(
         command_label,
         agent_id,
+        username,
         data["likelihoods"],
         data["interactionTime"],
     )
     if res["interactionTime"] is not None:  # TODO: recording only acceptable interactions
         res.pop("nextAcceptableCommands")  # delete unnecessary item
         interaction_recorders[mode].record(sid2userid[sid], res)
+    print(f"Command {command_label} by {username} is sent to {agent_id}")
 
 
 @sio.on("webrtc-offer-request")
-async def webrtc_offer_request(sid):
+async def webrtc_offer_request(sid, userinfo):
     pc = peer_connections[sid]
     mode = modes[sid]
+
+
+    # store user name for command logging
+    if sid not in sid2username:
+        sid2username[sid] = userinfo["name"]
     # add stream tracks
     tracks = stream_manager.get_tracks(mode)
     for track in tracks:
