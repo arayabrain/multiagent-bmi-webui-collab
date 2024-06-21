@@ -76,7 +76,7 @@ const saveNASATLXSurveyData = async () => {
       nullKeyFound = true;
     }
   }
-  console.log(NASATLXSurveyData);
+  // console.log(NASATLXSurveyData);
 
   // Assert that there is not null key
   if (nullKeyFound) {
@@ -85,10 +85,15 @@ const saveNASATLXSurveyData = async () => {
     alert("All fields are required");
     return false;
   }
+  
+  // Recover the mode
+  var previousURL = new URL(document.referrer);
+  var mode = previousURL.pathname.split('/').filter(Boolean).pop();
 
   // Add userinfo and device selection
   NASATLXSurveyData["device-selection"] = JSON.parse(sessionStorage.getItem("deviceSelection"));
   NASATLXSurveyData["userinfo"] = JSON.parse(sessionStorage.getItem("userinfo"));
+  NASATLXSurveyData["mode"] = mode;
 
   // Send the collected data to the Python backend for saving
   const response = await fetch("/api/save-nasa-tlx-data", {
