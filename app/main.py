@@ -297,7 +297,6 @@ async def _server_stop(mode, is_completed: bool = False):
     return True
 
 
-
 @sio.on("command")
 async def command(sid, data: dict):
     mode = modes[sid]
@@ -325,13 +324,15 @@ async def webrtc_offer_request(sid, userinfo):
     mode = modes[sid]
 
     # store user name for command logging
-    sid2username[sid] = userinfo["name"]
+    if sid not in sid2username:
+        sid2username[sid] = userinfo["name"]
 
     # add stream tracks
     tracks = stream_manager.get_tracks(mode)
     for track in tracks:
         pc.addTransceiver(track, direction="sendonly")
         print(f"Track {track.id} added to peer connection")
+
 
     await handle_offer_request(pc, sio, sid)
 
