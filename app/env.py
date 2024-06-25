@@ -1,12 +1,26 @@
 import asyncio
+import multiprocessing as mp
 import os
 import platform
 import subprocess
+import sys
+from enum import Enum
 
 import gym
 import numpy as np
 import robohive_multi  # Makes the environments accessible # noqa: F401 # type: ignore
 from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names  # type: ignore
+from gym.error import (AlreadyPendingCallError, NoAsyncCallError)
+from gym.vector.async_vector_env import AsyncVectorEnv
+
+class AsyncState(Enum):
+    DEFAULT = "default"
+    WAITING_RESET = "reset"
+    WAITING_STEP = "step"
+    WAITING_VISUALS = "visuals"
+    WAITING_SINGLE_VISUAL = "visual"
+    WAITING_LED_OFF = "led_off"
+    WAITING_LED_ON = "led_on"
 
 # check if display is available on Linux
 if platform.system() == "Linux":
@@ -43,11 +57,11 @@ class EnvRunner:
         else:
             # NOTE: builds sub_envs based on pattern:
             # "FrankaProcedural{max_agents_per_env}Robots4Col-v0" * num_agents
-            self.env = MultiRobotSubEnvWrapper(num_agents=num_agents, max_agents_per_env=4)
+            self.env = MultiRobotSubEnvWrapper(num_agents=num_agents, max_agents_per_env=1)
 
         self.num_agents = num_agents
         if isinstance(self.env, MultiRobotSubEnvWrapper):
-            self.a_dim_per_agent = self.env.sub_envs[0].action_space.shape[0] // self.env.max_agents_per_env
+            self.a_dim_per_agent = self.env.sub_envs.single_action_space.shape[0] // self.env.max_agents_per_env
         else:
             self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
 
@@ -73,9 +87,9 @@ class EnvRunner:
         if isinstance(self.env, MultiRobotSubEnvWrapper):
             n_agents_per_env = self.env.max_agents_per_env
             self.policies = []
-            for idx, sub_env in enumerate(self.env.sub_envs):
-                self.policies.extend([MotionPlannerPolicy(sub_env, 
-                    *gen_robot_names(i), horizon) for i in range(n_agents_per_env)])
+            # for idx, sub_env in enumerate(self.env.sub_envs):
+            #     self.policies.extend([MotionPlannerPolicy(sub_env, 
+            #         *gen_robot_names(i), horizon) for i in range(n_agents_per_env)])
         else:
             self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
 
@@ -301,6 +315,91 @@ class EnvRunner:
 
         return data
 
+# Custom AsyncVectorEnv wrapper
+
+class CustomAsyncVectorEnv(AsyncVectorEnv):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+    # Overriding to add support for custom sub env function handling
+    def _worker(index, env_fn, pipe, parent_pipe, shared_memory, error_queue):
+        print("###### Custom function is called ########")
+        assert shared_memory is None
+        env = env_fn()
+        parent_pipe.close()
+        try:
+            while True:
+                command, data = pipe.recv()
+                if command == 'reset':
+                    observation = env.reset()
+                    pipe.send(observation)
+                elif command == 'step':
+                    observation, reward, done, info = env.step(data)
+                    if done:
+                        observation = env.reset()
+                    pipe.send((observation, reward, done, info))
+                elif command == "visuals":
+                    pipe.send(env.get_visuals())
+                elif command == 'seed':
+                    env.seed(data)
+                    pipe.send(None)
+                elif command == 'close':
+                    pipe.send(None)
+                    break
+                elif command == '_check_observation_space':
+                    pipe.send(data == env.observation_space)
+                else:
+                    raise RuntimeError('Received unknown command `{0}`. Must '  # noqa: F524
+                        'be one of {`reset`, `step`, `visuals`, `seed`, `close`, '
+                        '`_check_observation_space`}.'.format(command))
+        except Exception:
+            error_queue.put((index,) + sys.exc_info()[:2])
+            pipe.send(None)
+        finally:
+            env.close()
+
+    # Query visual obs of all envs together
+    def get_visuals_async(self):
+        self._assert_is_running()
+        # NOTE: is it safe to query visual obs without 
+        # waiting for other processes to have finished (state == DEFAULT)
+        # if self._state != AsyncState.DEFAULT:
+        #     raise AlreadyPendingCallError('Calling `get_visuals_async` while waiting '
+        #         'for a pending call to `{0}` to complete'.format(
+        #         self._state.value), self._state.value)
+        
+        for pipe in self.parent_pipes:
+            pipe.send(('visuals', None))
+        self._state = AsyncState.WAITING_VISUALS
+
+    def get_visuals_wait(self, timeout=None):
+        self._assert_is_running()
+        if self._state != AsyncState.WAITING_VISUALS:
+            raise NoAsyncCallError('Calling `get_visuals_wait` without any prior '
+                'call to `get_visuals_async`.', AsyncState.WAITING_VISUALS.value)
+
+        if not self._poll(timeout):
+            self._state = AsyncState.DEFAULT
+            raise mp.TimeoutError('The call to `get_visuals_wait` has timed out after '
+                '{0} second{1}.'.format(timeout, 's' if timeout > 1 else ''))
+
+        self._raise_if_errors()
+        visuals_list = [pipe.recv() for pipe in self.parent_pipes]
+        self._state = AsyncState.DEFAULT
+
+        # TODO: not sure if we get to use those ?
+        # if not self.shared_memory:
+        #     concatenate(observations_list, self.observations,
+        #         self.single_observation_space)
+
+        # return deepcopy(self.observations) if self.copy else self.observations
+        return visuals_list
+
+    def get_visuals(self):
+        self.get_visuals_async()
+        return self.get_visuals_wait()
+
+        
 # Wrapper class to breakdown envs with 4+ agents
 # into multiple sub_envs to mitigate slow simulator speed
 class MultiRobotSubEnvWrapper():
@@ -315,15 +414,26 @@ class MultiRobotSubEnvWrapper():
         sub_env_name = f"FrankaProcedural{max_agents_per_env}Robots4Col-v0"
 
         # A list of sub environments, total makes up the desired number of agents.
-        self.sub_envs = [gym.make(sub_env_name) for _ in range(self.n_sub_envs)]
+        # self.sub_envs = [gym.make(sub_env_name) for _ in range(self.n_sub_envs)]
+        # self.sub_envs = gym.vector.make(sub_env_name, num_envs=self.n_sub_envs,
+        #     asynchronous=True) # Assisted method, but can't use custom class
+        self.sub_envs = CustomAsyncVectorEnv([lambda: gym.make(sub_env_name) for _ in range(self.n_sub_envs)], shared_memory=False)
 
         # Attribute for compatibility with EnvRunner
-        self.action_space = self.sub_envs[0].action_space
-        self.color_dict = self.sub_envs[0].color_dict
-
+        self.action_space = self.sub_envs.single_action_space
+        # TODO: unharden
+        # self.color_dict = self.sub_envs[0].color_dict
+        self.color_dict = {
+            "100": 0,
+            "010": 1,
+            "001": 2,
+            "110": 3
+        }
 
     def get_visuals(self):
         # Accumulate and returns the visuals for stream_manager mainly
+        return self.sub_envs.get_visuals()
+
         visuals = {}
         visual_list = [sub_env.get_visuals() for sub_env in self.sub_envs]
 
@@ -358,15 +468,13 @@ class MultiRobotSubEnvWrapper():
         return np.array(all_obs).flatten(), None, bool(np.sum(all_done)), {}
 
     def reset(self):
-        # TODO: what is the obs format to return ?
-        all_obs = [sub_env.reset() for sub_env in self.sub_envs]
-
-        return np.array(all_obs).flatten()
+        return self.sub_envs.reset()
 
     def status_led_setter(self, idx_policy, fn_name):
         sub_env_idx = idx_policy // self.max_agents_per_env
         sub_env_agent_idx = idx_policy % self.max_agents_per_env
-        getattr(self.sub_envs[sub_env_idx], fn_name)(sub_env_agent_idx)
+        # TODO: ass async support
+        # getattr(self.sub_envs[sub_env_idx], fn_name)(sub_env_agent_idx)
 
     def status_led_off(self, idx_policy):
         self.status_led_setter(idx_policy, "status_led_off")
