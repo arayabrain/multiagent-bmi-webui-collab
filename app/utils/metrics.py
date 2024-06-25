@@ -73,6 +73,17 @@ class InteractionRecorder:
         with open(save_dir / "info.json", mode="w") as f:
             json.dump(_data, f, indent=4)
 
+    def count_users_and_agents(self):
+        """Count the number of unique users and agents in the interaction history."""
+        unique_users = set()
+        unique_agents = set()
+
+        for record in self.history:
+            unique_users.add(record["userId"])
+            unique_agents.add(record["agentId"])
+
+        return len(unique_users), len(unique_agents)
+
 
 def compute_metrics(exp_log_dir: Path, save=False):
     """

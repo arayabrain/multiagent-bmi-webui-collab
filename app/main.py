@@ -89,24 +89,28 @@ async def setuser(request: Request, userinfo: dict):
 
 @app.post("/api/save-nasa-tlx-data")
 async def save_nasa_tlx_data(request: Request, survey_data: dict):
-    # TODO: define exp_id by single or multi user instead of mode,　ask for project id and create folder, replace exp_id with something stable for entire session.
+    # TODO: ask for project id and create folder,  make sure new session same day won't overwrite.
+    # currently only works if session is completed.
 
-    # save in subject folders
-    username = survey_data['userinfo']['name']
     mode = survey_data['mode']
-    exp_id = exp_ids.pop(mode) #change exp_id so not as strict as time
-    exp_log_dir = log_dir / exp_id
-    if not exp_log_dir.exists():
-        exp_log_dir.mkdir(parents=True, exist_ok=True)
+    date_id = exp_ids.pop(mode)[:8]
 
-    sub_log_dir = exp_log_dir / f"{username}_{mode}"
-    if not sub_log_dir.exists():
-        sub_log_dir.mkdir(parents=True, exist_ok=True)
+    date_log_dir = log_dir / date_id
+    # if not exp_log_dir.exists(): 
+    #     exp_log_dir.mkdir(parents=True, exist_ok=True)
+
+    n_users = len(set(sid2username.values()))
+    n_agents = env_info[mode]["num_agents"]
+    session_name = f"{n_users}users_{n_agents}agents"
+
+    username = survey_data['userinfo']['name']
+
+    survey_path = date_log_dir / session_name / username 
 
     selected_devices = [device for device, is_selected in survey_data['device-selection'].items() if is_selected]
 
     file_name = "_".join(selected_devices) + "_nasatlx.json"
-    with open(sub_log_dir / file_name, mode="w") as f:
+    with open(survey_path / file_name, mode="w") as f:
         json.dump(survey_data, f, indent=4)
 
     return True
@@ -282,24 +286,31 @@ async def disconnect(sid):
     await sio.emit("user_list_update", connectedUsers) 
 
 
-async def on_completed(mode: str):
+async def on_completed(mode: str): # create data storage: projectA/date/1user_2agents/username/(dev1_dev2_nasatlx.json)
     task_completion_timers[mode].stop()
 
     # create and populate session specific folders
-    exp_id = exp_ids.pop(mode)
-    exp_log_dir = log_dir / exp_id
-    exp_log_dir.mkdir(parents=True, exist_ok=True)
+    date_id = exp_ids.pop(mode)[:8]
+    date_log_dir = log_dir / date_id
+    date_log_dir.mkdir(parents=True, exist_ok=True)
+
+    # get session info for folder names
+    n_users, n_agents = interaction_recorders[mode].count_users_and_agents()
+    
+    session_name = f"{n_users}users_{n_agents}agents"
+    session_log_dir = date_log_dir / session_name
+    session_log_dir.mkdir(parents=True, exist_ok=True)
+
+    usernames = [sid2username[sid] for sid in modes if modes[sid] == mode]
+    for username in usernames:
+        username_log_dir = session_log_dir / username
+        username_log_dir.mkdir(parents=True, exist_ok=True)
+    
 
     info = {"total": {"taskCompletionTime": task_completion_timers[mode].elapsed}}
     # todo?: add env/task information to info
-    interaction_recorders[mode].save(exp_log_dir, info=info)
-    compute_metrics(exp_log_dir, save=True)
-
-    # # create subject specific folders
-    # usernames = list(sid2username.values())
-    # for username in usernames:
-    #     sub_log_dir = exp_log_dir / f"{username}_{mode}"
-    #     sub_log_dir.mkdir(parents=True, exist_ok=True)
+    interaction_recorders[mode].save(session_log_dir, info=info) #saved in session folder
+    compute_metrics(session_log_dir, save=True)
 
     await _server_stop(mode, is_completed=True)
 
