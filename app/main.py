@@ -91,9 +91,8 @@ async def setuser(request: Request, userinfo: dict):
 async def save_nasa_tlx_data(request: Request, survey_data: dict):
     # TODO: ask for project id and create folder,  make sure new session same day won't overwrite.
     # currently only works if session is completed.
-
     mode = survey_data['mode']
-    date_id = exp_ids.pop(mode)[:8]
+    date_id = datetime.now().strftime("%Y%m%d")
 
     date_log_dir = log_dir / date_id
     # if not exp_log_dir.exists(): 
