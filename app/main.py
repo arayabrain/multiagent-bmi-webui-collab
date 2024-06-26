@@ -195,7 +195,6 @@ async def connect(sid, environ):
     alphabet = string.ascii_uppercase + string.digits
     user_id = "".join(secrets.choice(alphabet) for _ in range(8))
     sid2userid[sid] = user_id
-
     # get mode
     query = urllib.parse.parse_qs(environ.get("QUERY_STRING", ""))
     endpoint = query.get("endpoint", [None])[0]
@@ -386,9 +385,17 @@ async def webrtc_offer_request(sid, userinfo):
     mode = modes[sid]
 
 
-    # store user name for command logging
-    if sid not in sid2username:
-        sid2username[sid] = userinfo["name"]
+    # # store user name for command logging
+    # if sid not in sid2username:
+    #     sid2username[sid] = userinfo["name"]
+
+    keys_to_remove = [key for key, value in sid2username.items() if value == userinfo["name"]]
+    for key in keys_to_remove:
+        sid2username.pop(key)
+
+    
+    sid2username[sid] = userinfo["name"]
+    # replace the sid with the new sid
     # add stream tracks
     tracks = stream_manager.get_tracks(mode)
     for track in tracks:
