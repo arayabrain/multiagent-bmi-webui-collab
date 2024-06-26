@@ -316,6 +316,7 @@ async def command(sid, data: dict):
         interaction_recorders[mode].record(sid2userid[sid], res)
     
     print(f"Command {command_label} by {username} is sent to {agent_id}")
+    await sio.emit("commandUser", username)
 
 
 @sio.on("webrtc-offer-request")
