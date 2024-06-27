@@ -297,6 +297,7 @@ async def _server_stop(mode, is_completed: bool = False):
     return True
 
 
+
 @sio.on("command")
 async def command(sid, data: dict):
     mode = modes[sid]
@@ -315,7 +316,6 @@ async def command(sid, data: dict):
         interaction_recorders[mode].record(sid2userid[sid], res)
     
     print(f"Command {command_label} by {username} is sent to {agent_id}")
-    await sio.emit("commandUser", username)
 
 @sio.on("webrtc-offer-request")
 async def webrtc_offer_request(sid, userinfo):
@@ -331,7 +331,6 @@ async def webrtc_offer_request(sid, userinfo):
     for track in tracks:
         pc.addTransceiver(track, direction="sendonly")
         print(f"Track {track.id} added to peer connection")
-
 
     await handle_offer_request(pc, sio, sid)
 

@@ -242,7 +242,6 @@ const connectEnv = () => {
         }    });
     // document.getElementById('displayUserList').textContent = `${user_list}`;
     setSockEnv(sockEnv);
-
 }
 
 const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
@@ -283,7 +282,6 @@ const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
             interactionTime: interactionTime,
             userinfo: userinfo,
         });
-       
     }
     // update the chart
     updateChartData(agentId, likelihoods);
