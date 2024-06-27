@@ -102,11 +102,6 @@ export const updateChartData = (agentId, likelihoods) => {
     likelihoods.forEach((lik, i) => {
         if (!chart.options.isBarLocked[i]) chart.data.datasets[0].data[i] = lik;
     });
-    // sockEnv.on('commandUser', async (username) => {
-    // // document.getElementById('commandUser').textContent = `${username} sent command`;
-    //         const ctx = getElementById('commandUser');
-    //         ctx.fillText(`${username}ppp `, 10, 10); // テキストを描画 (x, y 位置を指定)
-    // setSockEnv(sockEnv);})
     chart.update();
 }
 
@@ -117,14 +112,17 @@ export const resetChartData = () => {
     });
 }
 
-export const updateChartColor = (agentId, currentCommand) => {
+export const updateChartColor = (agentId, currentCommand, username) => {
     const chart = charts[agentId];
     if (chart === undefined) return;  // occurs when the environment is reset on page load
     chart.data.datasets[0].backgroundColor = [...Array(commandLabels.length).keys()].map(barId => getBarColor(barId, currentCommand));
     chart.data.datasets[0].borderColor = [...Array(commandLabels.length).keys()].map(barId => getBorderColor(barId, currentCommand, chart.options.isBarLocked));
     chart.update();
-    // document.getElementById('displayCommandInfo').textContent = `Agent ${agentId} Chosen Command:  ${command}`;
-}
+    if (currentCommand === null) {
+        document.getElementById(`variable_${agentId}`).textContent = ``;
+    } else {
+    document.getElementById(`variable_${agentId}`).textContent = `${username}`;}
+};
 
 const getBarColor = (barId, currentCommand) => {
     // highlight the current command bar

@@ -173,7 +173,7 @@ const connectEnv = () => {
             if (deviceSelection[device]) subtaskSelectionDeviceInitFuncs[device](onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
         });
     });
-    sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods, interactionTime }) => {
+    sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods, interactionTime, username}) => {
         if (interactionTime) {
             updateLog(`Agent ${agentId}: Interaction time ${interactionTime.toFixed(1)}s`);
         }
@@ -195,7 +195,7 @@ const connectEnv = () => {
                 if (likelihoods !== null) updateChartData(agentId, likelihoods);  // sync the chart data before updating the lock status
             }
             updateChartLock(agentId, nextAcceptableCommands);
-            updateChartColor(agentId, command);
+            updateChartColor(agentId, command, username);
         }
     });
     sockEnv.on('requestClientStart', clientStart);
@@ -243,9 +243,6 @@ const connectEnv = () => {
     // document.getElementById('displayUserList').textContent = `${user_list}`;
     setSockEnv(sockEnv);
 
-    sockEnv.on('commandUser', async (data) => {
-    document.getElementById('commandUser').textContent = `${data} sent command`;
-    setSockEnv(sockEnv);})
 }
 
 const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
@@ -286,38 +283,7 @@ const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
             interactionTime: interactionTime,
             userinfo: userinfo,
         });
-        console.log(userinfo.user_list);
-        console.log(userinfo.name);
-        // displayUserInfo();
-        // document.getElementById('displayUserInfo').textContent = `userID== ${userinfo.name}`;
-        // document.getElementById('displayUserList').textContent = `USERS\n${userinfo.user_list.join('\n')}`;
-
-        // // updateCommand(user_list, command);
-        // sockEnv.on('userCommand', async (username) => {
-        //     console.log('Received user list update:');
-        //     console.log(username);
-           
-        //     // userinfo.user_list = user_list;
-        //     // const userListElement = document.getElementById('displayUserList');
-        //     // if (userinfo.user_list && userinfo.user_list.length > 0) {
-        //     //     userListElement.innerHTML = `USERS<br>${userinfo.user_list.join('<br>')}`;
-        //     // } else {
-        //     //     userListElement.innerHTML = 'USERS<br>No users available';
-        //     // }  
-        //   });
-
-        // setSockEnv(sockEnv);
-       // sockEnv.on('commandUser', async (username) => {
-
-        //     // userinfo.user_list = user_list;
-        //     // const userListElement = document.getElementById('displayUserList');
-        //     // if (userinfo.user_list && userinfo.user_list.length > 0) {
-        //     //     userListElement.innerHTML = `USERS<br>${userinfo.user_list.join('<br>')}`;
-        //     // } else {
-        //     //     userListElement.innerHTML = 'USERS<br>No users available';
-        //     // }    });
-        // document.getElementById('commandUser').textContent = `${username}`;
-        // setSockEnv(sockEnv);})
+       
     }
     // update the chart
     updateChartData(agentId, likelihoods);

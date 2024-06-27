@@ -25,8 +25,7 @@
                 <video id="camera_{{i}}" autoplay playsinline muted></video>
                 <div class="chart-container">
                     <canvas id="chart_{{i}}" class="likelihood-chart"></canvas>
-                    <!-- <div id="commandUser">:::</div> -->
-                    <!-- <div id="username_{{i}}" class="username-display">ユーザー名: 未設定</div> -->
+                    <div id="variable_{{i}}" class="variable-display"></div>
                 </div>
             </div>
             {% endfor %}
@@ -37,17 +36,6 @@
             </div>
             <p id="device-status-area" class="mb-0"></p>
             <div id="displayUserList">...</div>
-            <!-- <div id="username-display">---</div> -->
-            <div id="commandUser">:::</div>
-            <!-- <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-            <script>
-            const socket = io();
-            socket.on('commandUser', (username) => {
-                const usernameDisplay = document.getElementById('username-display');
-                usernameDisplay.textContent = `最新のユーザー: ${username}`;
-            });
-            </script> -->
-            <!-- <div id="userAndCommand1"></div> -->
             <div class="button-container">
                 <button type="button" class="btn btn-primary" id="start-button" disabled>Start</button>
                 <button type="button" class="btn btn-danger" id="reset-button" disabled>Stop & Reset</button>
