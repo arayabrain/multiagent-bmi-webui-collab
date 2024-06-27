@@ -89,26 +89,21 @@ async def setuser(request: Request, userinfo: dict):
 
 @app.post("/api/save-nasa-tlx-data")
 async def save_nasa_tlx_data(request: Request, survey_data: dict):
-    # TODO: ask for project id and create folder,  make sure new session same day won't overwrite.
-    # currently only works if session is completed.
+    # TODO: ask for project id and create folder, replace timestamp with something more stable
     mode = survey_data['mode']
-    date_id = datetime.now().strftime("%Y%m%d")
-
-    date_log_dir = log_dir / date_id
-    # if not exp_log_dir.exists(): 
-    #     exp_log_dir.mkdir(parents=True, exist_ok=True)
-
-    n_users = len(set(sid2username.values()))
-    n_agents = env_info[mode]["num_agents"]
-    session_name = f"{n_users}users_{n_agents}agents"
 
     username = survey_data['userinfo']['name']
+    sub_log_dir = log_dir / f"{username}"
+    sub_log_dir.mkdir(parents=True, exist_ok=True)
 
-    survey_path = date_log_dir / session_name / username 
 
-    selected_devices = [device for device, is_selected in survey_data['device-selection'].items() if is_selected]
+    time_id = datetime.now().strftime("%Y%m%d%H%M")
+    session_name = f"{time_id}" #might want to make bids format
 
-    file_name = "_".join(selected_devices) + "_nasatlx.json"
+    survey_path = sub_log_dir / session_name
+    survey_path.mkdir(parents=True, exist_ok=True)
+
+    file_name = f"{time_id}_{username}_nasatlx.json"
     with open(survey_path / file_name, mode="w") as f:
         json.dump(survey_data, f, indent=4)
 
@@ -220,7 +215,7 @@ async def connect(sid, environ):
 
     # set exp_id if not set
     if mode not in exp_ids:
-        exp_ids[mode] = datetime.now().strftime("%Y%m%d_%H%M%S") #experiment ids are shared between clients if in same mode.
+        exp_ids[mode] = datetime.now().strftime("%Y%m%d%H%M") #experiment ids are shared between clients if in same mode.
 
     await sio.emit(
         "init",
@@ -284,25 +279,15 @@ async def disconnect(sid):
     await sio.emit("user_list_update", connectedUsers) 
 
 
-async def on_completed(mode: str): # create data storage: projectA/date/1user_2agents/username/(dev1_dev2_nasatlx.json)
+async def on_completed(mode: str):
     task_completion_timers[mode].stop()
 
-    # create and populate session specific folders
-    date_id = exp_ids.pop(mode)[:8]
-    date_log_dir = log_dir / date_id
-    date_log_dir.mkdir(parents=True, exist_ok=True)
+    time_id = exp_ids.pop(mode)
 
     # get session info for folder names
-    n_users, n_agents = interaction_recorders[mode].count_users_and_agents()
-    
-    session_name = f"{n_users}users_{n_agents}agents"
-    session_log_dir = date_log_dir / session_name
+    session_name = f"{time_id}"
+    session_log_dir = log_dir / session_name
     session_log_dir.mkdir(parents=True, exist_ok=True)
-
-    usernames = [sid2username[sid] for sid in modes if modes[sid] == mode]
-    for username in usernames:
-        username_log_dir = session_log_dir / username
-        username_log_dir.mkdir(parents=True, exist_ok=True)
     
 
     info = {"total": {"taskCompletionTime": task_completion_timers[mode].elapsed}}
@@ -384,18 +369,12 @@ async def webrtc_offer_request(sid, userinfo):
     pc = peer_connections[sid]
     mode = modes[sid]
 
-
-    # # store user name for command logging
-    # if sid not in sid2username:
-    #     sid2username[sid] = userinfo["name"]
-
     keys_to_remove = [key for key, value in sid2username.items() if value == userinfo["name"]]
     for key in keys_to_remove:
         sid2username.pop(key)
 
-    
     sid2username[sid] = userinfo["name"]
-    # replace the sid with the new sid
+
     # add stream tracks
     tracks = stream_manager.get_tracks(mode)
     for track in tracks:
