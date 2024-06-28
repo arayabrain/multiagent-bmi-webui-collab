@@ -50,10 +50,9 @@ const saveNASATLXSurveyData = async () => {
   for (const key of Object.keys(NASATLXFieldToInputName)) {
     const inputName = NASATLXFieldToInputName[key];
     const inputValue = document.querySelector(`input[name="${inputName}"]`);
-    
+
     NASATLXSurveyData[key] = parseInt(inputValue.value, 10);
   }
-  console.log(NASATLXSurveyData);
   
   // Recover the mode
   // NOTE !!! The survey must be accessed from the modal, otherwise
