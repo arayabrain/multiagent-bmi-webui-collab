@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
       await saveNASATLXSurveyData();
   });
   document.querySelector('#clear-button').addEventListener('click', clearForm);
-  document.querySelector('#rndfill-button').addEventListener('click', randomFormFill);
 
   // Display the current user name
   document.getElementById("username-area").innerHTML = "User: " + JSON.parse(sessionStorage.userinfo).name;
@@ -38,23 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById("device-status-area").innerHTML = connecteDevices;
 });
 
-// For debug purposes, randomly fill the form before sending data
-const randomFormFill = () => {
-
-  Object.keys(NASATLXFieldToInputName).forEach(key => {
-    // Get collection of radio buttons
-    const radioButtons = document.getElementsByName(NASATLXFieldToInputName[key]);
-    // Uncheck radio buttons of each field.
-    let valueToCheck = Math.floor(Math.random() * (7) + 1);
-
-    radioButtons.forEach(radio => {
-      if (parseInt(radio.value, 10) == valueToCheck) {
-        radio.checked = true;
-      }
-    });
-  });
-}
-
 // Clears the form
 const clearForm = () => {
   document.getElementById("nasa-tlx-survey-form").reset();
@@ -67,26 +49,16 @@ const saveNASATLXSurveyData = async () => {
 
   for (const key of Object.keys(NASATLXFieldToInputName)) {
     const inputName = NASATLXFieldToInputName[key];
-    const inputValue = document.querySelector(`input[name="${inputName}"]:checked`);
-    NASATLXSurveyData[key] = null; // Placeholder value
-
-    if (inputValue) {
-      NASATLXSurveyData[key] = parseInt(inputValue.value, 10);
-    } else {
-      nullKeyFound = true;
-    }
+    const inputValue = document.querySelector(`input[name="${inputName}"]`);
+    
+    NASATLXSurveyData[key] = parseInt(inputValue.value, 10);
   }
-  // console.log(NASATLXSurveyData);
-
-  // Assert that there is not null key
-  if (nullKeyFound) {
-    // TODO: cleaner / integrate way of notifiying use
-    // by using a modal for e.g. ?
-    alert("All fields are required");
-    return false;
-  }
+  console.log(NASATLXSurveyData);
   
   // Recover the mode
+  // NOTE !!! The survey must be accessed from the modal, otherwise
+  // this will fail, and there won't be info about what "mode" this
+  // experiment data corresponds to.
   var previousURL = new URL(document.referrer);
   var mode = previousURL.pathname.split('/').filter(Boolean).pop();
 
