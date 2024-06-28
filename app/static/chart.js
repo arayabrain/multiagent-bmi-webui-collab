@@ -121,7 +121,7 @@ export const updateChartColor = (agentId, currentCommand, username) => {
     if (currentCommand === null) {
         document.getElementById(`variable_${agentId}`).textContent = ``;
     } else {
-    document.getElementById(`variable_${agentId}`).textContent = `${username}`;}
+    document.getElementById(`variable_${agentId}`).textContent = ` ${username}`;}
 };
 
 const getBarColor = (barId, currentCommand) => {
