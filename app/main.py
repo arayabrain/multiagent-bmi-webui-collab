@@ -51,7 +51,7 @@ peer_connections: Dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for ea
 sid2userid: Dict[str, str] = {} # user_i d for each sid
 sid2username: Dict[str, str] = {} # user_name for each sid
 connectedUsers: List = [] # list of users that registered in their browsers
-exp_ids: Dict[str, str] = {}  # exp_id for each mode
+mode2expids: Dict[str, str] = {}  # exp_id for each mode
 task_completion_timers: Dict[str, taskCompletionTimer] = {}  # taskCompletionTimer for each mode
 interaction_recorders: Dict[str, InteractionRecorder] = {} 
 
@@ -97,7 +97,7 @@ async def save_nasa_tlx_data(request: Request, survey_data: dict):
     sub_log_dir.mkdir(parents=True, exist_ok=True)
 
 
-    time_id = datetime.now().strftime("%Y%m%d%H%M")
+    time_id = mode2expids[mode]
     session_name = f"{time_id}" #might want to make bids format
 
     survey_path = sub_log_dir / session_name
@@ -213,14 +213,10 @@ async def connect(sid, environ):
         envs[mode] = env
         stream_manager.setup(mode, env.env.get_visuals, env.num_agents)
 
-    # set exp_id if not set
-    if mode not in exp_ids:
-        exp_ids[mode] = datetime.now().strftime("%Y%m%d%H%M") #experiment ids are shared between clients if in same mode.
-
     await sio.emit(
         "init",
         {
-            "expId": exp_ids[mode],
+            #"expId": mode2expids[mode],
             "isDataCollection": mode.startswith("data-collection"),
             "commandLabels": env.command_labels,
             "commandColors": env.command_colors,
@@ -282,7 +278,8 @@ async def disconnect(sid):
 async def on_completed(mode: str):
     task_completion_timers[mode].stop()
 
-    time_id = exp_ids.pop(mode)
+    time_id = mode2expids[mode]
+
 
     # get session info for folder names
     session_name = f"{time_id}"
@@ -306,11 +303,13 @@ async def add_user(sid, data):
     return True
 
 
-@sio.on("requestServerStart")
+@sio.on("requestServerStart") # getting username here to use as key to find exp_id is not trivial. connected users doesnt show all users here yet.
 async def server_start(sid):
     mode = modes[sid]
     env = envs[mode]
     assert not env.is_running
+    
+    mode2expids[mode] = datetime.now().strftime("%Y%m%d%H%M%S")
 
     # Initialize metrics and start env
     interaction_recorders[mode].reset()
