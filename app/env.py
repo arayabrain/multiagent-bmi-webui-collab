@@ -3,8 +3,6 @@ import multiprocessing as mp
 import os
 import platform
 import subprocess
-import sys
-from enum import Enum
 
 import gym
 import numpy as np
@@ -42,7 +40,7 @@ class EnvRunner:
         self.notify_fn = notify_fn
         self.on_completed_fn = on_completed_fn
 
-        if num_agents <= 4:
+        if num_agents < 1:
             self.env = gym.make(env_id)
         else:
             # NOTE: builds sub_envs based on pattern:
@@ -387,3 +385,19 @@ class MultiRobotSubEnvWrapper():
     
     def status_led_on(self, idx_policy):
         self.status_led_setter(idx_policy, "status_led_on")
+
+
+# If run as main, tests basic AsyncVectorEnv wrapper around robohive-multi envs.
+if __name__ == "__main__":
+    # Require within __main__ for visual obs rendering with multiprocessing
+    mp.set_start_method("spawn")
+
+    envs = AsyncVectorEnv([lambda: gym.make("FrankaProcedural1Robots4Col-v0") for _ in range(8)])
+    
+    import time
+    while True:
+        visuals = envs.get_visuals()
+        time.sleep(1 / 60)
+
+    # print(visuals[0].keys())
+    pass
