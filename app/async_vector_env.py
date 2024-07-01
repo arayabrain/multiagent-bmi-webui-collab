@@ -381,9 +381,6 @@ class AsyncVectorEnv(VectorEnv):
 
 # Overriding to add support for custom sub env function handling
 def _worker(index, env_fn, pipe, parent_pipe, shared_memory, error_queue):
-  print("#########################################")
-  print("###### Custom function is called ########")
-  print("#########################################")
   assert shared_memory is None
   env = env_fn()
   parent_pipe.close()
@@ -400,6 +397,15 @@ def _worker(index, env_fn, pipe, parent_pipe, shared_memory, error_queue):
         pipe.send((observation, reward, done, info))
       elif command == "visuals":
         pipe.send(env.get_visuals())
+      elif command == "visual":
+        # TODO: do we need a "visual_X" for each sub envs's robot ?
+        pass
+      elif command == "led_on":
+        # data: idx_policy, i.e. the idx of the robot in the sub env
+        pipe.send(env.status_led_on(data))
+      elif command == "led_off":
+        # data: idx_policy, i.e. the idx of the robot in the sub env
+        pipe.send(env.status_led_off(data))
       elif command == 'seed':
         env.seed(data)
         pipe.send(None)
