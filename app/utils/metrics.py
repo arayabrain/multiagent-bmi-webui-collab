@@ -85,7 +85,7 @@ class InteractionRecorder:
         return len(unique_users), len(unique_agents)
 
 
-def compute_metrics(exp_log_dir: Path, save=False):
+def compute_session_metrics(exp_log_dir: Path, save=False):
     """
     Given the interaction history, compute metrics and save the summary to a json file like:
     {
@@ -118,9 +118,11 @@ def compute_metrics(exp_log_dir: Path, save=False):
     df_hist = pd.read_json(exp_log_dir / "history.jsonl", orient="records", lines=True)
     df_info = pd.read_json(exp_log_dir / "info.json")
 
-    user_ids = df_info.columns.to_list()
+    user_ids = df_info.columns.to_list() # user ids 
     if "total" not in user_ids:
         user_ids.append("total")
+
+    metrics = {}
 
     metrics = {}
     for user_id in user_ids:
@@ -133,19 +135,19 @@ def compute_metrics(exp_log_dir: Path, save=False):
 
     # interaction time stats
     for user_id, times in grouped["interactionTime"]:
-        metrics[user_id]["interactionTime"] = _compute_interaction_time_stats(times.to_list())
-    metrics["total"]["interactionTime"] = _compute_interaction_time_stats(df_hist["interactionTime"].to_list())
+        metrics[user_id]["interactionTime"] = times.to_list()
+    metrics["total"]["interactionTime"] = df_hist["interactionTime"].to_list()
 
     # error rates
     for (user_id, accs), (_, nds) in zip(grouped["isNowAcceptable"], grouped["hasSubtaskNotDone"]):
-        metrics[user_id]["errorRate"] = _compute_error_rate(accs.to_list(), nds.to_list())
-    metrics["total"]["errorRate"] = _compute_error_rate(
+        metrics[user_id]["commands"] = _compute_error_rate(accs.to_list(), nds.to_list())
+    metrics["total"]["commands"] = _compute_error_rate(
         df_hist["isNowAcceptable"].to_list(), df_hist["hasSubtaskNotDone"].to_list()
     )
 
     if save:
         with open(exp_log_dir / "metrics.json", "w") as f:
-            json.dump(metrics, f, indent=4)
+            json.dump(metrics['total'], f, indent=4)
 
     return metrics
 
@@ -168,6 +170,5 @@ def _compute_error_rate(is_now_acceptable_ls: list, has_subtask_not_done_ls: lis
             err_cnt += 1
     return {
         "total_count": total_cnt,
-        "error_count": err_cnt,
-        "error_rate": err_cnt / total_cnt if total_cnt > 0 else 0,
+        "error_count": err_cnt
     }

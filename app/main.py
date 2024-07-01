@@ -20,7 +20,7 @@ from typing import Dict, List
 
 from app.env import EnvRunner
 from app.stream import StreamManager
-from app.utils.metrics import InteractionRecorder, compute_metrics, taskCompletionTimer
+from app.utils.metrics import InteractionRecorder, compute_session_metrics, taskCompletionTimer
 from app.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
 
 load_dotenv()
@@ -290,7 +290,7 @@ async def on_completed(mode: str):
     info = {"total": {"taskCompletionTime": task_completion_timers[mode].elapsed}}
     # todo?: add env/task information to info
     interaction_recorders[mode].save(session_log_dir, info=info) #saved in session folder
-    compute_metrics(session_log_dir, save=True)
+    compute_session_metrics(session_log_dir, save=True)
 
     await _server_stop(mode, is_completed=True)
 
