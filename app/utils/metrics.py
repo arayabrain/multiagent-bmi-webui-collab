@@ -111,7 +111,7 @@ def compute_user_metrics(user_log_dir: Path, userid, save=False):
         #make directory if not exist
         user_log_dir.mkdir(parents=True, exist_ok=True)
 
-        with open(user_log_dir / f"{username}_metrics.json", "w") as f:
+        with open(user_log_dir / "usermetrics.json", "w") as f:
             json.dump(metrics[userid], f, indent=4)
 
     return metrics
@@ -152,7 +152,7 @@ def compute_session_metrics(exp_log_dir: Path, save=False): #remove user metrics
     )
 
     if save:
-        with open(exp_log_dir / f"{expid}_metrics.json", "w") as f:
+        with open(exp_log_dir / "sessionmetrics.json", "w") as f:
             json.dump(metrics['total'], f, indent=4)
 
     return metrics

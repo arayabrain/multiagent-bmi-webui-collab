@@ -103,7 +103,7 @@ async def save_nasa_tlx_data(request: Request, survey_data: dict):
     survey_path = sub_log_dir / session_name
     survey_path.mkdir(parents=True, exist_ok=True)
 
-    file_name = f"{time_id}_{username}_nasatlx.json"
+    file_name = "nasatlx.json"
     with open(survey_path / file_name, mode="w") as f:
         json.dump(survey_data, f, indent=4)
 
@@ -296,7 +296,6 @@ async def on_completed(mode: str):
         sid = [sid for sid, name in sid2username.items() if name == username][0]
         userid = sid2userid[sid]
         compute_user_metrics(user_log_dir, userid, save = True)
-        print("")
 
 
     compute_session_metrics(session_log_dir, save=True)
