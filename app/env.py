@@ -3,6 +3,7 @@ import multiprocessing as mp
 import os
 import platform
 import subprocess
+import time
 
 import gym
 import numpy as np
@@ -40,7 +41,7 @@ class EnvRunner:
         self.notify_fn = notify_fn
         self.on_completed_fn = on_completed_fn
 
-        if num_agents < 1:
+        if num_agents <= 4:
             self.env = gym.make(env_id)
         else:
             # NOTE: builds sub_envs based on pattern:
@@ -377,24 +378,35 @@ class MultiRobotSubEnvWrapper():
     def status_led_setter(self, idx_policy, fn_name):
         sub_env_idx = idx_policy // self.max_agents_per_env
         sub_env_agent_idx = idx_policy % self.max_agents_per_env
-        # TODO: ass async support
-        # getattr(self.sub_envs[sub_env_idx], fn_name)(sub_env_agent_idx)
+        getattr(self.sub_envs[sub_env_idx], fn_name)(sub_env_agent_idx)
 
     def status_led_off(self, idx_policy):
-        self.status_led_setter(idx_policy, "status_led_off")
+        # AsyncVectorEnv variant
+        self.sub_envs.set_status_led_off(idx_policy)
+
+        # Naive variant # TODO: clean up
+        # self.status_led_setter(idx_policy, "status_led_off")
     
     def status_led_on(self, idx_policy):
-        self.status_led_setter(idx_policy, "status_led_on")
+        self.sub_envs.set_status_led_on(idx_policy)
+
+        # Naive variant # TODO: clean up
+        # self.status_led_setter(idx_policy, "status_led_on")
 
 
 # If run as main, tests basic AsyncVectorEnv wrapper around robohive-multi envs.
 if __name__ == "__main__":
     # Require within __main__ for visual obs rendering with multiprocessing
     mp.set_start_method("spawn")
+    N_ROBOTS = 16
 
-    envs = AsyncVectorEnv([lambda: gym.make("FrankaProcedural1Robots4Col-v0") for _ in range(8)])
+    envs = AsyncVectorEnv([lambda: gym.make("FrankaProcedural1Robots4Col-v0") for _ in range(N_ROBOTS)])
+
+    # Testing LED on / off pure async toggle fns
+    for i in range(N_ROBOTS):
+        envs.set_status_led_off(i)
+        envs.set_status_led_on(i)
     
-    import time
     while True:
         visuals = envs.get_visuals()
         time.sleep(1 / 60)

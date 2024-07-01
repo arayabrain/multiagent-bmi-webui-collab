@@ -337,7 +337,7 @@ class AsyncVectorEnv(VectorEnv):
             if not self.closed:
                 self.close(terminate=True)
 
-    # Robohive Multi Visuals (All in Onen)
+    # Robohive Multi Visuals (All in One)
     def get_visuals_async(self):
         self._assert_is_running()
         # NOTE: is it safe to query visual obs without 
@@ -378,6 +378,22 @@ class AsyncVectorEnv(VectorEnv):
         self.get_visuals_async()
         return self.get_visuals_wait()
 
+    # Robohive Multi Robot Status LED
+    ## LED OFF, purely async, no waiting
+    def set_status_led_off(self, sub_env_idx):
+
+        self._assert_is_running()
+        self.parent_pipes[sub_env_idx].send(("led_off", 0))
+
+        return True
+
+    ## LED ON, purely async, no waiting
+    def set_status_led_on(self, sub_env_idx):
+        self._assert_is_running()
+        self.parent_pipes[sub_env_idx].send(("led_on", 0))
+
+        return True
+
 
 # Overriding to add support for custom sub env function handling
 def _worker(index, env_fn, pipe, parent_pipe, shared_memory, error_queue):
@@ -399,7 +415,7 @@ def _worker(index, env_fn, pipe, parent_pipe, shared_memory, error_queue):
         pipe.send(env.get_visuals())
       elif command == "visual":
         # TODO: do we need a "visual_X" for each sub envs's robot ?
-        pass
+        raise NotImplementedError("Async query of sub envs visual not implemented yet !")
       elif command == "led_on":
         # data: idx_policy, i.e. the idx of the robot in the sub env
         pipe.send(env.status_led_on(data))
@@ -447,6 +463,15 @@ def _worker_shared_memory(index, env_fn, pipe, parent_pipe, shared_memory, error
         pipe.send((None, reward, done, info))
       elif command == "visuals":
         pipe.send(env.get_visuals())
+      elif command == "visual":
+        # TODO: do we need a "visual_X" for each sub envs's robot ?
+        raise NotImplementedError("Async query of sub envs visual not implemented yet !")
+      elif command == "led_on":
+        # data: idx_policy, i.e. the idx of the robot in the sub env
+        pipe.send(env.status_led_on(data))
+      elif command == "led_off":
+        # data: idx_policy, i.e. the idx of the robot in the sub env
+        pipe.send(env.status_led_off(data))
       elif command == 'seed':
         env.seed(data)
         pipe.send(None)
