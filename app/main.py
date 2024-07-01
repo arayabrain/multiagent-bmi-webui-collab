@@ -20,7 +20,7 @@ from typing import Dict, List
 
 from app.env import EnvRunner
 from app.stream import StreamManager
-from app.utils.metrics import InteractionRecorder, compute_session_metrics, compute_user_metrics, taskCompletionTimer
+from app.utils.metrics import InteractionRecorder, compute_sessionmetrics, compute_usermetrics, taskCompletionTimer
 from app.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
 
 load_dotenv()
@@ -277,28 +277,25 @@ async def disconnect(sid):
 
 async def on_completed(mode: str):
     task_completion_timers[mode].stop()
-
     time_id = mode2expids[mode]
-
-
     # get session info for folder names
     session_name = f"{time_id}"
     session_log_dir = log_dir / session_name
     session_log_dir.mkdir(parents=True, exist_ok=True)
     
 
-    info = {"total": {"taskCompletionTime": task_completion_timers[mode].elapsed}}
+    comp_time = task_completion_timers[mode].elapsed
     # todo?: add env/task information to info
-    interaction_recorders[mode].save(session_log_dir, info=info) #saved in session folder
+    interaction_recorders[mode].save_session(session_log_dir) #saves usernames and agent number to info.json, saves history.jsonl
 
     for username in connectedUsers: #might want to change so doesnt require registration
         user_log_dir = log_dir / username / session_name
         sid = [sid for sid, name in sid2username.items() if name == username][0]
         userid = sid2userid[sid]
-        compute_user_metrics(user_log_dir, userid, save = True)
+        compute_usermetrics(user_log_dir, userid, save = True) #should run without info.json
+        interaction_recorders[mode].save_userinfo(user_log_dir, userid)
 
-
-    compute_session_metrics(session_log_dir, save=True)
+    compute_sessionmetrics(session_log_dir,info = comp_time,  save=True) #should no longer need info.json
 
     await _server_stop(mode, is_completed=True)
 
