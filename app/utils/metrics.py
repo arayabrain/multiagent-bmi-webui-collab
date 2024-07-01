@@ -83,38 +83,44 @@ class InteractionRecorder:
             unique_agents.add(record["agentId"])
 
         return len(unique_users), len(unique_agents)
+    
+def compute_user_metrics(user_log_dir: Path, userid, save=False):
 
+    username = user_log_dir.parts[-2]
+    expid = user_log_dir.parts[-1]
 
-def compute_session_metrics(exp_log_dir: Path, save=False):
+    log_dir = user_log_dir.parents[1]
+    exp_log_dir = log_dir / expid
+
+    df_hist = pd.read_json(exp_log_dir / "history.jsonl", orient="records", lines=True)
+    df_info = pd.read_json(exp_log_dir / "info.json")
+
+    metrics = {}
+
+    metrics[userid] = {}
+
+    grouped = df_hist.groupby("userId")
+
+    metrics[userid]["interactionTime"] = df_hist[df_hist["userId"]==userid]["interactionTime"].to_list()
+
+    metrics[userid]["commands"] = _compute_error_rate(
+        df_hist[df_hist["userId"]==userid]["isNowAcceptable"].to_list(), df_hist[df_hist["userId"]==userid]["hasSubtaskNotDone"].to_list()
+    )
+
+    if save:
+        #make directory if not exist
+        user_log_dir.mkdir(parents=True, exist_ok=True)
+
+        with open(user_log_dir / f"{username}_metrics.json", "w") as f:
+            json.dump(metrics[userid], f, indent=4)
+
+    return metrics
+
+def compute_session_metrics(exp_log_dir: Path, save=False): #remove user metrics
     """
-    Given the interaction history, compute metrics and save the summary to a json file like:
-    {
-        "abcd0123": {
-            "interactionTime": {
-                "mean": 0.5,
-                "std": 1.0,
-            },
-            "errorRate": {
-                "total_count": 10,
-                "error_count": 1,
-                "error_rate": 0.1,
-            }
-        },
-        "efgh4567": {...},
-        "total": {
-            "taskCompletionTime": 100.0,
-            "interactionTime": {
-                "mean": 0.5,
-                "std": 1.0,
-            },
-            "errorRate": {
-                "total_count": 10,
-                "error_count": 1,
-                "error_rate": 0.1,
-            }
-        },
-    }
+    Given the interaction history, compute metrics and save the summary to a json file 
     """
+    expid = exp_log_dir.parts[-1]
     df_hist = pd.read_json(exp_log_dir / "history.jsonl", orient="records", lines=True)
     df_info = pd.read_json(exp_log_dir / "info.json")
 
@@ -146,7 +152,7 @@ def compute_session_metrics(exp_log_dir: Path, save=False):
     )
 
     if save:
-        with open(exp_log_dir / "metrics.json", "w") as f:
+        with open(exp_log_dir / f"{expid}_metrics.json", "w") as f:
             json.dump(metrics['total'], f, indent=4)
 
     return metrics
