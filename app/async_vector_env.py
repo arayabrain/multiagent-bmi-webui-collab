@@ -338,6 +338,17 @@ class AsyncVectorEnv(VectorEnv):
                 self.close(terminate=True)
 
     # Robohive Multi Visuals (All in One)
+    # Purely Async
+    def get_single_visuals(self, sub_env_idx, robot_idx=0):
+        # TODO: add corresponding fn in robohive-multi base env, then debug all together.
+        self._assert_is_running()
+        pipe = self.parent_pipes[sub_env_idx]
+        # Query visual obs for a single robot
+        pipe.send(("get_single_visuals", robot_idx))
+        return pipe.recv()
+
+
+    # Robohive Multi Visuals (All in One)
     def get_visuals_async(self):
         self._assert_is_running()
         # NOTE: is it safe to query visual obs without 
@@ -380,17 +391,16 @@ class AsyncVectorEnv(VectorEnv):
 
     # Robohive Multi Robot Status LED
     ## LED OFF, purely async, no waiting
-    def set_status_led_off(self, sub_env_idx):
-
+    def set_status_led_off(self, sub_env_idx, robot_idx=0):
         self._assert_is_running()
-        self.parent_pipes[sub_env_idx].send(("led_off", 0))
+        self.parent_pipes[sub_env_idx].send(("led_off", robot_idx))
 
         return True
 
     ## LED ON, purely async, no waiting
-    def set_status_led_on(self, sub_env_idx):
+    def set_status_led_on(self, sub_env_idx, robot_idx=0):
         self._assert_is_running()
-        self.parent_pipes[sub_env_idx].send(("led_on", 0))
+        self.parent_pipes[sub_env_idx].send(("led_on", robot_idx))
 
         return True
 

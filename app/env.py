@@ -76,9 +76,9 @@ class EnvRunner:
         if isinstance(self.env, MultiRobotSubEnvWrapper):
             n_agents_per_env = self.env.max_agents_per_env
             self.policies = []
-            # for idx, sub_env in enumerate(self.env.sub_envs):
-            #     self.policies.extend([MotionPlannerPolicy(sub_env, 
-            #         *gen_robot_names(i), horizon) for i in range(n_agents_per_env)])
+            for idx, sub_env in enumerate(self.env.sub_envs):
+                self.policies.extend([MotionPlannerPolicy(sub_env, 
+                    *gen_robot_names(i), horizon) for i in range(n_agents_per_env)])
         else:
             self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
 
