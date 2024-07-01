@@ -41,7 +41,7 @@ class EnvRunner:
         self.notify_fn = notify_fn
         self.on_completed_fn = on_completed_fn
 
-        if num_agents <= 4:
+        if num_agents < 1:
             self.env = gym.make(env_id)
         else:
             # NOTE: builds sub_envs based on pattern:
@@ -337,10 +337,10 @@ class MultiRobotSubEnvWrapper():
 
     def get_visuals(self):
         # Accumulate and returns the visuals for stream_manager mainly
-        return self.sub_envs.get_visuals()
+        visual_list = self.sub_envs.get_visuals()
 
         visuals = {}
-        visual_list = [sub_env.get_visuals() for sub_env in self.sub_envs]
+        # visual_list = [sub_env.get_visuals() for sub_env in self.sub_envs]
 
         sub_env_agent_idx = 0 # track current agent idx from POV of desired total num_agents.
         for sub_env_visual_dict in visual_list:
@@ -375,23 +375,21 @@ class MultiRobotSubEnvWrapper():
     def reset(self):
         return self.sub_envs.reset()
 
+    # AsyncVectorEnv does not use this helper fn, but
+    # leaving for ref. as it will be useful for
+    # sub envs with multiple robots within later.
     def status_led_setter(self, idx_policy, fn_name):
         sub_env_idx = idx_policy // self.max_agents_per_env
         sub_env_agent_idx = idx_policy % self.max_agents_per_env
         getattr(self.sub_envs[sub_env_idx], fn_name)(sub_env_agent_idx)
 
-    def status_led_off(self, idx_policy):
+    def status_led_off(self, sub_env_idx):
         # AsyncVectorEnv variant
-        self.sub_envs.set_status_led_off(idx_policy)
-
-        # Naive variant # TODO: clean up
-        # self.status_led_setter(idx_policy, "status_led_off")
+        self.sub_envs.set_status_led_off(sub_env_idx)
     
-    def status_led_on(self, idx_policy):
-        self.sub_envs.set_status_led_on(idx_policy)
-
-        # Naive variant # TODO: clean up
-        # self.status_led_setter(idx_policy, "status_led_on")
+    def status_led_on(self, sub_env_idx):
+        # AsyncVectorEnv variant
+        self.sub_envs.set_status_led_on(sub_env_idx)
 
 
 # If run as main, tests basic AsyncVectorEnv wrapper around robohive-multi envs.
@@ -400,7 +398,8 @@ if __name__ == "__main__":
     mp.set_start_method("spawn")
     N_ROBOTS = 16
 
-    envs = AsyncVectorEnv([lambda: gym.make("FrankaProcedural1Robots4Col-v0") for _ in range(N_ROBOTS)])
+    envs = AsyncVectorEnv([lambda: gym.make("FrankaProcedural1Robots4Col-v0")
+                            for _ in range(N_ROBOTS)])
 
     # Testing LED on / off pure async toggle fns
     for i in range(N_ROBOTS):
