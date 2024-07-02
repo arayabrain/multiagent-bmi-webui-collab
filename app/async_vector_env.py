@@ -27,6 +27,9 @@ class AsyncState(Enum):
     WAITING_LED_OFF = "led_off"
     WAITING_LED_ON = "led_on"
     WAITING_MPP_SETUP = "motion_planner_policies_setup"
+    WAITING_POLICY_RESET = "policy_reset_env"
+    WAITING_POLICY_ACTION = "policy_action"
+    WAITING_POLICY_DONE_SUBTASKS = "policy_done_subtasks"
 
 
 class AsyncVectorEnv(VectorEnv):
@@ -409,7 +412,7 @@ class AsyncVectorEnv(VectorEnv):
     def setup_motion_planner_policies_async(self, horizon):
         self._assert_is_running()
         if self._state != AsyncState.DEFAULT:
-            raise AlreadyPendingCallError('Calling `setup_motion_planner_policies` while waiting '
+            raise AlreadyPendingCallError('Calling `setup_motion_planner_policies_async` while waiting '
                 'for a pending call to `{0}` to complete'.format(
                 self._state.value), self._state.value)
         for pipe in self.parent_pipes:
@@ -428,7 +431,7 @@ class AsyncVectorEnv(VectorEnv):
                 '{0} second{1}.'.format(timeout, 's' if timeout > 1 else ''))
 
         self._raise_if_errors()
-        mpp_setup_results = [pipe.recv() for pipe in self.parent_pipes]
+        mpp_setup_results = [pipe.recv() for pipe in self.parent_pipes] # A list of policy, one for each robot in the sub env
         self._state = AsyncState.DEFAULT
 
         return mpp_setup_results
@@ -436,6 +439,118 @@ class AsyncVectorEnv(VectorEnv):
     def setup_motion_planner_policies(self, horizon):
         self.setup_motion_planner_policies_async(horizon)
         return self.setup_motion_planner_policies_wait()
+
+    #
+    def policy_reset_env_async(self):
+        self._assert_is_running()
+        if self._state != AsyncState.DEFAULT:
+            raise AlreadyPendingCallError('Calling `policy_reset_env_async` while waiting '
+                'for a pending call to `{0}` to complete'.format(
+                self._state.value), self._state.value)
+        for pipe in self.parent_pipes:
+            pipe.send(("policy_reset_env", None))
+        self._state = AsyncState.WAITING_POLICY_RESET
+
+    def policy_reset_env_wait(self, timeout=None):
+        self._assert_is_running()
+        if self._state != AsyncState.WAITING_POLICY_RESET:
+            raise NoAsyncCallError('Calling `policy_reset_env_wait` without any prior '
+                'call to `policy_reset_env_async`.', AsyncState.WAITING_POLICY_RESET.value)
+
+        if not self._poll(timeout):
+            self._state = AsyncState.DEFAULT
+            raise mp.TimeoutError('The call to `policy_reset_env_wait` has timed out after '
+                '{0} second{1}.'.format(timeout, 's' if timeout > 1 else ''))
+
+        self._raise_if_errors()
+        policy_reset_results = [pipe.recv() for pipe in self.parent_pipes]
+        self._state = AsyncState.DEFAULT
+
+        return policy_reset_results
+
+    def policy_reset_env(self):
+        self.policy_reset_env_async()
+        return self.policy_reset_env_wait()
+
+    ##
+    def policy_reset_env_single(self, sub_env_idx, robot_idx=0):
+        self._assert_is_running()
+        self.parent_pipes[sub_env_idx].send(("policy_reset_env_single", robot_idx))
+    ##
+    def policy_reset_done_subtasks(self, sub_env_idx, robot_idx=0):
+        self._assert_is_running()
+        self.parent_pipes[sub_env_idx].send(("policy_reset_done_subtasks", robot_idx))
+
+    # TODO: purely async for each env ?
+    def get_policy_action_async(self, obs, command, norm=True):
+        self._assert_is_running()
+        if self._state != AsyncState.DEFAULT:
+            raise AlreadyPendingCallError('Calling `get_policy_action_async` while waiting '
+                'for a pending call to `{0}` to complete'.format(
+                self._state.value), self._state.value)
+        for pipe in self.parent_pipes:
+            pipe.send(("get_policy_action", (obs, command, norm)))
+        self._state = AsyncState.WAITING_POLICY_ACTION
+
+    def get_policy_action_wait(self, timeout=None):
+        self._assert_is_running()
+        if self._state != AsyncState.WAITING_POLICY_ACTION:
+            raise NoAsyncCallError('Calling `get_policy_action_wait` without any prior '
+                'call to `get_policy_ation_async`.', AsyncState.WAITING_POLICY_ACTION.value)
+
+        if not self._poll(timeout):
+            self._state = AsyncState.DEFAULT
+            raise mp.TimeoutError('The call to `get_policy_action_wait` has timed out after '
+                '{0} second{1}.'.format(timeout, 's' if timeout > 1 else ''))
+
+        self._raise_if_errors()
+        action__subtask_dones = [pipe.recv() for pipe in self.parent_pipes]
+        action, subtask_dones = [], []
+        # Unpack
+        for a_done_pair in action__subtask_dones:
+            action.append(a_done_pair[0])
+            subtask_dones.extend(a_done_pair[1])
+        action = np.concatenate(action)
+        self._state = AsyncState.DEFAULT
+
+        return action, subtask_dones
+
+    def get_policy_action(self, obs, command, norm=True):
+        self.get_policy_action_async(obs, command, norm)
+        return self.get_policy_action_wait()
+
+    #
+    def get_policy_done_subtasks_async(self):
+        self._assert_is_running()
+        if self._state != AsyncState.DEFAULT:
+            raise AlreadyPendingCallError('Calling `get_policy_done_subtasks_async` while waiting '
+                'for a pending call to `{0}` to complete'.format(
+                self._state.value), self._state.value)
+        for pipe in self.parent_pipes:
+            pipe.send(("get_policy_done_subtasks", None))
+        self._state = AsyncState.WAITING_POLICY_DONE_SUBTASKS
+
+    def get_policy_done_subtasks_wait(self, timeout=None):
+        self._assert_is_running()
+        if self._state != AsyncState.WAITING_POLICY_DONE_SUBTASKS:
+            raise NoAsyncCallError('Calling `get_policy_done_subtasks_wait` without any prior '
+                'call to `get_policy_done_subtasks_async`.', AsyncState.WAITING_POLICY_DONE_SUBTASKS.value)
+
+        if not self._poll(timeout):
+            self._state = AsyncState.DEFAULT
+            raise mp.TimeoutError('The call to `get_policy_done_subtasks_wait` has timed out after '
+                '{0} second{1}.'.format(timeout, 's' if timeout > 1 else ''))
+
+        self._raise_if_errors()
+        policies_done_subtasks = [pipe.recv() for pipe in self.parent_pipes]
+        self._state = AsyncState.DEFAULT
+
+        # TODO: some re-shaping I guess
+        return policies_done_subtasks
+
+    def get_policy_done_subtasks(self):
+        self.get_policy_done_subtasks_async()
+        return self.get_policy_done_subtasks_wait()
 
 
 # Overriding to add support for custom sub env function handling
@@ -468,6 +583,13 @@ def _worker(index, env_fn, pipe, parent_pipe, shared_memory, error_queue):
       elif command == "setup_motion_planner_policies":
         # data: horizon for motion planning
         pipe.send(env.setup_motion_planner_policies(data))
+      elif command == "policy_reset_env":
+        pipe.send(env.policy_reset_env())
+      elif command == "get_policy_action":
+        # data: (obs, command, norm)
+        pipe.send(env.get_policy_action(*data))
+      elif command == "get_policy_done_subtasks":
+        pipe.send(env.get_policy_done_subtasks())
       elif command == 'seed':
         env.seed(data)
         pipe.send(None)
@@ -519,7 +641,15 @@ def _worker_shared_memory(index, env_fn, pipe, parent_pipe, shared_memory, error
         # data: idx_policy, i.e. the idx of the robot in the sub env
         pipe.send(env.status_led_off(data))
       elif command == "setup_motion_planner_policies":
-        pipe.send(env.setup_motion_planner_policies())
+        # data: horizon for motion planning
+        pipe.send(env.setup_motion_planner_policies(data))
+      elif command == "policy_reset_env":
+        pipe.send(env.policy_reset_env())
+      elif command == "get_policy_action":
+        # data: (obs, command, norm)
+        pipe.send(env.get_policy_action(*data))
+      elif command == "get_policy_done_subtasks":
+        pipe.send(env.get_policy_done_subtasks())
       elif command == 'seed':
         env.seed(data)
         pipe.send(None)
