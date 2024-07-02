@@ -8,7 +8,7 @@ import time
 import gym
 import numpy as np
 import robohive_multi  # Makes the environments accessible # noqa: F401 # type: ignore
-from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names  # type: ignore
+from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names
 from app.async_vector_env import AsyncVectorEnv
 
 # check if display is available on Linux
@@ -74,11 +74,8 @@ class EnvRunner:
         # init policies
         horizon = 2  # TODO
         if isinstance(self.env, MultiRobotSubEnvWrapper):
-            n_agents_per_env = self.env.max_agents_per_env
-            self.policies = []
-            for idx, sub_env in enumerate(self.env.sub_envs):
-                self.policies.extend([MotionPlannerPolicy(sub_env, 
-                    *gen_robot_names(i), horizon) for i in range(n_agents_per_env)])
+            # Motion Planner Policies are setup within the env itself, parallelization
+            self.env.setup_motion_planner_policies(horizon=horizon)
         else:
             self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
 
@@ -390,6 +387,10 @@ class MultiRobotSubEnvWrapper():
     def status_led_on(self, sub_env_idx):
         # AsyncVectorEnv variant
         self.sub_envs.set_status_led_on(sub_env_idx)
+
+    # Setup Motion Planner Policies within each parallel env
+    def setup_motion_planner_policies(self, horizon):
+        return self.sub_envs.setup_motion_planner_policies(horizon)
 
 
 # If run as main, tests basic AsyncVectorEnv wrapper around robohive-multi envs.

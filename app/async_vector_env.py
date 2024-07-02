@@ -26,6 +26,7 @@ class AsyncState(Enum):
     WAITING_SINGLE_VISUAL = "visual"
     WAITING_LED_OFF = "led_off"
     WAITING_LED_ON = "led_on"
+    WAITING_MPP_SETUP = "motion_planner_policies_setup"
 
 
 class AsyncVectorEnv(VectorEnv):
@@ -337,8 +338,7 @@ class AsyncVectorEnv(VectorEnv):
             if not self.closed:
                 self.close(terminate=True)
 
-    # Robohive Multi Visuals (All in One)
-    # Purely Async
+    # Robohive Multi Visuals but purely async
     def get_single_visuals(self, sub_env_idx, robot_idx=0):
         # TODO: add corresponding fn in robohive-multi base env, then debug all together.
         self._assert_is_running()
@@ -405,6 +405,39 @@ class AsyncVectorEnv(VectorEnv):
         return True
 
 
+    # Robohive Multi Setup MotionPlannerPolicies
+    def setup_motion_planner_policies_async(self, horizon):
+        self._assert_is_running()
+        if self._state != AsyncState.DEFAULT:
+            raise AlreadyPendingCallError('Calling `setup_motion_planner_policies` while waiting '
+                'for a pending call to `{0}` to complete'.format(
+                self._state.value), self._state.value)
+        for pipe in self.parent_pipes:
+            pipe.send(("setup_motion_planner_policies", horizon))
+        self._state = AsyncState.WAITING_MPP_SETUP
+
+    def setup_motion_planner_policies_wait(self, timeout=None):
+        self._assert_is_running()
+        if self._state != AsyncState.WAITING_MPP_SETUP:
+            raise NoAsyncCallError('Calling `setup_motion_planner_policies_wait` without any prior '
+                'call to `setup_motion_planner_policies_async`.', AsyncState.WAITING_MPP_SETUP.value)
+
+        if not self._poll(timeout):
+            self._state = AsyncState.DEFAULT
+            raise mp.TimeoutError('The call to `setup_motion_planner_policies_wait` has timed out after '
+                '{0} second{1}.'.format(timeout, 's' if timeout > 1 else ''))
+
+        self._raise_if_errors()
+        mpp_setup_results = [pipe.recv() for pipe in self.parent_pipes]
+        self._state = AsyncState.DEFAULT
+
+        return mpp_setup_results
+
+    def setup_motion_planner_policies(self, horizon):
+        self.setup_motion_planner_policies_async(horizon)
+        return self.setup_motion_planner_policies_wait()
+
+
 # Overriding to add support for custom sub env function handling
 def _worker(index, env_fn, pipe, parent_pipe, shared_memory, error_queue):
   assert shared_memory is None
@@ -432,6 +465,9 @@ def _worker(index, env_fn, pipe, parent_pipe, shared_memory, error_queue):
       elif command == "led_off":
         # data: idx_policy, i.e. the idx of the robot in the sub env
         pipe.send(env.status_led_off(data))
+      elif command == "setup_motion_planner_policies":
+        # data: horizon for motion planning
+        pipe.send(env.setup_motion_planner_policies(data))
       elif command == 'seed':
         env.seed(data)
         pipe.send(None)
@@ -482,6 +518,8 @@ def _worker_shared_memory(index, env_fn, pipe, parent_pipe, shared_memory, error
       elif command == "led_off":
         # data: idx_policy, i.e. the idx of the robot in the sub env
         pipe.send(env.status_led_off(data))
+      elif command == "setup_motion_planner_policies":
+        pipe.send(env.setup_motion_planner_policies())
       elif command == 'seed':
         env.seed(data)
         pipe.send(None)
