@@ -89,7 +89,6 @@ async def setuser(request: Request, userinfo: dict):
 
 @app.post("/api/save-nasa-tlx-data")
 async def save_nasa_tlx_data(request: Request, survey_data: dict):
-    # TODO: ask for project id and create folder, replace timestamp with something more stable
     mode = survey_data['mode']
 
     username = survey_data['userinfo']['name']
@@ -103,9 +102,15 @@ async def save_nasa_tlx_data(request: Request, survey_data: dict):
     survey_path = sub_log_dir / session_name
     survey_path.mkdir(parents=True, exist_ok=True)
 
+    #remove fields other than survey data
+    saved_data = survey_data.copy()
+    keys_to_remove = ['mode', 'userinfo', 'device-selection']
+    for key in keys_to_remove:
+        saved_data.pop(key, None)
+
     file_name = "nasatlx.json"
     with open(survey_path / file_name, mode="w") as f:
-        json.dump(survey_data, f, indent=4)
+        json.dump(saved_data, f, indent=4)
 
     return True
 
