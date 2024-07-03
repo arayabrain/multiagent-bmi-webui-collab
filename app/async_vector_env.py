@@ -377,7 +377,11 @@ class AsyncVectorEnv(VectorEnv):
                 '{0} second{1}.'.format(timeout, 's' if timeout > 1 else ''))
 
         self._raise_if_errors()
-        visuals_list = [pipe.recv() for pipe in self.parent_pipes]
+        # TODO: make it more flexible to support 4 envs * 4 robots for example
+        visuals_dict = {
+            f"rgb:franka{idx}_front_cam:256x256:2d": pipe.recv()["rgb:franka0_front_cam:256x256:2d"]
+                for idx, pipe in enumerate(self.parent_pipes)
+        }
         self._state = AsyncState.DEFAULT
 
         # TODO: not sure if we get to use those ?
@@ -386,7 +390,7 @@ class AsyncVectorEnv(VectorEnv):
         #         self.single_observation_space)
 
         # return deepcopy(self.observations) if self.copy else self.observations
-        return visuals_list
+        return visuals_dict
 
     def get_visuals(self):
         self.get_visuals_async()

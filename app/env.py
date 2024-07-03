@@ -232,7 +232,8 @@ class MultiRobotSubEnvWrapper():
         sub_env_name = f"FrankaProcedural{max_agents_per_env}Robots4Col-v0"
 
         # AsyncVectorEnv wrapper where each env is run is a sub process, relieving the main one
-        self.sub_envs = AsyncVectorEnv([lambda: gym.make(sub_env_name) for _ in range(self.n_sub_envs)], shared_memory=False)
+        self.sub_envs = AsyncVectorEnv([lambda: gym.make(sub_env_name)
+            for _ in range(self.n_sub_envs)], shared_memory=True)
 
         # Attribute for compatibility with EnvRunner
         self.action_space = self.sub_envs.single_action_space
@@ -246,25 +247,7 @@ class MultiRobotSubEnvWrapper():
         }
 
     def get_visuals(self):
-        # Accumulate and returns the visuals for stream_manager mainly
-        visual_list = self.sub_envs.get_visuals()
-
-        visuals = {}
-        # visual_list = [sub_env.get_visuals() for sub_env in self.sub_envs]
-
-        sub_env_agent_idx = 0 # track current agent idx from POV of desired total num_agents.
-        for sub_env_visual_dict in visual_list:
-            for k, v in sub_env_visual_dict.items():
-                # TODO: generalize to work with patterns other than rgb:franka<i>_front_cam:256x256x2d ?
-                if not k.startswith("rgb:franka"):
-                    continue
-
-                # TODO: add support in stream manager for more flex
-                resolution = k.split(":")[2]
-                visuals[f"rgb:franka{sub_env_agent_idx}_front_cam:{resolution}:2d"] = v
-                sub_env_agent_idx += 1
-        
-        return visuals
+        return self.sub_envs.get_visuals()
     
     def step(self, action):
         # step over all envs in the AsyncVectorEnv wrapper
