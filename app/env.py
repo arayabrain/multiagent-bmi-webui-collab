@@ -41,18 +41,10 @@ class EnvRunner:
         self.notify_fn = notify_fn
         self.on_completed_fn = on_completed_fn
 
-        if num_agents < 1:
-            self.env = gym.make(env_id)
-        else:
-            # NOTE: builds sub_envs based on pattern:
-            # "FrankaProcedural{max_agents_per_env}Robots4Col-v0" * num_agents
-            self.env = MultiRobotSubEnvWrapper(num_agents=num_agents, max_agents_per_env=1)
+        self.env = MultiRobotSubEnvWrapper(num_agents=num_agents, max_agents_per_env=1)
 
         self.num_agents = num_agents
-        if isinstance(self.env, MultiRobotSubEnvWrapper):
-            self.a_dim_per_agent = self.env.sub_envs.single_action_space.shape[0] // self.env.max_agents_per_env
-        else:
-            self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
+        self.a_dim_per_agent = self.env.sub_envs.single_action_space.shape[0] // self.env.max_agents_per_env
 
         # self.env.color_dict: {"100": 0, "010": 1, ...}
         # key digits correspond to "rgb", values correspond to the rgb index in Mujoco?
@@ -66,19 +58,17 @@ class EnvRunner:
 
         # states
         self.command: list[str] = [""] * self.num_agents  # command from user
-        self.prev_executed_command: list[str] = [""] * self.num_agents  # command at the previous action
+        # TODO: this is handled within the async env, so unneded, remove once confirmed to work
+        # self.prev_executed_command: list[str] = [""] * self.num_agents  # command at the previous action
         self.next_acceptable_commands: list[list[str]] = list(
             map(self._get_next_acceptable_commands, self.command)
         )  # next acceptable commands for each agent
 
         # init policies
         horizon = 2  # TODO
-        if isinstance(self.env, MultiRobotSubEnvWrapper):
-            # Motion Planner Policies are setup within the env itself, parallelization
-            self.env.setup_motion_planner_policies(horizon=horizon)
-            self.policies_done_subtasks = [[] for i in range(self.num_agents)] # Placeholder
-        else:
-            self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
+        # Motion Planner Policies are setup within the env itself, parallelization
+        self.env.setup_motion_planner_policies(horizon=horizon)
+        self.policies_done_subtasks = [[] for i in range(self.num_agents)] # Tracking progression of each robot
 
         # reset env for rendering
         self._reset_env()
@@ -99,7 +89,8 @@ class EnvRunner:
     async def reset(self):
         # reset interface (EnvRunner) states
         await self._clear_commands()
-        self.prev_executed_command = [""] * self.num_agents
+        # TODO: this is handled within the async env, so unneded, remove once confirmed to work
+        # self.prev_executed_command = [""] * self.num_agents
 
         # reset env
         obs = self._reset_env()
@@ -108,17 +99,8 @@ class EnvRunner:
     def _reset_env(self):
         obs = self.env.reset()
         # reset policies
-        if isinstance(self.env, MultiRobotSubEnvWrapper):
-            # Makes the policies within each parallel env reset the robot they in charge of
-            self.env.policy_reset_env()
-        else:
-            # TODO: test even with single-robot mode, make AsyncVectorEnv default
-            # then NUKE everything below.
-            for idx_policy, policy in enumerate(self.policies):
-                policy.reset(self.env)
-                policy.subtask_target_obj_idxs = []
-                policy.done_obj_idxs = []
-                policy.done_subtasks = []
+        # Makes the policies within each parallel env reset the robot they in charge of
+        self.env.policy_reset_env()
 
         return obs
 
@@ -153,30 +135,24 @@ class EnvRunner:
 
         while self.is_running:
             action, subtask_dones = self._get_policy_action(obs, self.command, norm=False)
-            
+            # For AsyncVectorEnv, action is expected as (num_robot, |A|)
+            action = action.reshape(self.env.n_sub_envs, -1) # TODO: move this to AsyncVectorEnv ?
+
             # check if subtask is done
             if any(subtask_dones):
                 for idx_agent, done in enumerate(subtask_dones):
                     if not done:
                         continue
 
-                    sub_env_idx = idx_agent // self.sub_envs.max_agents_per_env
-                    sub_env_robot_idx = idx_agent % self.sub_envs.max_agents_per_env
-                    # For an agent_idx, access the corresponding (parallel) sub_env,
-                    # then use the policy in charge of `sub_env_robot_idx` to reset that
-                    # specific robot
                     # TODO: need to test in 4 envs * 4 robots for e.g., make sure
-                    # we get the desired behavior, not just the first robot being reset.
-                    self.env.policy_reset_env_single(sub_env_idx, sub_env_robot_idx)
+                    # NOTE: we track what sub_task a policy has completed here
+                    self.policies_done_subtasks[idx_agent].append(self.command[idx_agent])
 
-                    # Legacy below, nuke
-                    # policy = self.policies[idx_agent]
-                    # if isinstance(self.env, MultiRobotSubEnvWrapper):
-                    #     sub_env_idx = idx_agent // self.env.max_agents_per_env
-                    #     policy.reset(self.env.sub_envs[sub_env_idx])
-                    # else:
-                    #     policy.reset(self.env)  # TODO: is this correct?
-                    # end legacy
+                    # NOTE: call to policy_reset_env below does not seem to be needed.
+                    # sub_env_idx = idx_agent // env.max_agents_per_env
+                    # sub_env_robot_idx = idx_agent % env.max_agents_per_env
+                    # self.env.sub_envs.policy_reset_env_single(sub_env_idx, sub_env_robot_idx)
+
                     await self.notify_fn("subtaskDone", {"agentId": idx_agent, "subtask": self.command[idx_agent]})
                     # reset command
                     self.next_acceptable_commands[idx_agent].append("")  # TODO
@@ -184,32 +160,23 @@ class EnvRunner:
 
             # check if all tasks are done
             # TODO: sync with policy.done?
-            # TODO: custom async+wait to check that all policies done_subtasks ?
-            self.policies_done_subtasks = env.get_policy_done_subtasks()
+            # NOTE: line below assumes we get the info about which sub task each robot has finished
+            # FROM the sub_envs, but we track it manually with self.policies_done_subtasks (a few lines above)
+            # self.policies_done_subtasks = env.sub_envs.get_policy_done_subtasks()
             if all([len(pol_done_subtasks) == self.num_subtasks for pol_done_subtasks in self.policies_done_subtasks]):
                 if self.on_completed_fn is not None:
                     self.on_completed_fn()
-                
-                # for idx_agent, policy in self.policies:
-                for idx_agent in range(self.num_agents):
-                    sub_env_idx = idx_agent // self.sub_envs.max_agents_per_env
-                    sub_env_robot_idx = idx_agent % self.sub_envs.max_agents_per_env
-                    self.sub_envs.policy_reset_done_subtasks(sub_env_idx, sub_env_robot_idx)
-                    # Legacy; TODO: nuke later once confirmed working
-                    # policy.done_subtasks = []  # TODO: not intuitive
 
             obs, _, done, _ = env.step(action)
 
             await asyncio.sleep(dt_step)
 
     def _get_policy_action(self, obs, command, norm=True):
-        if isinstance(self.env, MultiRobotSubEnvWrapper):
-            # motion planner computes actions async. in parallel sub envs
-            # then cummulated here for the step() call, and subtask tracking
-            action, subtask_dones = self.env.sub_envs.get_policy_action(obs, command, norm)
-            return action, subtask_dones
-        else:
-            raise NotImplementedError("Getting action for non MultiRobotSubEnvWrapper not support now")
+        # Assumes AsyncVectorEnv is used, even for single-robot mode
+        # motion planner computes actions async. in parallel sub envs
+        # then cummulated here for the step() call, and subtask tracking
+        # returns action: np.array(9 * nrobots), subtask_dones: List[Bool * nrobots]
+        return self.env.sub_envs.get_policy_action(obs, command, norm)
 
     async def update_and_notify_command(self, command, agent_id, likelihoods=None, interaction_time=None):
         # self.command should be updated only by this method
@@ -299,6 +266,9 @@ class MultiRobotSubEnvWrapper():
     
     def step(self, action):
         # step over all envs in the AsyncVectorEnv wrapper
+        # TODO: action shape must be adjusted based on the underlying sub-env config:
+        # - for 16 envs * 1 robots action shape must be adjusted
+        # - for 4 envs * 4 robots action shape must be adjusted
         return self.sub_envs.step(action)
 
     def reset(self):
@@ -330,10 +300,6 @@ class MultiRobotSubEnvWrapper():
     # of the robot hey are in charge of
     def policy_reset_env(self):
         return self.sub_envs.policy_reset_env()
-
-    # Get the done_subtasks state of each policy in the parallel envs
-    def get_policy_done_subtasks(self):
-        return self.sub_envs.get_policy_done_subtasks()
 
 
 # If run as main, tests basic AsyncVectorEnv wrapper around robohive-multi envs.

@@ -488,8 +488,13 @@ class AsyncVectorEnv(VectorEnv):
             raise AlreadyPendingCallError('Calling `get_policy_action_async` while waiting '
                 'for a pending call to `{0}` to complete'.format(
                 self._state.value), self._state.value)
-        for pipe in self.parent_pipes:
-            pipe.send(("get_policy_action", (obs, command, norm)))
+        for idx, pipe in enumerate(self.parent_pipes):
+            # obs: should be of shape (n_sub_envs, n_robots_in_env) but flattened for now, not used for planner anywya
+            # command: List of len(n_robots); also TODO: support for 4 envs * 4 robots mode (for e.g.)
+            # norm: Bool, same for all sub_envs and robots
+            # NOTE: passing [command[idx]] because get_policy_action in robohive-multi env_base.py
+            # expects this as a list anyway. We would also need it for 4 envs * 4 robots mode.
+            pipe.send(("get_policy_action", (obs, [command[idx]], norm)))
         self._state = AsyncState.WAITING_POLICY_ACTION
 
     def get_policy_action_wait(self, timeout=None):
@@ -585,6 +590,9 @@ def _worker(index, env_fn, pipe, parent_pipe, shared_memory, error_queue):
         pipe.send(env.setup_motion_planner_policies(data))
       elif command == "policy_reset_env":
         pipe.send(env.policy_reset_env())
+      elif command == "policy_reset_env_single":
+        # date: robot_idx in the env
+        pipe.send(env.policy_reset_env_single(data))
       elif command == "get_policy_action":
         # data: (obs, command, norm)
         pipe.send(env.get_policy_action(*data))
@@ -645,6 +653,9 @@ def _worker_shared_memory(index, env_fn, pipe, parent_pipe, shared_memory, error
         pipe.send(env.setup_motion_planner_policies(data))
       elif command == "policy_reset_env":
         pipe.send(env.policy_reset_env())
+      elif command == "policy_reset_env_single":
+        # date: robot_idx in the env
+        pipe.send(env.policy_reset_env_single(data))
       elif command == "get_policy_action":
         # data: (obs, command, norm)
         pipe.send(env.get_policy_action(*data))
