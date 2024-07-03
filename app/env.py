@@ -34,7 +34,7 @@ class EnvRunner:
         notify_fn=None,  # function to send message to all clients in the same mode
         on_completed_fn=None,  # function to call when all subtasks are done
         use_cancel_command: bool = False,
-    ) -> None:
+        ) -> None:
         self.is_running = False
 
         # callbacks
@@ -134,7 +134,10 @@ class EnvRunner:
         obs = init_obs
 
         while self.is_running:
-            action, subtask_dones = self._get_policy_action(obs, self.command, norm=False)
+            # TODO: further circumvent this pooling by stepping directly within the sub env
+            # after command is received ? This way, no need to call for step either.
+            # Just query for the subtask_dones instead ?
+            action, subtask_dones = await self._get_policy_action(obs, self.command, norm=False)
             # For AsyncVectorEnv, action is expected as (num_robot, |A|)
             action = action.reshape(self.env.n_sub_envs, -1) # TODO: move this to AsyncVectorEnv ?
 
@@ -169,11 +172,11 @@ class EnvRunner:
                 if self.on_completed_fn is not None:
                     self.on_completed_fn()
 
-            obs, _, done, _ = env.step(action)
+            obs, _, done, _ = await env.step(action)
 
             await asyncio.sleep(dt_step)
 
-    def _get_policy_action(self, obs, command, norm=True):
+    async def _get_policy_action(self, obs, command, norm=True):
         # Assumes AsyncVectorEnv is used, even for single-robot mode
         # motion planner computes actions async. in parallel sub envs
         # then cummulated here for the step() call, and subtask tracking
@@ -246,10 +249,10 @@ class MultiRobotSubEnvWrapper():
             "110": 3
         }
 
-    def get_visuals(self):
+    async def get_visuals(self):
         return self.sub_envs.get_visuals()
     
-    def step(self, action):
+    async def step(self, action):
         # step over all envs in the AsyncVectorEnv wrapper
         # TODO: action shape must be adjusted based on the underlying sub-env config:
         # - for 16 envs * 1 robots action shape must be adjusted
