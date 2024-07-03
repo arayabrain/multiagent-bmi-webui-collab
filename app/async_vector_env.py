@@ -354,8 +354,8 @@ class AsyncVectorEnv(VectorEnv):
     # Robohive Multi Visuals (All in One)
     def get_visuals_async(self):
         self._assert_is_running()
-        # NOTE: is it safe to query visual obs without 
-        # waiting for other processes to have finished (state == DEFAULT)
+        # TODO: wait call seems to cause some trouble, although it should not.
+        # More investigation needed ? Or make it purely async ?
         # if self._state != AsyncState.DEFAULT:
         #     raise AlreadyPendingCallError('Calling `get_visuals_async` while waiting '
         #         'for a pending call to `{0}` to complete'.format(
@@ -384,13 +384,19 @@ class AsyncVectorEnv(VectorEnv):
         }
         self._state = AsyncState.DEFAULT
 
-        # TODO: not sure if we get to use those ?
-        # if not self.shared_memory:
-        #     concatenate(observations_list, self.observations,
-        #         self.single_observation_space)
-
-        # return deepcopy(self.observations) if self.copy else self.observations
         return visuals_dict
+
+        # Naive method, for reference only
+        # visual_list = [pipe.recv() for pipe in self.parent_pipes]
+        # self._state = AsyncState.DEFAULT
+
+        # # TODO: not sure if we get to use those ?
+        # # if not self.shared_memory:
+        # #     concatenate(observations_list, self.observations,
+        # #         self.single_observation_space)
+
+        # # return deepcopy(self.observations) if self.copy else self.observations
+        # return visual_list
 
     def get_visuals(self):
         self.get_visuals_async()
@@ -493,12 +499,12 @@ class AsyncVectorEnv(VectorEnv):
                 'for a pending call to `{0}` to complete'.format(
                 self._state.value), self._state.value)
         for idx, pipe in enumerate(self.parent_pipes):
-            # obs: should be of shape (n_sub_envs, n_robots_in_env) but flattened for now, not used for planner anywya
-            # command: List of len(n_robots); also TODO: support for 4 envs * 4 robots mode (for e.g.)
-            # norm: Bool, same for all sub_envs and robots
-            # NOTE: passing [command[idx]] because get_policy_action in robohive-multi env_base.py
-            # expects this as a list anyway. We would also need it for 4 envs * 4 robots mode.
-            pipe.send(("get_policy_action", (obs, [command[idx]], norm)))
+            # obs: should be of shape (n_sub_envs, n_robots_in_env) but
+            # flattened for now, since not used for for motion planning anyway
+            # command: List of len(n_robots)
+            cmd_start_idx = idx * self.max_agents_per_env
+            cmd_end_idx = cmd_start_idx + self.max_agents_per_env
+            pipe.send(("get_policy_action", (obs, command[cmd_start_idx:cmd_end_idx], norm)))
         self._state = AsyncState.WAITING_POLICY_ACTION
 
     def get_policy_action_wait(self, timeout=None):
@@ -515,6 +521,7 @@ class AsyncVectorEnv(VectorEnv):
         self._raise_if_errors()
         action__subtask_dones = [pipe.recv() for pipe in self.parent_pipes]
         action, subtask_dones = [], []
+
         # Unpack
         for a_done_pair in action__subtask_dones:
             action.append(a_done_pair[0])

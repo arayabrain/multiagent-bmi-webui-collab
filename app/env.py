@@ -41,7 +41,7 @@ class EnvRunner:
         self.notify_fn = notify_fn
         self.on_completed_fn = on_completed_fn
 
-        self.env = MultiRobotSubEnvWrapper(num_agents=num_agents, max_agents_per_env=1)
+        self.env = MultiRobotSubEnvWrapper(num_agents=num_agents, max_agents_per_env=min(num_agents, 1))
 
         self.num_agents = num_agents
         self.a_dim_per_agent = self.env.sub_envs.single_action_space.shape[0] // self.env.max_agents_per_env
@@ -137,6 +137,7 @@ class EnvRunner:
             # TODO: further circumvent this pooling by stepping directly within the sub env
             # after command is received ? This way, no need to call for step either.
             # Just query for the subtask_dones instead ?
+            start_time = time.time()
             action, subtask_dones = await self._get_policy_action(obs, self.command, norm=False)
             # For AsyncVectorEnv, action is expected as (num_robot, |A|)
             action = action.reshape(self.env.n_sub_envs, -1) # TODO: move this to AsyncVectorEnv ?
@@ -173,7 +174,7 @@ class EnvRunner:
                     self.on_completed_fn()
 
             obs, _, done, _ = await env.step(action)
-
+            print(f"get action + step wait time: {time.time() - start_time}")
             await asyncio.sleep(dt_step)
 
     async def _get_policy_action(self, obs, command, norm=True):
@@ -237,6 +238,9 @@ class MultiRobotSubEnvWrapper():
         # AsyncVectorEnv wrapper where each env is run is a sub process, relieving the main one
         self.sub_envs = AsyncVectorEnv([lambda: gym.make(sub_env_name)
             for _ in range(self.n_sub_envs)], shared_memory=True)
+        # Additional metadata necessary for proper command distribution to the sub_envs
+        self.sub_envs.max_agents_per_env = max_agents_per_env
+        self.n_sub_envs = self.n_sub_envs
 
         # Attribute for compatibility with EnvRunner
         self.action_space = self.sub_envs.single_action_space
@@ -251,6 +255,28 @@ class MultiRobotSubEnvWrapper():
 
     async def get_visuals(self):
         return self.sub_envs.get_visuals()
+
+        # Naive method, for reference only. Also, does not support X envs * Y>1 robots modes
+        # # Accumulate and returns the visuals for stream_manager mainly
+        # visual_list = self.sub_envs.get_visuals()
+
+        # visuals = {}
+        # # visual_list = [sub_env.get_visuals() for sub_env in self.sub_envs]
+
+        # sub_env_agent_idx = 0 # track current agent idx from POV of desired total num_agents.
+        # for sub_env_visual_dict in visual_list:
+        #     for k, v in sub_env_visual_dict.items():
+        #         # TODO: generalize to work with patterns other than rgb:franka<i>_front_cam:256x256x2d ?
+        #         if not k.startswith("rgb:franka"):
+        #             continue
+
+        #         # TODO: add support in stream manager for more flex
+        #         resolution = k.split(":")[2]
+        #         visuals[f"rgb:franka{sub_env_agent_idx}_front_cam:{resolution}:2d"] = v
+        #         sub_env_agent_idx += 1
+
+        # return visuals
+
     
     async def step(self, action):
         # step over all envs in the AsyncVectorEnv wrapper
