@@ -29,6 +29,7 @@ class AsyncState(Enum):
     WAITING_MPP_SETUP = "motion_planner_policies_setup"
     WAITING_POLICY_RESET = "policy_reset_env"
     WAITING_POLICY_ACTION = "policy_action"
+    WAITING_POLICY_ACTION_STEP = "policy_action_step"
     WAITING_POLICY_DONE_SUBTASKS = "policy_done_subtasks"
 
 
@@ -535,6 +536,7 @@ class AsyncVectorEnv(VectorEnv):
         self.get_policy_action_async(obs, command, norm)
         return self.get_policy_action_wait()
 
+
     #
     def get_policy_done_subtasks_async(self):
         self._assert_is_running()
@@ -558,7 +560,8 @@ class AsyncVectorEnv(VectorEnv):
                 '{0} second{1}.'.format(timeout, 's' if timeout > 1 else ''))
 
         self._raise_if_errors()
-        policies_done_subtasks = [pipe.recv() for pipe in self.parent_pipes]
+        # TODO: make compatible with X envs * Y>1 robots mode ?
+        policies_done_subtasks = [pipe.recv()[0] for pipe in self.parent_pipes]
         self._state = AsyncState.DEFAULT
 
         # TODO: some re-shaping I guess
@@ -567,6 +570,48 @@ class AsyncVectorEnv(VectorEnv):
     def get_policy_done_subtasks(self):
         self.get_policy_done_subtasks_async()
         return self.get_policy_done_subtasks_wait()
+
+
+    #
+    def get_policy_action_then_step_async(self, obs, command, norm=True):
+        self._assert_is_running()
+        if self._state != AsyncState.DEFAULT:
+            raise AlreadyPendingCallError('Calling `get_policy_action_then_step_async` while waiting '
+                'for a pending call to `{0}` to complete'.format(
+                self._state.value), self._state.value)
+        for idx, pipe in enumerate(self.parent_pipes):
+            # obs: should be of shape (n_sub_envs, n_robots_in_env) but
+            # flattened for now, since not used for for motion planning anyway
+            # command: List of len(n_robots)
+            cmd_start_idx = idx * self.max_agents_per_env
+            cmd_end_idx = cmd_start_idx + self.max_agents_per_env
+            pipe.send(("get_policy_action_then_step", (obs, command[cmd_start_idx:cmd_end_idx], norm)))
+        self._state = AsyncState.WAITING_POLICY_ACTION_STEP
+
+    def get_policy_action_then_step_wait(self, timeout=None):
+        self._assert_is_running()
+        if self._state != AsyncState.WAITING_POLICY_ACTION_STEP:
+            raise NoAsyncCallError('Calling `get_policy_action_then_step_wait` without any prior '
+                'call to `get_policy_action_then_step_async`.', AsyncState.WAITING_POLICY_ACTION.value)
+
+        if not self._poll(timeout):
+            self._state = AsyncState.DEFAULT
+            raise mp.TimeoutError('The call to `get_policy_action_then_step_wait` has timed out after '
+                '{0} second{1}.'.format(timeout, 's' if timeout > 1 else ''))
+
+        self._raise_if_errors()
+        # TODO: this will not support X envs * Y>1 robots mode
+        final_subtask_dones = []
+        for pipe in self.parent_pipes:
+            final_subtask_dones.extend(pipe.recv())
+        # subtask_dones = [pipe.recv()[0] for pipe in self.parent_pipes] # Naive version
+        self._state = AsyncState.DEFAULT
+
+        return final_subtask_dones
+
+    async def get_policy_action_then_step(self, obs, command, norm=True):
+        self.get_policy_action_then_step_async(obs, command, norm)
+        return self.get_policy_action_then_step_wait()
 
 
 # Overriding to add support for custom sub env function handling
@@ -607,6 +652,10 @@ def _worker(index, env_fn, pipe, parent_pipe, shared_memory, error_queue):
       elif command == "get_policy_action":
         # data: (obs, command, norm)
         pipe.send(env.get_policy_action(*data))
+      elif command == "get_policy_action_then_step":
+        # data: (obs, command, norm)
+        pipe.send(env.get_policy_action_then_step(*data))
+        # TODO: potentially return obs and subtask_dones
       elif command == "get_policy_done_subtasks":
         pipe.send(env.get_policy_done_subtasks())
       elif command == 'seed':
@@ -670,6 +719,10 @@ def _worker_shared_memory(index, env_fn, pipe, parent_pipe, shared_memory, error
       elif command == "get_policy_action":
         # data: (obs, command, norm)
         pipe.send(env.get_policy_action(*data))
+      elif command == "get_policy_action_then_step":
+        # data: (obs, command, norm)
+        pipe.send(env.get_policy_action_then_step(*data))
+        # TODO: potentially return obs and subtask_dones
       elif command == "get_policy_done_subtasks":
         pipe.send(env.get_policy_done_subtasks())
       elif command == 'seed':

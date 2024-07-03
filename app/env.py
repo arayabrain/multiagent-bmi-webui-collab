@@ -134,13 +134,18 @@ class EnvRunner:
         obs = init_obs
 
         while self.is_running:
-            # TODO: further circumvent this pooling by stepping directly within the sub env
-            # after command is received ? This way, no need to call for step either.
-            # Just query for the subtask_dones instead ?
             start_time = time.time()
+            # Slow ?
+            # # For AsyncVectorEnv, action is expected as (num_robot, |A|)
             action, subtask_dones = await self._get_policy_action(obs, self.command, norm=False)
-            # For AsyncVectorEnv, action is expected as (num_robot, |A|)
             action = action.reshape(self.env.n_sub_envs, -1) # TODO: move this to AsyncVectorEnv ?
+
+            obs, _, done, _ = await env.step(action)
+
+            # Fast ?
+            # subtask_dones = await env.sub_envs.get_policy_action_then_step(obs, self.command, norm=False)
+            # print( "############ DBG #############")
+            # print(f"{subtask_dones}")
 
             # check if subtask is done
             if any(subtask_dones):
@@ -169,11 +174,13 @@ class EnvRunner:
             # NOTE: line below assumes we get the info about which sub task each robot has finished
             # FROM the sub_envs, but we track it manually with self.policies_done_subtasks (a few lines above)
             # self.policies_done_subtasks = env.sub_envs.get_policy_done_subtasks()
+            # print( "############ DBG #############")
+            # print(f"{env.sub_envs.get_policy_done_subtasks()}")
+
             if all([len(pol_done_subtasks) == self.num_subtasks for pol_done_subtasks in self.policies_done_subtasks]):
                 if self.on_completed_fn is not None:
                     self.on_completed_fn()
 
-            obs, _, done, _ = await env.step(action)
             print(f"get action + step wait time: {time.time() - start_time}")
             await asyncio.sleep(dt_step)
 
