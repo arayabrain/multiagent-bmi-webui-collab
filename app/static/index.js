@@ -56,11 +56,3 @@ const initDeviceSelection = () => {
         document.getElementById(`toggle-${device}`).checked = state[device];
     });
 }
-
-const isRobotDeviceSelected = () => {
-    const state = JSON.parse(sessionStorage.getItem('deviceSelection'));
-    
-    const isRobotDeviceSelected = document.getElementById(`toggle-mouse`).checked;
-
-    return isRobotDeviceSelected;
-}
