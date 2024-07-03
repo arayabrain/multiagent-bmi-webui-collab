@@ -74,37 +74,50 @@
       'mentalDemandOptions': {
         "inputID": "mental-demand",
         "legend": "Mental Demand",
-        "description": "How mentally demanding was the task ?"
+        "description": "How mentally demanding was the task ?",
+        "low-label": "Very Low",
+        "high-label": "Very High"
       },
 
       'physicalDemandOptions': {
         "inputID": "physical-demand",
         "legend": "Physical Demand",
-        "description": "How physically demanding was the task ?"
+        "description": "How physically demanding was the task ?",
+        "low-label": "Very Low",
+        "high-label": "Very High"
       },
 
       'temporalDemandOptions': {
         "inputID": "temporal-demand",
         "legend": "Temporal Demand",
-        "description": "How hurried or rushed was the pace of the task ?"
+        "description": "How hurried or rushed was the pace of the task ?",
+        "low-label": "Very Low",
+        "high-label": "Very High"
       },
 
       'performanceOptions': {
         "inputID": "performance",
         "legend": "Performance",
-        "description": "How successful were you in accomplishing what you were asked to do ?"
+        "description": "How successful were you in accomplishing what you were asked to do ?",
+        "low-label": "Perfect",
+        "high-label": "Failure"
       },
 
       'effortOptions': {
         "inputID": "effort",
         "legend": "Effort",
-        "description": "How hard did you hve to work to accomplish your level of performance ?"
+        "description": "How hard did you have to work to accomplish your level of performance ?",
+        "low-label": "Very Low",
+        "high-label": "Very High"
+
       },
 
       'frustrationOptions': {
         "inputID": "frustration",
         "legend": "Frustration",
-        "description": "How insecure, discouraged, irritated, stressed, and annoyed were you ?"
+        "description": "How insecure, discouraged, irritated, stressed, and annoyed were you ?",
+        "low-label": "Very Low",
+        "high-label": "Very High"
       },
     }
   %}
@@ -116,9 +129,6 @@
         <p id="username-area" class="mb-0"></p>
         <p id="device-status-area" class="mb-0"></p>
         <br/>
-      </div>
-      <div class="col-auto">
-        <button type="buttom" class="btn btn-warning" id="rndfill-button">Random Fill</button>
       </div>
       <br/>
       <br/>
@@ -132,16 +142,16 @@
           <br/>
 
           <div class="nasa-tlx-field-container">
-            <span class="low-label">Very Low</span>
+            <span class="low-label">{{inputMeta["low-label"]}}</span>
+            
+            <input style="width:70%;" type="range" name="{{inputName}}" min="0" max="100" step="5" id="{{inputMeta['inputID']}}" value="50" default="50">
+            
+            <!-- <div class="form-check form-check-inline"> -->
+              <!-- <label class="form-check-label" for="{{inputMeta['inputID']}}-{{i}}">{{i}}</label> -->
+              <!-- <input class="form-check-input" type="radio" name="{{inputName}}" id="{{inputMeta['inputID']}}-{{i}}" value="{{i}}"> -->
+            <!-- </div> -->
 
-            {% for i in range(1, 7) %}
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="{{inputName}}" id="{{inputMeta['inputID']}}-{{i}}" value="{{i}}">
-              <label class="form-check-label" for="{{inputMeta['inputID']}}-{{i}}">{{i}}</label>
-            </div>
-            {% endfor %}
-
-            <span class="high-label">Very High</span>
+            <span class="high-label">{{inputMeta["high-label"]}}</span>
           </div>
       </fieldset>
       {% endfor %}
