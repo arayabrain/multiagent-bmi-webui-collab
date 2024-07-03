@@ -149,6 +149,8 @@ class EnvRunner:
                     self.policies_done_subtasks[idx_agent].append(self.command[idx_agent])
 
                     # NOTE: call to policy_reset_env below does not seem to be needed.
+                    # It actually creates an issue where the results of step() is None
+                    # breaking the loop. Might be because this function is purely async !
                     # sub_env_idx = idx_agent // env.max_agents_per_env
                     # sub_env_robot_idx = idx_agent % env.max_agents_per_env
                     # self.env.sub_envs.policy_reset_env_single(sub_env_idx, sub_env_robot_idx)
