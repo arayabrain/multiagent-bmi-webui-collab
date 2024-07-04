@@ -57,6 +57,16 @@ Web UI for the multi-agent robot arm environment
     - `FrankaPickPlaceSingle4Col-v1` in `robohive_multi/envs/single_arms/__init__.py`
     - `FrankaPickPlaceMulti4Robots4Col-v1` in `robohive_multi/envs/multi_arms/__init__.py`
 
+6. For machines with lower CPU clock, `gamemode` increase the priority of the main and sub-processes, making the UI smoother, especially for the 16 robot mode.
+- Install `gamemode` (Ubuntu). [More info](https://github.com/FeralInteractive/gamemode)
+```bash
+sudo apt-get install gamemode
+```
+- For more aggressive CPU governing, edit `/etc/gamemode.ini`, and setting `renice=15` or higher.
+- Run with `gamemoderun python app/main.py`
+
+Best performance / UI responsiveness with the 16 robot mode was achieved on an `Intel i9-11900K 8C 16T @ 3.5GHz`. `gamemode` allowed a similar responsiveness on an `Intel Xeon Silver 4216 CPU 16C 32T @ 2.10Ghz`.
+
 ## Run
 See [user_guide.md](user_guide.md) for usage instructions.
 
