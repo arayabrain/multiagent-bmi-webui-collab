@@ -1,4 +1,5 @@
 import asyncio
+import multiprocessing as mp
 import os
 import secrets
 import string
@@ -348,6 +349,9 @@ async def webrtc_ice(sid, data):
 
 
 if __name__ == "__main__":
+    # Require within __main__ for rendering in parallel sub envs.
+    mp.set_start_method("spawn")
+
     log_dir = app_dir / "logs"
     key_dir = app_dir / "../.keys"  # for HTTPS
 
