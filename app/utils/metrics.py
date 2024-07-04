@@ -37,7 +37,6 @@ class InteractionRecorder:
 
     def record(self, user_id: str, data: dict):
         assert user_id in self.userinfo, "User not added"
-        #self.history.append({"userId": user_id, **data})
         self.history.append(data)
 
     def save_session(self, save_dir: Path): 
@@ -51,7 +50,7 @@ class InteractionRecorder:
         num_agents = len(set([x['agentId'] for x in self.history]))
         with jsonlines.open(save_dir / "info.json", mode="w") as writer:
             writer.write({"usernames": usernames, "numAgents": num_agents})
-            
+
         return usernames
         
         
