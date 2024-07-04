@@ -15,7 +15,6 @@ Web UI for the multi-agent robot arm environment
 2. Install the [robohive-multi](https://github.com/arayabrain/robohive-multi) companion repository.
     ```bash
     git clone --recurse-submodules -j8 git@github.com:arayabrain/robohive-multi.git
-    git checkout hri-new-config
     pip install -e robohive-multi/robohive/.
     pip install -e robohive-multi/vtils/.
     pip install -e robohive-multi/.
