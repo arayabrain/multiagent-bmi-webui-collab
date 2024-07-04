@@ -89,8 +89,6 @@ class EnvRunner:
     async def reset(self):
         # reset interface (EnvRunner) states
         await self._clear_commands()
-        # TODO: this is handled within the async env, so unneded, remove once confirmed to work
-        # self.prev_executed_command = [""] * self.num_agents
 
         # reset env
         obs = self._reset_env()
@@ -98,15 +96,12 @@ class EnvRunner:
 
     def _reset_env(self):
         obs = self.env.reset()
-        # reset policies
         # Makes the policies within each parallel env reset the robot they in charge of
         self.env.policy_reset_env()
 
         return obs
 
-
     async def _clear_commands(self):
-        # TODO: parallelize
         for idx_agent in range(self.num_agents):
             # TODO: use something like force=True or the "cancel" command
             self.next_acceptable_commands[idx_agent].append("")
@@ -135,17 +130,17 @@ class EnvRunner:
 
         while self.is_running:
             start_time = time.time()
-            # Slow ?
+            # Slow: query all sub env's motion planner, pool the actions and subtask_dones
+            # then send the action down to each sub-envs again to perform an env.step()
+            # action, subtask_dones = self.env.sub_envs.get_policy_action(obs, self.command, norm=False)
             # # For AsyncVectorEnv, action is expected as (num_robot, |A|)
-            action, subtask_dones = await self._get_policy_action(obs, self.command, norm=False)
-            action = action.reshape(self.env.n_sub_envs, -1) # TODO: move this to AsyncVectorEnv ?
+            # action = action.reshape(self.env.n_sub_envs, -1) # TODO: move this to AsyncVectorEnv ?
+            # obs, _, done, _ = await env.step(action)
 
-            obs, _, done, _ = await env.step(action)
-
-            # Fast ?
-            # subtask_dones = await env.sub_envs.get_policy_action_then_step(obs, self.command, norm=False)
-            # print( "############ DBG #############")
-            # print(f"{subtask_dones}")
+            # Slightly more efficient: dispatch command to the sub envs, where
+            # motion planner action is computed and used to step directly.
+            # Assumes X envs * 1 robot per env config. of the sub-envs.
+            subtask_dones = env.sub_envs.get_policy_action_then_step(obs, self.command, norm=False)
 
             # check if subtask is done
             if any(subtask_dones):
@@ -154,15 +149,11 @@ class EnvRunner:
                         continue
 
                     # TODO: need to test in 4 envs * 4 robots for e.g., make sure
-                    # NOTE: we track what sub_task a policy has completed here
+                    # NOTE: tracking of which subtask each agent has completed is done here,
+                    # in the main process
                     self.policies_done_subtasks[idx_agent].append(self.command[idx_agent])
-
-                    # NOTE: call to policy_reset_env below does not seem to be needed.
-                    # It actually creates an issue where the results of step() is None
-                    # breaking the loop. Might be because this function is purely async !
-                    # sub_env_idx = idx_agent // env.max_agents_per_env
-                    # sub_env_robot_idx = idx_agent % env.max_agents_per_env
-                    # self.env.sub_envs.policy_reset_env_single(sub_env_idx, sub_env_robot_idx)
+                    # NOTE: originally the policies were reset at this point, but in async envs
+                    # this does not seem needed anymore
 
                     await self.notify_fn("subtaskDone", {"agentId": idx_agent, "subtask": self.command[idx_agent]})
                     # reset command
@@ -174,22 +165,12 @@ class EnvRunner:
             # NOTE: line below assumes we get the info about which sub task each robot has finished
             # FROM the sub_envs, but we track it manually with self.policies_done_subtasks (a few lines above)
             # self.policies_done_subtasks = env.sub_envs.get_policy_done_subtasks()
-            # print( "############ DBG #############")
-            # print(f"{env.sub_envs.get_policy_done_subtasks()}")
-
             if all([len(pol_done_subtasks) == self.num_subtasks for pol_done_subtasks in self.policies_done_subtasks]):
                 if self.on_completed_fn is not None:
                     self.on_completed_fn()
 
             print(f"get action + step wait time: {time.time() - start_time}")
             await asyncio.sleep(dt_step)
-
-    async def _get_policy_action(self, obs, command, norm=True):
-        # Assumes AsyncVectorEnv is used, even for single-robot mode
-        # motion planner computes actions async. in parallel sub envs
-        # then cummulated here for the step() call, and subtask tracking
-        # returns action: np.array(9 * nrobots), subtask_dones: List[Bool * nrobots]
-        return self.env.sub_envs.get_policy_action(obs, command, norm)
 
     async def update_and_notify_command(self, command, agent_id, likelihoods=None, interaction_time=None):
         # self.command should be updated only by this method
@@ -198,8 +179,6 @@ class EnvRunner:
         # check if the command is valid
         is_now_acceptable = command in self.next_acceptable_commands[agent_id]
         has_subtask_not_done = command not in self.policies_done_subtasks[agent_id]
-        # Legacy; TODO: nuke later
-        # has_subtask_not_done = command not in self.policies[agent_id].done_subtasks
         is_valid = is_now_acceptable and has_subtask_not_done
 
         next_acceptable_commands = self._get_next_acceptable_commands(command)
@@ -247,11 +226,11 @@ class MultiRobotSubEnvWrapper():
             for _ in range(self.n_sub_envs)], shared_memory=True)
         # Additional metadata necessary for proper command distribution to the sub_envs
         self.sub_envs.max_agents_per_env = max_agents_per_env
-        self.n_sub_envs = self.n_sub_envs
+        self.sub_envs.n_sub_envs = self.n_sub_envs
 
         # Attribute for compatibility with EnvRunner
         self.action_space = self.sub_envs.single_action_space
-        # TODO: unharden
+        # TODO: make color_dict query flexible, based on underlying envs.
         # self.color_dict = self.sub_envs[0].color_dict
         self.color_dict = {
             "100": 0,
@@ -262,34 +241,11 @@ class MultiRobotSubEnvWrapper():
 
     async def get_visuals(self):
         return self.sub_envs.get_visuals()
-
-        # Naive method, for reference only. Also, does not support X envs * Y>1 robots modes
-        # # Accumulate and returns the visuals for stream_manager mainly
-        # visual_list = self.sub_envs.get_visuals()
-
-        # visuals = {}
-        # # visual_list = [sub_env.get_visuals() for sub_env in self.sub_envs]
-
-        # sub_env_agent_idx = 0 # track current agent idx from POV of desired total num_agents.
-        # for sub_env_visual_dict in visual_list:
-        #     for k, v in sub_env_visual_dict.items():
-        #         # TODO: generalize to work with patterns other than rgb:franka<i>_front_cam:256x256x2d ?
-        #         if not k.startswith("rgb:franka"):
-        #             continue
-
-        #         # TODO: add support in stream manager for more flex
-        #         resolution = k.split(":")[2]
-        #         visuals[f"rgb:franka{sub_env_agent_idx}_front_cam:{resolution}:2d"] = v
-        #         sub_env_agent_idx += 1
-
-        # return visuals
-
     
     async def step(self, action):
         # step over all envs in the AsyncVectorEnv wrapper
-        # TODO: action shape must be adjusted based on the underlying sub-env config:
-        # - for 16 envs * 1 robots action shape must be adjusted
-        # - for 4 envs * 4 robots action shape must be adjusted
+        # TODO: action shape must be adjusted based on the underlying sub-env config
+        # - for 4 envs * 4 robots actions
         return self.sub_envs.step(action)
 
     def reset(self):
@@ -340,6 +296,3 @@ if __name__ == "__main__":
     while True:
         visuals = envs.get_visuals()
         time.sleep(1 / 60)
-
-    # print(visuals[0].keys())
-    pass

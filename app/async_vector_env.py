@@ -378,26 +378,26 @@ class AsyncVectorEnv(VectorEnv):
                 '{0} second{1}.'.format(timeout, 's' if timeout > 1 else ''))
 
         self._raise_if_errors()
-        # TODO: make it more flexible to support 4 envs * 4 robots for example
-        visuals_dict = {
-            f"rgb:franka{idx}_front_cam:256x256:2d": pipe.recv()["rgb:franka0_front_cam:256x256:2d"]
-                for idx, pipe in enumerate(self.parent_pipes)
-        }
+        visuals = {}
+        global_robot_idx = 0 # track current agent idx from POV of desired total num_agents.
+        for sub_env_idx, pipe in enumerate(self.parent_pipes):
+            sub_env_visual_dict = pipe.recv()
+            for visual_key, visual_data in sub_env_visual_dict.items():
+                if not visual_key.startswith("rgb:franka"): # skip "time" mainly
+                    continue
+                # TODO: add support in stream manager for more flexibility
+                resolution = visual_key.split(":")[2]
+                visuals[f"rgb:franka{global_robot_idx}_front_cam:{resolution}:2d"] = visual_data
+                global_robot_idx += 1
         self._state = AsyncState.DEFAULT
 
-        return visuals_dict
+        # NOTE: should we use shared_memory ?
+        # if not self.shared_memory:
+        #     concatenate(observations_list, self.observations,
+        #         self.single_observation_space)
+        # return deepcopy(self.observations) if self.copy else self.observations
 
-        # Naive method, for reference only
-        # visual_list = [pipe.recv() for pipe in self.parent_pipes]
-        # self._state = AsyncState.DEFAULT
-
-        # # TODO: not sure if we get to use those ?
-        # # if not self.shared_memory:
-        # #     concatenate(observations_list, self.observations,
-        # #         self.single_observation_space)
-
-        # # return deepcopy(self.observations) if self.copy else self.observations
-        # return visual_list
+        return visuals
 
     def get_visuals(self):
         self.get_visuals_async()
@@ -609,7 +609,7 @@ class AsyncVectorEnv(VectorEnv):
 
         return final_subtask_dones
 
-    async def get_policy_action_then_step(self, obs, command, norm=True):
+    def get_policy_action_then_step(self, obs, command, norm=True):
         self.get_policy_action_then_step_async(obs, command, norm)
         return self.get_policy_action_then_step_wait()
 
