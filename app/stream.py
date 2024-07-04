@@ -54,7 +54,7 @@ class FrameCapturer:
 
     async def update_frame(self):
         while True:
-            self.frame = self.capture_fn()
+            self.frame = await self.capture_fn()
             for callback in self.callbacks.values():
                 callback(self.frame)
             await asyncio.sleep(1 / fps)  # TODO: consider processing time?

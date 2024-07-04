@@ -15,7 +15,6 @@ Web UI for the multi-agent robot arm environment
 2. Install the [robohive-multi](https://github.com/arayabrain/robohive-multi) companion repository.
     ```bash
     git clone --recurse-submodules -j8 git@github.com:arayabrain/robohive-multi.git
-    git checkout hri-new-config
     pip install -e robohive-multi/robohive/.
     pip install -e robohive-multi/vtils/.
     pip install -e robohive-multi/.
@@ -56,6 +55,16 @@ Web UI for the multi-agent robot arm environment
 - Some antivirus software also implement additional firewall rules (ESET, Avast, etc...), so make sure to disable them or add exceptions if the robots are not being rendered into the UI.
     - `FrankaPickPlaceSingle4Col-v1` in `robohive_multi/envs/single_arms/__init__.py`
     - `FrankaPickPlaceMulti4Robots4Col-v1` in `robohive_multi/envs/multi_arms/__init__.py`
+
+6. For machines with lower CPU clock, `gamemode` increase the priority of the main and sub-processes, making the UI smoother, especially for the 16 robot mode.
+- Install `gamemode` (Ubuntu). [More info](https://github.com/FeralInteractive/gamemode)
+```bash
+sudo apt-get install gamemode
+```
+- For more aggressive CPU governing, edit `/etc/gamemode.ini`, and setting `renice=15` or higher.
+- Run with `gamemoderun python app/main.py`
+
+Best performance / UI responsiveness with the 16 robot mode was achieved on an `Intel i9-11900K 8C 16T @ 3.5GHz`. `gamemode` allowed a similar responsiveness on an `Intel Xeon Silver 4216 CPU 16C 32T @ 2.10Ghz`.
 
 ## Run
 See [user_guide.md](user_guide.md) for usage instructions.
