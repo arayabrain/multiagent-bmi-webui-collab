@@ -6,9 +6,7 @@ import subprocess
 import time
 
 import gym
-import numpy as np
 import robohive_multi  # Makes the environments accessible # noqa: F401 # type: ignore
-from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names
 from app.async_vector_env import AsyncVectorEnv
 
 # check if display is available on Linux
@@ -129,8 +127,7 @@ class EnvRunner:
         obs = init_obs
 
         while self.is_running:
-            start_time = time.time()
-            # Slow: query all sub env's motion planner, pool the actions and subtask_dones
+            # Inefficient: query all sub env's motion planner, pool the actions and subtask_dones
             # then send the action down to each sub-envs again to perform an env.step()
             # action, subtask_dones = self.env.sub_envs.get_policy_action(obs, self.command, norm=False)
             # # For AsyncVectorEnv, action is expected as (num_robot, |A|)
@@ -148,7 +145,6 @@ class EnvRunner:
                     if not done:
                         continue
 
-                    # TODO: need to test in 4 envs * 4 robots for e.g., make sure
                     # NOTE: tracking of which subtask each agent has completed is done here,
                     # in the main process
                     self.policies_done_subtasks[idx_agent].append(self.command[idx_agent])
@@ -169,7 +165,6 @@ class EnvRunner:
                 if self.on_completed_fn is not None:
                     self.on_completed_fn()
 
-            print(f"get action + step wait time: {time.time() - start_time}")
             await asyncio.sleep(dt_step)
 
     async def update_and_notify_command(self, command, agent_id, likelihoods=None, interaction_time=None):
