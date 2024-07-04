@@ -35,15 +35,34 @@ html {
 }
 
 /* video */
-.video-grid {
+.video-grid-base {
     height: 100%;
     display: grid;
-    grid-template-columns: repeat(2, auto);
-    grid-template-rows: repeat(2, auto);
     gap: 5px;
     /* Grid gap */
     justify-content: center;
     align-items: center;
+}
+
+.video-grid-1 {
+    /* Left empty on purpose */
+    grid-template-columns: repeat(0, auto);
+    grid-template-rows: repeat(0, auto);
+}
+
+.video-grid-4 {
+    grid-template-columns: repeat(2, auto);
+    grid-template-rows: repeat(2, auto);
+}
+
+.video-grid-8 {
+    grid-template-columns: repeat(2, auto);
+    grid-template-rows: repeat(4, auto);
+}
+
+.video-grid-16 {
+    grid-template-columns: repeat(4, auto);
+    grid-template-rows: repeat(4, auto);
 }
 
 .video-container {

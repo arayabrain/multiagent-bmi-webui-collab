@@ -13,7 +13,6 @@ num_clients = 0
 # samp_rate = 30  # Hz
 samp_rate = 10  # Hz
 
-
 def gaze_generator():
     # TODO: make this more realistic
     pos = np.array([0.5, 0.5])  # (x, y)
@@ -35,7 +34,6 @@ async def gaze_worker(sio: socketio.AsyncServer):
         gaze = next(gaze_gen)
         await sio.emit("gaze", gaze)
         await asyncio.sleep(1 / samp_rate)
-
 
 @click.command()
 @click.option("--env-ip", "-e", default="localhost", type=str, help="IP address of the environment server")
@@ -89,7 +87,6 @@ def main(env_ip):
     socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
     uvicorn.run(socket_app, host=host, port=port)
-
 
 if __name__ == "__main__":
     main()

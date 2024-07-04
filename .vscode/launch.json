@@ -21,6 +21,14 @@
             "justMyCode": false,
         },
         {
+            "name": "Env: AsyncVectorEnv",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/app/env.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
             "name": "EEG: Mock Streamer",
             "type": "python",
             "request": "launch",

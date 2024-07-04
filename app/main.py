@@ -1,4 +1,5 @@
 import asyncio
+import multiprocessing as mp
 import os
 import secrets
 import string
@@ -59,12 +60,16 @@ env_info = {
         "num_agents": 1,
     },
     "single-robot": {
-        "env_id": "FrankaPickPlaceSingle4Col-v1",
+        "env_id": "FrankaProcedural1Robots4Col-v0",
         "num_agents": 1,
     },
-    "multi-robot": {
-        "env_id": "FrankaPickPlaceMulti4Robots4Col-v1",
+    "multi-robot-4": {
+        "env_id": "FrankaProcedural4Robots4Col-v0",
         "num_agents": 4,
+    },
+    "multi-robot-16": {
+        "env_id": "FrankaProcedural16Robots4Col-v0",
+        "num_agents": 16
     },
 }
 countdown_sec = 3
@@ -134,10 +139,13 @@ async def single_robot(request: Request):
     return await task_page(request, "single-robot")
 
 
-@app.get("/multi-robot")
+@app.get("/multi-robot-4")
 async def multi_robot(request: Request):
-    return await task_page(request, "multi-robot")
+    return await task_page(request, "multi-robot-4")
 
+@app.get("/multi-robot-16")
+async def multi_robot_16(request: Request):
+    return await task_page(request, "multi-robot-16")
 
 @sio.event
 async def connect(sid, environ):
@@ -163,6 +171,7 @@ async def connect(sid, environ):
     else:
         env = EnvRunner(
             env_info[mode]["env_id"],
+            num_agents=env_info[mode]["num_agents"],
             notify_fn=lambda event, data: sio.emit(event, data, room=mode),
             on_completed_fn=lambda: asyncio.create_task(on_completed(mode)),
             )
@@ -340,6 +349,9 @@ async def webrtc_ice(sid, data):
 
 
 if __name__ == "__main__":
+    # Require within __main__ for rendering in parallel sub envs.
+    mp.set_start_method("spawn")
+
     log_dir = app_dir / "logs"
     key_dir = app_dir / "../.keys"  # for HTTPS
 
