@@ -1,9 +1,10 @@
 import { updateDeviceStatus } from './utils.js';
 
+
 const NASATLXFieldToInputName = {
-  "mental-demand": "mentalDemandOptions",
-  "physical-demand": "physicalDemandOptions",
-  "temporal-demand": "temporalDemandOptions",
+  "mentalDemand": "mentalDemandOptions",
+  "physicalDemand": "physicalDemandOptions",
+  "temporalDemand": "temporalDemandOptions",
   "performance": "performanceOptions",
   "effort": "effortOptions",
   "frustration": "frustrationOptions"

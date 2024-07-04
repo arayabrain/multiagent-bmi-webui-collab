@@ -290,18 +290,18 @@ async def on_completed(mode: str):
     
 
     comp_time = task_completion_timers[mode].elapsed
-    # todo?: add env/task information to info
-    interaction_recorders[mode].save_session(session_log_dir) #saves usernames and agent number to info.json, saves history.jsonl
 
-    for username in connectedUsers: #might want to change so doesnt require registration
+    #save interaction history for session
+    usernames = interaction_recorders[mode].save_session(session_log_dir) 
+
+    for username in usernames: 
         user_log_dir = log_dir / username / session_name
         sid = [sid for sid, name in sid2username.items() if name == username][0]
         userid = sid2userid[sid]
-        compute_usermetrics(user_log_dir, userid, save = True) #should run without info.json
+        compute_usermetrics(user_log_dir, userid, save = True) 
         interaction_recorders[mode].save_userinfo(user_log_dir, userid)
 
-    compute_sessionmetrics(session_log_dir,info = comp_time,  save=True) #should no longer need info.json
-
+    compute_sessionmetrics(session_log_dir,info = comp_time,  save=True) 
     await _server_stop(mode, is_completed=True)
 
 

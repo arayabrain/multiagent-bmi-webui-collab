@@ -37,7 +37,8 @@ class InteractionRecorder:
 
     def record(self, user_id: str, data: dict):
         assert user_id in self.userinfo, "User not added"
-        self.history.append({"userId": user_id, **data})
+        #self.history.append({"userId": user_id, **data})
+        self.history.append(data)
 
     def save_session(self, save_dir: Path): 
         """Saves the usernames and number of agents in session"""
@@ -49,8 +50,9 @@ class InteractionRecorder:
         usernames = list(set([x['username'] for x in self.history]))
         num_agents = len(set([x['agentId'] for x in self.history]))
         with jsonlines.open(save_dir / "info.json", mode="w") as writer:
-            writer.write({"usernames": usernames, "num_agents": num_agents})
-        print("Session saved")
+            writer.write({"usernames": usernames, "numAgents": num_agents})
+            
+        return usernames
         
         
 
@@ -69,13 +71,14 @@ class InteractionRecorder:
         userinfo = _data[userid]['userinfo']
         deviceinfo = _data[userid]['deviceSelection']
 
-        with open(user_log_dir / "userinfo.json", "w") as f:
+        with open(user_log_dir / "info.json", "w") as f:
             json.dump(userinfo, f, indent=4)
         with open(user_log_dir / "deviceinfo.json", "w") as f:
             json.dump(deviceinfo, f, indent=4)
 
     
 def compute_usermetrics(user_log_dir: Path, userid, save=False): #change to directly take in history and info?
+    #remove userid as input
     """Computes metrics specific to user and saves the summary to a json file."""
 
     username = user_log_dir.parts[-2]
@@ -88,22 +91,22 @@ def compute_usermetrics(user_log_dir: Path, userid, save=False): #change to dire
 
     metrics = {}
 
-    metrics[userid] = {}
+    metrics[username] = {}
 
-    grouped = df_hist.groupby("userId")
+    grouped = df_hist.groupby("username")
 
-    metrics[userid]["interactionTime"] = df_hist[df_hist["userId"]==userid]["interactionTime"].to_list()
+    metrics[username]["interactionTime"] = df_hist[df_hist["username"]==username]["interactionTime"].to_list()
 
-    metrics[userid]["commands"] = _compute_error_rate(
-        df_hist[df_hist["userId"]==userid]["isNowAcceptable"].to_list(), df_hist[df_hist["userId"]==userid]["hasSubtaskNotDone"].to_list()
+    metrics[username]["commands"] = _compute_error_rate(
+        df_hist[df_hist["username"]==username]["isNowAcceptable"].to_list(), df_hist[df_hist["username"]==username]["hasSubtaskNotDone"].to_list()
     )
 
     if save:
         #make directory if not exist
         user_log_dir.mkdir(parents=True, exist_ok=True)
 
-        with open(user_log_dir / "usermetrics.json", "w") as f:
-            json.dump(metrics[userid], f, indent=4)
+        with open(user_log_dir / "metrics.json", "w") as f:
+            json.dump(metrics[username], f, indent=4)
 
     return metrics
 
@@ -113,39 +116,19 @@ def compute_sessionmetrics(exp_log_dir: Path, info, save=False): #remove user me
     """
     expid = exp_log_dir.parts[-1]
     df_hist = pd.read_json(exp_log_dir / "history.jsonl", orient="records", lines=True)
-    #df_info = pd.read_json(exp_log_dir / "info.json")
-
-    # user_ids = df_info.columns.to_list() # user ids 
-    # if "total" not in user_ids:
-    #     user_ids.append("total")
 
     metrics = {}
 
-    # metrics = {}
-    # for user_id in user_ids:
-    #     metrics[user_id] = {}
-
     metrics["total"] = {}
 
-    grouped = df_hist.groupby("userId")
-
-    # task completion time
     metrics["total"]["taskCompletionTime"] = info
-
-    # interaction time stats
-    # for user_id, times in grouped["interactionTime"]:
-    #     metrics[user_id]["interactionTime"] = times.to_list()
     metrics["total"]["interactionTime"] = df_hist["interactionTime"].to_list()
-
-    # error rates
-    # for (user_id, accs), (_, nds) in zip(grouped["isNowAcceptable"], grouped["hasSubtaskNotDone"]):
-    #     metrics[user_id]["commands"] = _compute_error_rate(accs.to_list(), nds.to_list())
     metrics["total"]["commands"] = _compute_error_rate(
         df_hist["isNowAcceptable"].to_list(), df_hist["hasSubtaskNotDone"].to_list()
     )
 
     if save:
-        with open(exp_log_dir / "sessionmetrics.json", "w") as f:
+        with open(exp_log_dir / "metrics.json", "w") as f:
             json.dump(metrics['total'], f, indent=4)
 
     return metrics
@@ -168,6 +151,6 @@ def _compute_error_rate(is_now_acceptable_ls: list, has_subtask_not_done_ls: lis
         if not not_done:
             err_cnt += 1
     return {
-        "total_count": total_cnt,
-        "error_count": err_cnt
+        "totalCount": total_cnt,
+        "errorCount": err_cnt
     }
