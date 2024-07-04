@@ -367,10 +367,9 @@ async def command(sid, data: dict):
         data["likelihoods"],
         data["interactionTime"],
     )
-    if res["interactionTime"] is not None:  # TODO: recording only acceptable interactions
-        res.pop("nextAcceptableCommands")  # delete unnecessary item
-        interaction_recorders[mode].record(sid2userid[sid], res)
-    print(f"Command {command_label} by {username} is sent to {agent_id}")
+
+    res.pop("nextAcceptableCommands")  # delete unnecessary item
+    interaction_recorders[mode].record(sid2userid[sid], res)
 
 
 @sio.on("webrtc-offer-request")
