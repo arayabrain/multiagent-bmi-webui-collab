@@ -49,7 +49,8 @@ const updateLog = (msg, numSpace = 0) => {
 
 const requestServerStart = () => {
     document.getElementById('start-button').disabled = true;
-    document.getElementById('reset-button').disabled = true;  // disable during the countdown
+    document.getElementById('reset-button').disabled = true;
+    document.getElementById('hp-button').disabled = true; // disable during the countdown
 
     // request the server to start the environment
     sockEnv.emit('requestServerStart');
@@ -62,6 +63,7 @@ const onServerStartDone = () => {
 
 const clientStart = () => {
     document.getElementById('start-button').disabled = true;  // disable start button for clients who have not pressed it
+    document.getElementById('hp-button').disabled = true;  // disable back to menu
 
     sockEnv.emit('addUser', {
         userinfo: userinfo,
@@ -73,6 +75,7 @@ const clientStart = () => {
     if (isDataCollection) {
         document.addEventListener('dataCollectionOnset', onDataCollectionOnset);
         document.addEventListener('dataCollectionCompleted', onDataCollectionCompleted);
+        // TODO: hide NASA TLX survey button in data coll mode ?
         startDataCollection(commandColors, commandLabels);
     }
 
@@ -93,11 +96,13 @@ const onDataCollectionCompleted = async () => {
 const requestServerStop = (isCompleted = false) => {
     document.getElementById('start-button').disabled = true;
     document.getElementById('reset-button').disabled = true;
+    document.getElementById('hp-button').disabled = true;  // disable back to menu
     sockEnv.emit('requestServerStop', isCompleted);
 }
 
 const clientStop = (isCompleted = false) => {
     document.getElementById('reset-button').disabled = true;  // disable stop&reset button for clients who have not pressed it
+    document.getElementById('hp-button').disabled = true;  // disable back to menu
 
     if (!isStarted) {
         // called by
@@ -129,6 +134,7 @@ const clientStop = (isCompleted = false) => {
 const clientReset = () => {
     document.getElementById('start-button').disabled = false;
     document.getElementById('reset-button').disabled = true;
+    document.getElementById('hp-button').disabled = false;
     resetChartData();
 }
 
@@ -146,7 +152,7 @@ const connectEnv = () => {
     sockEnv.on('connect', () => {
         updateLog("Env server connected");
         // request WebRTC offer to the server
-        sockEnv.emit('webrtc-offer-request');
+        sockEnv.emit('webrtc-offer-request', userinfo);
     });
     sockEnv.on('status', (message) => {
         updateTaskStatusMsg(message);
@@ -170,6 +176,9 @@ const connectEnv = () => {
         Object.keys(subtaskSelectionDeviceInitFuncs).forEach(device => {
             if (deviceSelection[device]) subtaskSelectionDeviceInitFuncs[device](onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
         });
+
+        // Share userinfo across the session, for other modules to use
+        sessionStorage.setItem("userinfo", JSON.stringify(userinfo));
     });
     sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods, interactionTime }) => {
         if (interactionTime) {

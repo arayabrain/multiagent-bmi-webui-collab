@@ -167,7 +167,7 @@ class EnvRunner:
 
             await asyncio.sleep(dt_step)
 
-    async def update_and_notify_command(self, command, agent_id, likelihoods=None, interaction_time=None):
+    async def update_and_notify_command(self, command, agent_id, username=None, likelihoods=None, interaction_time=None):
         # self.command should be updated only by this method
         # likelihoods and interaction_time would be None when called internally
 
@@ -195,6 +195,7 @@ class EnvRunner:
             "hasSubtaskNotDone": has_subtask_not_done,
             "likelihoods": likelihoods,
             "interactionTime": interaction_time,
+            "username": username
         }
 
         # send the command info to update the charts and debug log in the frontend

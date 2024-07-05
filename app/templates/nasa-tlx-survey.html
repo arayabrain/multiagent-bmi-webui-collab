@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="description" content="FastAPI with WebSockets">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent BMI | NASA TLX Survey</title>
+
+    <link rel="icon" type="image/png" href="/static/img/favicon.png">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/log.css">
+    <link rel="stylesheet" href="/static/apriltag.css">
+    <style>
+
+      .nasa-tlx-field-container {
+        /* display: flex; */
+        /* flex-direction: row; */
+        /* align-items: center; */
+      }
+
+      /* .form-check {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+      } */
+
+      /* .form-check-input {
+        margin-bottom: 5px;
+      } */
+
+      .low-label {
+        order: 1;
+      }
+
+      .high-label {
+        order: 3;
+      }
+
+      .form-check-inline {
+        margin-right: 12px;
+        margin-left:  12px;
+      }
+
+      fieldset {
+        margin-bottom: 20px;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+      }
+
+      legend {
+          font-size: 1.2em;
+          font-weight: bold;
+          margin-bottom: 10px;
+      }
+
+      .low-label {
+        margin-right: 20px;
+      }
+
+      .high-label {
+        margin-left: 20px;
+      }
+    </style>
+</head>
+
+<body>
+  <!-- Pre define fields metadata for form generation -->
+  {%
+    set NASATLXFields = {
+      'mentalDemandOptions': {
+        "inputID": "mentalDemand",
+        "legend": "Mental Demand",
+        "description": "How mentally demanding was the task ?",
+        "low-label": "Very Low",
+        "high-label": "Very High"
+      },
+
+      'physicalDemandOptions': {
+        "inputID": "physicalDemand",
+        "legend": "Physical Demand",
+        "description": "How physically demanding was the task ?",
+        "low-label": "Very Low",
+        "high-label": "Very High"
+      },
+
+      'temporalDemandOptions': {
+        "inputID": "temporalDemand",
+        "legend": "Temporal Demand",
+        "description": "How hurried or rushed was the pace of the task ?",
+        "low-label": "Very Low",
+        "high-label": "Very High"
+      },
+
+      'performanceOptions': {
+        "inputID": "performance",
+        "legend": "Performance",
+        "description": "How successful were you in accomplishing what you were asked to do ?",
+        "low-label": "Perfect",
+        "high-label": "Failure"
+      },
+
+      'effortOptions': {
+        "inputID": "effort",
+        "legend": "Effort",
+        "description": "How hard did you have to work to accomplish your level of performance ?",
+        "low-label": "Very Low",
+        "high-label": "Very High"
+
+      },
+
+      'frustrationOptions': {
+        "inputID": "frustration",
+        "legend": "Frustration",
+        "description": "How insecure, discouraged, irritated, stressed, and annoyed were you ?",
+        "low-label": "Very Low",
+        "high-label": "Very High"
+      },
+    }
+  %}
+  
+  <div class="container">
+
+    <form id="nasa-tlx-survey-form" method="post">
+      <div>
+        <p id="username-area" class="mb-0"></p>
+        <p id="device-status-area" class="mb-0"></p>
+        <br/>
+      </div>
+      <br/>
+      <br/>
+
+      <!-- Systematically generate all the fields -->
+      {% for inputName, inputMeta in NASATLXFields.items() %}
+      <fieldset>
+          <legend>{{inputMeta["legend"]}}</legend>
+          <span>{{inputMeta["description"]}}</span>
+          <br/>
+          <br/>
+
+          <div class="nasa-tlx-field-container">
+            <span class="low-label">{{inputMeta["low-label"]}}</span>
+            
+            <input style="width:70%;" type="range" name="{{inputName}}" min="0" max="100" step="5" id="{{inputMeta['inputID']}}" value="50" default="50">
+            
+            <!-- <div class="form-check form-check-inline"> -->
+              <!-- <label class="form-check-label" for="{{inputMeta['inputID']}}-{{i}}">{{i}}</label> -->
+              <!-- <input class="form-check-input" type="radio" name="{{inputName}}" id="{{inputMeta['inputID']}}-{{i}}" value="{{i}}"> -->
+            <!-- </div> -->
+
+            <span class="high-label">{{inputMeta["high-label"]}}</span>
+          </div>
+      </fieldset>
+      {% endfor %}
+
+      <!-- TODO: Free form comments ? -->
+      <!-- <fieldset>
+          <legend>Additional Information</legend>
+          <label>Comments:</label>
+          <textarea name="comments" rows="4"></textarea>
+      </fieldset> -->
+
+      <div class="row justify-content-between">
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary" id="submit-button">Submit</button>
+        </div>
+        <div class="col-auto">
+            <button type="button" class="btn btn-secondary" id="clear-button">Clear</button>
+        </div>
+    </div>
+      
+    </form>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module" src="/static/nasa-tlx-survey.js"></script>
+</body>

@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const saveUserinfo = async () => {
     const userinfo = {
+        projectName: document.querySelector('input[name="projectName"]').value,
         name: document.querySelector('input[name="name"]').value,
         age: document.querySelector('input[name="age"]').value,
         gender: document.querySelector('select[name="gender"]').value,
@@ -34,6 +35,7 @@ const initUserinfo = async () => {
     const userinfo = await response.json();
     if (!userinfo) return;
 
+    document.querySelector('input[name="projectName"]').value = userinfo.projectName;
     document.querySelector('input[name="name"]').value = userinfo.name;
     document.querySelector('input[name="age"]').value = userinfo.age;
     document.querySelector('select[name="gender"]').value = userinfo.gender;
@@ -41,6 +43,7 @@ const initUserinfo = async () => {
 }
 
 const clearForm = () => {
+    document.querySelector('input[name="projectName"]').value = 'hri-benchmark';
     document.querySelector('input[name="name"]').value = '';
     document.querySelector('input[name="age"]').value = '';
     document.querySelector('select[name="gender"]').value = '';
