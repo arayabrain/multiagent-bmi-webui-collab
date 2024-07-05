@@ -43,7 +43,7 @@ const initUserinfo = async () => {
 }
 
 const clearForm = () => {
-    document.querySelector('input[name="projectName"]').value = '';
+    document.querySelector('input[name="projectName"]').value = 'hri-benchmark';
     document.querySelector('input[name="name"]').value = '';
     document.querySelector('input[name="age"]').value = '';
     document.querySelector('select[name="gender"]').value = '';
