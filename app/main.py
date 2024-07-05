@@ -21,7 +21,7 @@ from typing import Dict, List
 
 from app.env import EnvRunner
 from app.stream import StreamManager
-from app.utils.metrics import InteractionRecorder, compute_metrics, taskCompletionTimer
+from app.utils.metrics import InteractionRecorder, compute_sessionmetrics, compute_usermetrics, taskCompletionTimer
 from app.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
 
 load_dotenv()
@@ -52,7 +52,7 @@ peer_connections: Dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for ea
 sid2userid: Dict[str, str] = {} # user_i d for each sid
 sid2username: Dict[str, str] = {} # user_name for each sid
 connectedUsers: List = [] # list of users that registered in their browsers
-exp_ids: Dict[str, str] = {}  # exp_id for each mode
+mode2expids: Dict[str, str] = {}  # exp_id for each mode
 task_completion_timers: Dict[str, taskCompletionTimer] = {}  # taskCompletionTimer for each mode
 interaction_recorders: Dict[str, InteractionRecorder] = {} 
 
@@ -94,28 +94,28 @@ async def setuser(request: Request, userinfo: dict):
 
 @app.post("/api/save-nasa-tlx-data")
 async def save_nasa_tlx_data(request: Request, survey_data: dict):
-    # TODO: ask for project id and create folder,  make sure new session same day won't overwrite.
-    # currently only works if session is completed.
     mode = survey_data['mode']
-    date_id = datetime.now().strftime("%Y%m%d")
-
-    date_log_dir = log_dir / date_id
-    # if not exp_log_dir.exists(): 
-    #     exp_log_dir.mkdir(parents=True, exist_ok=True)
-
-    n_users = len(set(sid2username.values()))
-    n_agents = env_info[mode]["num_agents"]
-    session_name = f"{n_users}users_{n_agents}agents"
 
     username = survey_data['userinfo']['name']
+    sub_log_dir = log_dir / f"{username}"
+    sub_log_dir.mkdir(parents=True, exist_ok=True)
 
-    survey_path = date_log_dir / session_name / username 
 
-    selected_devices = [device for device, is_selected in survey_data['device-selection'].items() if is_selected]
+    time_id = mode2expids[mode]
+    session_name = f"{time_id}" #might want to make bids format
 
-    file_name = "_".join(selected_devices) + "_nasatlx.json"
+    survey_path = sub_log_dir / session_name
+    survey_path.mkdir(parents=True, exist_ok=True)
+
+    #remove fields other than survey data
+    saved_data = survey_data.copy()
+    keys_to_remove = ['mode', 'userinfo', 'device-selection']
+    for key in keys_to_remove:
+        saved_data.pop(key, None)
+
+    file_name = "nasatlx.json"
     with open(survey_path / file_name, mode="w") as f:
-        json.dump(survey_data, f, indent=4)
+        json.dump(saved_data, f, indent=4)
 
     return True
 
@@ -227,14 +227,10 @@ async def connect(sid, environ):
         envs[mode] = env
         stream_manager.setup(mode, env.env.get_visuals, env.num_agents)
 
-    # set exp_id if not set
-    if mode not in exp_ids:
-        exp_ids[mode] = datetime.now().strftime("%Y%m%d_%H%M%S") #experiment ids are shared between clients if in same mode.
-
     await sio.emit(
         "init",
         {
-            "expId": exp_ids[mode],
+            #"expId": mode2expids[mode],
             "isDataCollection": mode.startswith("data-collection"),
             "commandLabels": env.command_labels,
             "commandColors": env.command_colors,
@@ -293,32 +289,28 @@ async def disconnect(sid):
     await sio.emit("user_list_update", connectedUsers) 
 
 
-async def on_completed(mode: str): # create data storage: projectA/date/1user_2agents/username/(dev1_dev2_nasatlx.json)
+async def on_completed(mode: str):
     task_completion_timers[mode].stop()
-
-    # create and populate session specific folders
-    date_id = exp_ids.pop(mode)[:8]
-    date_log_dir = log_dir / date_id
-    date_log_dir.mkdir(parents=True, exist_ok=True)
-
+    time_id = mode2expids[mode]
     # get session info for folder names
-    n_users, n_agents = interaction_recorders[mode].count_users_and_agents()
-    
-    session_name = f"{n_users}users_{n_agents}agents"
-    session_log_dir = date_log_dir / session_name
+    session_name = f"{time_id}"
+    session_log_dir = log_dir / session_name
     session_log_dir.mkdir(parents=True, exist_ok=True)
-
-    usernames = [sid2username[sid] for sid in modes if modes[sid] == mode]
-    for username in usernames:
-        username_log_dir = session_log_dir / username
-        username_log_dir.mkdir(parents=True, exist_ok=True)
     
 
-    info = {"total": {"taskCompletionTime": task_completion_timers[mode].elapsed}}
-    # todo?: add env/task information to info
-    interaction_recorders[mode].save(session_log_dir, info=info) #saved in session folder
-    compute_metrics(session_log_dir, save=True)
+    comp_time = task_completion_timers[mode].elapsed
 
+    #save interaction history for session
+    usernames = interaction_recorders[mode].save_session(session_log_dir) 
+
+    for username in usernames: 
+        user_log_dir = log_dir / username / session_name
+        sid = [sid for sid, name in sid2username.items() if name == username][0]
+        userid = sid2userid[sid]
+        compute_usermetrics(user_log_dir, userid, save = True) 
+        interaction_recorders[mode].save_userinfo(user_log_dir, userid)
+
+    compute_sessionmetrics(session_log_dir,info = comp_time,  save=True) 
     await _server_stop(mode, is_completed=True)
 
 
@@ -330,11 +322,13 @@ async def add_user(sid, data):
     return True
 
 
-@sio.on("requestServerStart")
+@sio.on("requestServerStart") # getting username here to use as key to find exp_id is not trivial. connected users doesnt show all users here yet.
 async def server_start(sid):
     mode = modes[sid]
     env = envs[mode]
     assert not env.is_running
+    
+    mode2expids[mode] = datetime.now().strftime("%Y%m%d%H%M%S")
 
     # Initialize metrics and start env
     interaction_recorders[mode].reset()
@@ -382,10 +376,9 @@ async def command(sid, data: dict):
         data["likelihoods"],
         data["interactionTime"],
     )
-    if res["interactionTime"] is not None:  # TODO: recording only acceptable interactions
-        res.pop("nextAcceptableCommands")  # delete unnecessary item
-        interaction_recorders[mode].record(sid2userid[sid], res)
-    print(f"Command {command_label} by {username} is sent to {agent_id}")
+
+    res.pop("nextAcceptableCommands")  # delete unnecessary item
+    interaction_recorders[mode].record(sid2userid[sid], res)
 
 
 @sio.on("webrtc-offer-request")
@@ -393,18 +386,12 @@ async def webrtc_offer_request(sid, userinfo):
     pc = peer_connections[sid]
     mode = modes[sid]
 
-
-    # # store user name for command logging
-    # if sid not in sid2username:
-    #     sid2username[sid] = userinfo["name"]
-
     keys_to_remove = [key for key, value in sid2username.items() if value == userinfo["name"]]
     for key in keys_to_remove:
         sid2username.pop(key)
 
-    
     sid2username[sid] = userinfo["name"]
-    # replace the sid with the new sid
+
     # add stream tracks
     tracks = stream_manager.get_tracks(mode)
     for track in tracks:

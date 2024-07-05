@@ -14,11 +14,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         link.addEventListener('click', (event) => {
             // validate the device selection
             const deviceSelection = JSON.parse(sessionStorage.getItem('deviceSelection'));
-            const isDeviceSelected = deviceSelection && Object.values(deviceSelection).some(device => device);
-            // TODO: validate robot selection and subtask selection respectively
+            const isRobotDeviceSelected = document.getElementById(`toggle-mouse`).checked || document.getElementById(`toggle-gamepad`).checked || document.getElementById(`toggle-gaze`).checked;
+            const isSubtaskDeviceSelected = document.getElementById(`toggle-keyboard`).checked || document.getElementById(`toggle-eeg`).checked;
+            const isDeviceSelected = deviceSelection && isRobotDeviceSelected && isSubtaskDeviceSelected
+            // TODO: validate robot selection and subtask selection respectively            
             if (!isDeviceSelected) {
                 event.preventDefault();
-                alert('Please set the user info and device selection before proceeding.');
+                alert('Please choose one device each from left & right column.');
             }
         });
     });

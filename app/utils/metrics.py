@@ -37,115 +37,98 @@ class InteractionRecorder:
 
     def record(self, user_id: str, data: dict):
         assert user_id in self.userinfo, "User not added"
-        self.history.append({"userId": user_id, **data})
+        self.history.append(data)
 
-    def save(self, save_dir: Path, info: Optional[Dict] = None):
-        """Save the interaction history and info (e.g. user info).
-        History is saved to a jsonl file as follows:
-        [
-            {"userId": "abcd0123", "agentId": "agent1", "command": "color1", ...}
-            {"userId": "efgh4567", "agentId": "agent3", "command": "color2", ...}
-            ...
-        ]
-        Info is saved to a json file keyed by user id as follows:
-        {
-            "abcd0123": {
-                "userinfo": {"name": "John", "age": 20, "gender": "male"},
-                "deviceSelection": {"mouse": true, "keyboard": true, "gamepad": false, "eeg": false, "gaze": false},
-                "taskCompletionTime": 100.0,
-            },
-            "efgh4567": {
-                "userinfo": {"name": "Jane", "age": 21, "gender": "female"},
-                "deviceSelection": {"mouse": true, "keyboard": true, "gamepad": false, "eeg": false, "gaze": false},
-                "taskCompletionTime": 20.0,
-            },
-            "total": {
-                "taskCompletionTime": 100.0,
-            }
-        }
-        """
+    def save_session(self, save_dir: Path): 
+        """Saves the usernames and number of agents in session"""
         with jsonlines.open(save_dir / "history.jsonl", mode="w") as writer:
             writer.write_all(self.history)
 
         _data = self.userinfo.copy()
-        if info is not None:
-            _data.update(info)
-        with open(save_dir / "info.json", mode="w") as f:
-            json.dump(_data, f, indent=4)
+        #get list of usernames and number of agents from history.jsonl
+        usernames = list(set([x['username'] for x in self.history]))
+        num_agents = len(set([x['agentId'] for x in self.history]))
+        with jsonlines.open(save_dir / "info.json", mode="w") as writer:
+            writer.write({"usernames": usernames, "numAgents": num_agents})
 
-    def count_users_and_agents(self):
-        """Count the number of unique users and agents in the interaction history."""
-        unique_users = set()
-        unique_agents = set()
+        return usernames
+        
+        
 
-        for record in self.history:
-            unique_users.add(record["userId"])
-            unique_agents.add(record["agentId"])
+        
+    def save_userinfo(self, user_log_dir, userid):
+        """Save the user info and device selection to a json file."""
 
-        return len(unique_users), len(unique_agents)
+        _data = self.userinfo.copy()
 
+        username = user_log_dir.parts[-2]
+        expid = user_log_dir.parts[-1]
 
-def compute_metrics(exp_log_dir: Path, save=False):
-    """
-    Given the interaction history, compute metrics and save the summary to a json file like:
-    {
-        "abcd0123": {
-            "interactionTime": {
-                "mean": 0.5,
-                "std": 1.0,
-            },
-            "errorRate": {
-                "total_count": 10,
-                "error_count": 1,
-                "error_rate": 0.1,
-            }
-        },
-        "efgh4567": {...},
-        "total": {
-            "taskCompletionTime": 100.0,
-            "interactionTime": {
-                "mean": 0.5,
-                "std": 1.0,
-            },
-            "errorRate": {
-                "total_count": 10,
-                "error_count": 1,
-                "error_rate": 0.1,
-            }
-        },
-    }
-    """
+        log_dir = user_log_dir.parents[1]
+        exp_log_dir = log_dir / expid
+    
+        userinfo = _data[userid]['userinfo']
+        deviceinfo = _data[userid]['deviceSelection']
+
+        with open(user_log_dir / "info.json", "w") as f:
+            json.dump(userinfo, f, indent=4)
+        with open(user_log_dir / "deviceinfo.json", "w") as f:
+            json.dump(deviceinfo, f, indent=4)
+
+    
+def compute_usermetrics(user_log_dir: Path, userid, save=False): #change to directly take in history and info?
+    #remove userid as input
+    """Computes metrics specific to user and saves the summary to a json file."""
+
+    username = user_log_dir.parts[-2]
+    expid = user_log_dir.parts[-1]
+
+    log_dir = user_log_dir.parents[1]
+    exp_log_dir = log_dir / expid
+
     df_hist = pd.read_json(exp_log_dir / "history.jsonl", orient="records", lines=True)
-    df_info = pd.read_json(exp_log_dir / "info.json")
-
-    user_ids = df_info.columns.to_list()
-    if "total" not in user_ids:
-        user_ids.append("total")
 
     metrics = {}
-    for user_id in user_ids:
-        metrics[user_id] = {}
 
-    grouped = df_hist.groupby("userId")
+    metrics[username] = {}
 
-    # task completion time
-    metrics["total"]["taskCompletionTime"] = df_info["total"]["taskCompletionTime"]
+    grouped = df_hist.groupby("username")
 
-    # interaction time stats
-    for user_id, times in grouped["interactionTime"]:
-        metrics[user_id]["interactionTime"] = _compute_interaction_time_stats(times.to_list())
-    metrics["total"]["interactionTime"] = _compute_interaction_time_stats(df_hist["interactionTime"].to_list())
+    metrics[username]["interactionTime"] = df_hist[df_hist["username"]==username]["interactionTime"].to_list()
 
-    # error rates
-    for (user_id, accs), (_, nds) in zip(grouped["isNowAcceptable"], grouped["hasSubtaskNotDone"]):
-        metrics[user_id]["errorRate"] = _compute_error_rate(accs.to_list(), nds.to_list())
-    metrics["total"]["errorRate"] = _compute_error_rate(
+    metrics[username]["commands"] = _compute_error_rate(
+        df_hist[df_hist["username"]==username]["isNowAcceptable"].to_list(), df_hist[df_hist["username"]==username]["hasSubtaskNotDone"].to_list()
+    )
+
+    if save:
+        #make directory if not exist
+        user_log_dir.mkdir(parents=True, exist_ok=True)
+
+        with open(user_log_dir / "metrics.json", "w") as f:
+            json.dump(metrics[username], f, indent=4)
+
+    return metrics
+
+def compute_sessionmetrics(exp_log_dir: Path, info, save=False): #remove user metrics
+    """
+    Given the interaction history, compute metrics and save the summary to a json file 
+    """
+    expid = exp_log_dir.parts[-1]
+    df_hist = pd.read_json(exp_log_dir / "history.jsonl", orient="records", lines=True)
+
+    metrics = {}
+
+    metrics["total"] = {}
+
+    metrics["total"]["taskCompletionTime"] = info
+    metrics["total"]["interactionTime"] = df_hist["interactionTime"].to_list()
+    metrics["total"]["commands"] = _compute_error_rate(
         df_hist["isNowAcceptable"].to_list(), df_hist["hasSubtaskNotDone"].to_list()
     )
 
     if save:
         with open(exp_log_dir / "metrics.json", "w") as f:
-            json.dump(metrics, f, indent=4)
+            json.dump(metrics['total'], f, indent=4)
 
     return metrics
 
@@ -167,7 +150,6 @@ def _compute_error_rate(is_now_acceptable_ls: list, has_subtask_not_done_ls: lis
         if not not_done:
             err_cnt += 1
     return {
-        "total_count": total_cnt,
-        "error_count": err_cnt,
-        "error_rate": err_cnt / total_cnt if total_cnt > 0 else 0,
+        "totalCount": total_cnt,
+        "errorCount": err_cnt
     }
