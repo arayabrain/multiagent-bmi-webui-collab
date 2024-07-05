@@ -87,6 +87,6 @@ const saveNASATLXSurveyData = async () => {
     // In case previousURL query has failed, just print the survey results to console.log
     // as a fallback mechanism, then manually add that data to the survey folder.
     console.log(`Exception caught: ${e}`);
-    console.log(NASATLXSurveyData);
+    console.log(JSON.stringify(NASATLXSurveyData));
   }
 }
