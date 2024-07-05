@@ -90,6 +90,7 @@ async def setuser(request: Request, userinfo: dict):
     # TODO: userinfo is basically validated in the frontend, but do it more strictly?
     request.session["userinfo"] = userinfo
     connectedUsers.append(userinfo["name"])
+
     return True
 
 @app.post("/api/save-nasa-tlx-data")
@@ -362,7 +363,6 @@ async def _server_stop(mode, is_completed: bool = False):
     return True
 
 
-
 @sio.on("command")
 async def command(sid, data: dict):
     mode = modes[sid]
@@ -376,9 +376,12 @@ async def command(sid, data: dict):
         data["likelihoods"],
         data["interactionTime"],
     )
-
-    res.pop("nextAcceptableCommands")  # delete unnecessary item
-    interaction_recorders[mode].record(sid2userid[sid], res)
+    
+    if res["interactionTime"] is not None:  # TODO: recording only acceptable interactions
+        res.pop("nextAcceptableCommands")  # delete unnecessary item
+        interaction_recorders[mode].record(sid2userid[sid], res)
+    
+    print(f"Command {command_label} by {username} is sent to {agent_id}")
 
 
 @sio.on("webrtc-offer-request")
@@ -397,6 +400,7 @@ async def webrtc_offer_request(sid, userinfo):
     for track in tracks:
         pc.addTransceiver(track, direction="sendonly")
         print(f"Track {track.id} added to peer connection")
+
 
     await handle_offer_request(pc, sio, sid)
 
