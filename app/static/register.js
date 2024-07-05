@@ -35,7 +35,7 @@ const initUserinfo = async () => {
     const userinfo = await response.json();
     if (!userinfo) return;
 
-    document.querySelector('input[name="projectName"]').value = userinfo.project_name;
+    document.querySelector('input[name="projectName"]').value = userinfo.projectName;
     document.querySelector('input[name="name"]').value = userinfo.name;
     document.querySelector('input[name="age"]').value = userinfo.age;
     document.querySelector('select[name="gender"]').value = userinfo.gender;
