@@ -4,7 +4,7 @@ const deviceStatus = {};
 export const updateDeviceStatus = (name, status) => {
     deviceStatus[name] = status;
 
-    let statusText = '';
+    let statusText = '<h5>Devices</h5>';
     for (const [name, status] of Object.entries(deviceStatus)) {
         statusText += `${name}: ${status}<br>`;
     }

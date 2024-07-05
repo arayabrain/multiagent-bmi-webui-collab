@@ -219,28 +219,18 @@ const connectEnv = () => {
 
     // Update the connected user names when the Python side sends and update
     sockEnv.on('user_list_update', async (user_list) => {
+        // TODO: clean up debug log below
         console.log('Received user list update:');
         console.log(user_list);
-        let usernameAreaDiv = document.getElementById("username-area");
 
-        // TODO:
-        // Delete all the children of usernameAreaDiv, if any
-        // Iterate over user_list, and for each user in there, add a
-        // <p> User ${userIdx}: userlist[$userIdx]</p> as child
-
-        console.log(usernameAreaDiv.children);
-        for (var i = 0; i < user_list.length; i++) {
-            // console.log(myStringArray[i]);
-        };
-
-        userinfo.user_list = user_list;
-        const userListElement = document.getElementById('displayUserList');
+        userinfo.user_list = user_list; // TODO: is this actually needed ?
+        const usernameAreaDiv = document.getElementById('username-area');
         if (userinfo.user_list && userinfo.user_list.length > 0) {
-            userListElement.innerHTML = `USERS<br>${userinfo.user_list.join('<br>')}`;
+            usernameAreaDiv.innerHTML = `<h5>Users</h5>${userinfo.user_list.join('<br>')}`;
         } else {
-            userListElement.innerHTML = 'USERS<br>No users available';
+            usernameAreaDiv.innerHTML = '<h5>Users</h5>No users available';
         }    });
-    // document.getElementById('displayUserList').textContent = `${user_list}`;
+    // document.getElementById('username-area').textContent = `${user_list}`;
     setSockEnv(sockEnv);
 }
 
