@@ -1,7 +1,6 @@
 import json
 import time
 from pathlib import Path
-from typing import Dict, Optional
 
 import jsonlines
 import numpy as np
@@ -92,9 +91,9 @@ def compute_usermetrics(user_log_dir: Path, userid, save=False): #change to dire
 
     metrics[username] = {}
 
-    grouped = df_hist.groupby("username")
+    # grouped = df_hist.groupby("username")
 
-    metrics[username]["interactionTime"] = df_hist[df_hist["username"]==username]["interactionTime"].to_list()
+    metrics[username]["interactionTime"] = [v if v != "NaN" else None for v in df_hist[df_hist["username"]==username]["interactionTime"].fillna("NaN").to_list()]
 
     metrics[username]["commands"] = _compute_error_rate(
         df_hist[df_hist["username"]==username]["isNowAcceptable"].to_list(), df_hist[df_hist["username"]==username]["hasSubtaskNotDone"].to_list()
@@ -113,7 +112,7 @@ def compute_sessionmetrics(exp_log_dir: Path, info, save=False): #remove user me
     """
     Given the interaction history, compute metrics and save the summary to a json file 
     """
-    expid = exp_log_dir.parts[-1]
+    # expid = exp_log_dir.parts[-1]
     df_hist = pd.read_json(exp_log_dir / "history.jsonl", orient="records", lines=True)
 
     metrics = {}
@@ -121,7 +120,7 @@ def compute_sessionmetrics(exp_log_dir: Path, info, save=False): #remove user me
     metrics["total"] = {}
 
     metrics["total"]["taskCompletionTime"] = info
-    metrics["total"]["interactionTime"] = df_hist["interactionTime"].to_list()
+    metrics["total"]["interactionTime"] = [v if v != "NaN" else None for v in df_hist["interactionTime"].fillna("NaN").to_list()]
     metrics["total"]["commands"] = _compute_error_rate(
         df_hist["isNowAcceptable"].to_list(), df_hist["hasSubtaskNotDone"].to_list()
     )
