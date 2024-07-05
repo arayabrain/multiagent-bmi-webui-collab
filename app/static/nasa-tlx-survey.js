@@ -59,24 +59,34 @@ const saveNASATLXSurveyData = async () => {
   // NOTE !!! The survey must be accessed from the modal, otherwise
   // this will fail, and there won't be info about what "mode" this
   // experiment data corresponds to.
-  var previousURL = new URL(document.referrer);
-  var mode = previousURL.pathname.split('/').filter(Boolean).pop();
+  try {
+    // If survey form is invoked without an experiment being done before
+    // this allows us to still recover the results
+    var previousURL = new URL(document.referrer);
+    var mode = previousURL.pathname.split('/').filter(Boolean).pop();
 
-  // Add userinfo and device selection
-  NASATLXSurveyData["device-selection"] = JSON.parse(sessionStorage.getItem("deviceSelection"));
-  NASATLXSurveyData["userinfo"] = JSON.parse(sessionStorage.getItem("userinfo"));
-  NASATLXSurveyData["mode"] = mode;
+    // Add userinfo and device selection
+    NASATLXSurveyData["device-selection"] = JSON.parse(sessionStorage.getItem("deviceSelection"));
+    NASATLXSurveyData["userinfo"] = JSON.parse(sessionStorage.getItem("userinfo"));
+    NASATLXSurveyData["mode"] = mode;
 
-  // Send the collected data to the Python backend for saving
-  const response = await fetch("/api/save-nasa-tlx-data", {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(NASATLXSurveyData)
-  });
+    // Send the collected data to the Python backend for saving
+    const response = await fetch("/api/save-nasa-tlx-data", {
+      method: 'POST',
+      headers: {
+          'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(NASATLXSurveyData)
+    });
 
-  if (response.ok) {
-    window.location.href = '/';  // Redirect to the index page
+    if (response.ok) {
+      window.location.href = '/';  // Redirect to the index page
+    }
+  }
+  catch (e) {
+    // In case previousURL query has failed, just print the survey results to console.log
+    // as a fallback mechanism, then manually add that data to the survey folder.
+    console.log(`Exception caught: ${e}`);
+    console.log(NASATLXSurveyData);
   }
 }
