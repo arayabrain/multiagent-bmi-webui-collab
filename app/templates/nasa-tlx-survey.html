@@ -13,58 +13,6 @@
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/log.css">
     <link rel="stylesheet" href="/static/apriltag.css">
-    <style>
-
-      .nasa-tlx-field-container {
-        /* display: flex; */
-        /* flex-direction: row; */
-        /* align-items: center; */
-      }
-
-      /* .form-check {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-      } */
-
-      /* .form-check-input {
-        margin-bottom: 5px;
-      } */
-
-      .low-label {
-        order: 1;
-      }
-
-      .high-label {
-        order: 3;
-      }
-
-      .form-check-inline {
-        margin-right: 12px;
-        margin-left:  12px;
-      }
-
-      fieldset {
-        margin-bottom: 20px;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-      }
-
-      legend {
-          font-size: 1.2em;
-          font-weight: bold;
-          margin-bottom: 10px;
-      }
-
-      .low-label {
-        margin-right: 20px;
-      }
-
-      .high-label {
-        margin-left: 20px;
-      }
-    </style>
 </head>
 
 <body>
@@ -143,14 +91,7 @@
 
           <div class="nasa-tlx-field-container">
             <span class="low-label">{{inputMeta["low-label"]}}</span>
-            
             <input style="width:70%;" type="range" name="{{inputName}}" min="0" max="100" step="5" id="{{inputMeta['inputID']}}" value="50" default="50">
-            
-            <!-- <div class="form-check form-check-inline"> -->
-              <!-- <label class="form-check-label" for="{{inputMeta['inputID']}}-{{i}}">{{i}}</label> -->
-              <!-- <input class="form-check-input" type="radio" name="{{inputName}}" id="{{inputMeta['inputID']}}-{{i}}" value="{{i}}"> -->
-            <!-- </div> -->
-
             <span class="high-label">{{inputMeta["high-label"]}}</span>
           </div>
       </fieldset>

@@ -162,3 +162,32 @@ video {
     line-height: 1em;
     min-height: 1em;
 }
+
+/* NASA TLX Survey Form Styling */
+.low-label {
+    order: 1;
+    margin-right: 20px;
+}
+
+.high-label {
+    order: 3;
+    margin-left: 20px;
+}
+
+.form-check-inline {
+    margin-right: 12px;
+    margin-left:  12px;
+}
+
+fieldset {
+    margin-bottom: 20px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+}
+
+legend {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
