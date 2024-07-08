@@ -92,11 +92,14 @@ video {
     background-color: white;
     opacity: 0.8;
     overflow: hidden;
+    height: 25%;
+    max-height: 25%;
 }
 
 .likelihood-chart {
     width: 100%;
-    height: auto;
+    height: 75%;
+    max-height: 75%;
     overflow: hidden;
 }
 
