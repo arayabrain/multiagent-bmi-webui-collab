@@ -105,6 +105,11 @@ export const updateChartData = (agentId, likelihoods) => {
     chart.update();
 }
 
+export const resetChartDataByAgentId = (agentId) => {
+    charts[agentId].data.datasets[0].data = Array(commandLabels.length).fill(initVal);
+    charts[agentId].update()
+};
+
 export const resetChartData = () => {
     charts.forEach(chart => {
         chart.data.datasets[0].data = Array(commandLabels.length).fill(initVal);
@@ -118,10 +123,13 @@ export const updateChartColor = (agentId, currentCommand, username) => {
     chart.data.datasets[0].backgroundColor = [...Array(commandLabels.length).keys()].map(barId => getBarColor(barId, currentCommand));
     chart.data.datasets[0].borderColor = [...Array(commandLabels.length).keys()].map(barId => getBorderColor(barId, currentCommand, chart.options.isBarLocked));
     chart.update();
-    if (currentCommand === null) {
-        document.getElementById(`variable_${agentId}`).textContent = ``;
+    if (currentCommand === "") {
+        document.getElementById(`op-username-div-${agentId}`).textContent = ``;
+        // NOTE: this was implemented with K+M combo in mind, but might be
+        // counter productive in the case of other input devices ? EEG / EMG
+        resetChartDataByAgentId(agentId);
     } else {
-        document.getElementById(`variable_${agentId}`).textContent = ` ${username}`;
+        document.getElementById(`op-username-div-${agentId}`).textContent = `    ${username}`;
     };
 };
 

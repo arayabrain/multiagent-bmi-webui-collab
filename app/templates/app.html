@@ -25,14 +25,16 @@
                 <video id="camera_{{i}}" autoplay playsinline muted></video>
                 <div class="chart-container">
                     <canvas id="chart_{{i}}" class="likelihood-chart"></canvas>
-                    <div id="variable_{{i}}" class="variable-display"></div>
+                    <p id="op-username-div-{{i}}" style="text-align: center; width: 100%"></p>
                 </div>
             </div>
             {% endfor %}
         </div>
 
         <div class="controls-container">
+            <h5><b>Users</b></h5>
             <div id="username-area"></div>
+            <h5><b>Devices</b></h5>
             <div id="device-status-area"></div>
             
             <div class="button-container">

@@ -226,9 +226,9 @@ const connectEnv = () => {
         userinfo.user_list = user_list; // TODO: is this actually needed ?
         const usernameAreaDiv = document.getElementById('username-area');
         if (userinfo.user_list && userinfo.user_list.length > 0) {
-            usernameAreaDiv.innerHTML = `<h5>Users</h5>${userinfo.user_list.join('<br>')}`;
+            usernameAreaDiv.innerHTML = `${userinfo.user_list.join('<br>')}`;
         } else {
-            usernameAreaDiv.innerHTML = '<h5>Users</h5>No users available';
+            usernameAreaDiv.innerHTML = 'No users available';
         }    });
     // document.getElementById('username-area').textContent = `${user_list}`;
     setSockEnv(sockEnv);
