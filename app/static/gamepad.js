@@ -20,6 +20,7 @@ export const init = (commandHandler, commandLabels, userId, expId) => {
 
     window.addEventListener("gamepadconnected", connect);
     window.addEventListener("gamepaddisconnected", disconnect);
+    updateDeviceStatus('Gamepad', 'disconnected')
 }
 
 const connect = (event) => {

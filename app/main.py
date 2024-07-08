@@ -316,7 +316,6 @@ async def command(sid, data: dict):
     
     print(f"Command {command_label} by {username} is sent to {agent_id}")
 
-
 @sio.on("webrtc-offer-request")
 async def webrtc_offer_request(sid, userinfo):
     pc = peer_connections[sid]
