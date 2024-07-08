@@ -103,6 +103,21 @@ video {
     overflow: hidden;
 }
 
+.chart-username-area {
+    text-align: center;
+    width: 100%;
+}
+
+.chart-username-area-1,
+.chart-username-area-4,
+.chart-username-area-8 {
+    font-size: large;
+}
+
+.chart-username-area-16 {
+    font-size: small;
+}
+
 /* controls */
 .controls-container {
     height: 100%;
