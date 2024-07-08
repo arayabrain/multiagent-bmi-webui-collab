@@ -180,18 +180,18 @@ const connectEnv = () => {
         if (!isNowAcceptable) {
             // Command was not updated because agent was already executing an action
             // Currently we do not count this as a subtask selection
-            updateLog(`Agent ${agentId}: Command update failed`);
+            updateLog(`Agent ${agentId}: Command update failed (by "${username}")`);
             updateLog(`Agent is executing an action`, 2);
         } else if (!hasSubtaskNotDone) {
             // Command was not updated because the selected subtask has already been done
             // We consider this as an "invalid" subtask selection and count as an error
-            updateLog(`Agent ${agentId}: Command update failed`);
+            updateLog(`Agent ${agentId}: Command update failed (by "${username}")`);
             updateLog(`Task "${command}" is already done`, 2);
             console.assert(command !== '', 'empty command');
         } else {
             // Command was valid and updated
             if (command !== '') {
-                updateLog(`Agent ${agentId}: Command updated to "${command}"`);
+                updateLog(`Agent ${agentId}: Command updated to "${command}" by "${username}"`);
                 if (likelihoods !== null) updateChartData(agentId, likelihoods);  // sync the chart data before updating the lock status
             }
             updateChartLock(agentId, nextAcceptableCommands);
@@ -219,18 +219,23 @@ const connectEnv = () => {
 
     // Update the connected user names when the Python side sends and update
     sockEnv.on('user_list_update', async (user_list) => {
-        // TODO: clean up debug log below
-        console.log('Received user list update:');
-        console.log(user_list);
-
         userinfo.user_list = user_list; // TODO: is this actually needed ?
         const usernameAreaDiv = document.getElementById('username-area');
         if (userinfo.user_list && userinfo.user_list.length > 0) {
-            usernameAreaDiv.innerHTML = `${userinfo.user_list.join('<br>')}`;
+            var userListContent = "";
+            user_list.forEach(connectUserName => {
+                if (connectUserName == userinfo.name) {
+                    userListContent += `<b><i>${connectUserName}</i></b><br/>`;
+                } else {
+                    userListContent += `${connectUserName}<br/>`;
+                };
+            });
+            usernameAreaDiv.innerHTML = userListContent;
         } else {
             usernameAreaDiv.innerHTML = 'No users available';
-        }    });
-    // document.getElementById('username-area').textContent = `${user_list}`;
+        }
+    });
+
     setSockEnv(sockEnv);
 }
 
