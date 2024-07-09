@@ -6,7 +6,7 @@ import { init as initGamepad } from './gamepad.js';
 import { init as initGaze } from './gaze.js';
 import { init as initKeyboard } from './keyboard.js';
 import { init as initMouse } from './mouse.js';
-import { binStr2Rgba } from './utils.js';
+import { binStr2Rgba, disconnectUser, getCookie } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 const robotSelectionDeviceInitFuncs = {
@@ -35,6 +35,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById('reset-button').addEventListener('click', () => requestServerStop());
 
     clientReset();
+});
+
+// Notify backend when the browser window is closed
+// for server-side tracking of connected users
+window.addEventListener("beforeunload", (event) => {
+    // TODO: what if there is no uniquer_user_id set yet ?
+    let unique_user_id = getCookie("unique_user_id");
+    console.log(unique_user_id);
+    disconnectUser(unique_user_id);
+});
+
+window.addEventListener("unload", (event) => {
+    let unique_user_id = getCookie("unique_user_id");
+    console.log(unique_user_id);
+    disconnectUser(unique_user_id);
 });
 
 const updateTaskStatusMsg = (msg) => {
@@ -227,7 +242,8 @@ const connectEnv = () => {
     });
 
     // Update the connected user names when the Python side sends and update
-    sockEnv.on('user_list_update', async (user_list) => {
+    // TODO: make the connect user list updated based on the mode
+    sockEnv.on('userListUpdate', async (user_list) => {
         userinfo.user_list = user_list; // TODO: is this actually needed ?
         const usernameAreaDiv = document.getElementById('username-area');
         if (userinfo.user_list && userinfo.user_list.length > 0) {

@@ -1,3 +1,21 @@
+import { disconnectUser, getCookie } from './utils.js';
+
+// Notify backend when the browser window is closed
+// for server-side tracking of connected users
+window.addEventListener("beforeunload", (event) => {
+    // TODO: what if there is no uniquer_user_id set yet ?
+    let unique_user_id = getCookie("unique_user_id");
+    console.log(unique_user_id);
+    disconnectUser(unique_user_id);
+});
+
+window.addEventListener("unload", (event) => {
+    let unique_user_id = getCookie("unique_user_id");
+    console.log(unique_user_id);
+    disconnectUser(unique_user_id);
+});
+
+
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('#userinfoForm').addEventListener('submit', async event => {
         event.preventDefault();
@@ -24,8 +42,6 @@ const saveUserinfo = async () => {
         },
         body: JSON.stringify(userinfo)
     });
-
-    console.log(response);
 
     if (response.status == 400) {
         // NOTE: for now, the only type of error we get

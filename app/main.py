@@ -8,6 +8,7 @@ import urllib.parse
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Dict, List, Optional, Union
 
 import socketio
 import uvicorn
@@ -18,7 +19,6 @@ from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from typing import Dict, List
 
 from app.env import EnvRunner
 from app.stream import StreamManager
@@ -52,7 +52,6 @@ peer_connections: Dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for ea
 
 sid2userid: Dict[str, str] = {}  # user_i d for each sid
 sid2username: Dict[str, str] = {}  # user_name for each sid
-connectedUsers: List = []  # list of users that registered in their browsers
 mode2expids: Dict[str, str] = {}  # exp_id for each mode
 task_completion_timers: Dict[str, taskCompletionTimer] = {}  # taskCompletionTimer for each mode
 interaction_recorders: Dict[str, InteractionRecorder] = {}
@@ -95,26 +94,32 @@ def get_uniq_client_sid(request: Request):
     if not unique_user_id:
         unique_user_id = str(uuid.uuid4())
 
-    # Tracking unique_users
+    # Global tracking of browsers that attempted connection
     if unique_user_id not in list(uniq_client_sids.keys()):
         uniq_client_sids[unique_user_id] = {}
+        # If request / cookies also carry userinfo, refresh
+        userinfo = request.session.get("userinfo", None)
+        if userinfo is not None:
+            uniq_client_sids[unique_user_id]["username"] = userinfo["name"]
 
     # DBG
     print("")
     print("#### DBG Client Sessions")
-    for idx, uniquid in enumerate(uniq_client_sids.keys()):
-        print(f"  {idx} -> {uniquid}")
+    for idx, (uniquid, uniqdata) in enumerate(uniq_client_sids.items()):
+        print(f"  {idx} -> {uniquid}: {uniqdata.get('username', None)}")
     print("")
 
     return unique_user_id
 
+def get_connect_users_list(ignore_names: Optional[Union[str, List[str]]] = None):
+    return [client_data.get("username", None) for client_data in uniq_client_sids.values() if client_data.get("username", None) is not None]
 
 @app.post("/api/setuser")
 async def setuser(request: Request, userinfo: dict):
     print("")
     print("##### DBG BFR: all users data at register #####")
     print(f"New user with info: {userinfo}")
-    print(f"Connected users info: {connectedUsers}")
+    print(f"Connected users info: {get_connect_users_list()}")
     print(f"Modes: {modes}")
     print(f"sid2userid: {sid2userid}")
     print(f"sid2username: {sid2username}")
@@ -125,9 +130,16 @@ async def setuser(request: Request, userinfo: dict):
     request.session["userinfo"] = userinfo
     username = userinfo["name"]
 
-    if username in connectedUsers:
-        # NOTE: this type of errors handling is quite naive,
-        # but we probably won't go into advanced form checks anyway.
+    # Once the name is registered, associate it with the
+    # browser's unique user id
+    unique_user_id = request.cookies["unique_user_id"]
+
+    # If another user with a different browser is detected,
+    # reject this name choice
+    # TODO: same browser wants to re-register the same username ?
+    connected_user_list = get_connect_users_list()
+    if username in connected_user_list:
+        # NOTE: naive error handling, but more complex not needed for now
         raise HTTPException(
             status_code=400,
             detail={
@@ -135,12 +147,13 @@ async def setuser(request: Request, userinfo: dict):
             }
         )
 
-    connectedUsers.append(userinfo["name"])
+    # Associate unique client id to the username
+    uniq_client_sids[unique_user_id]["username"] = username
 
     print("")
     print("##### DBG AFTR: all users data at register #####")
     print(f"New user with info: {userinfo}")
-    print(f"Connected users info: {connectedUsers}")
+    print(f"Connected users info: {get_connect_users_list()}")
     print(f"Modes: {modes}")
     print(f"sid2userid: {sid2userid}")
     print(f"sid2username: {sid2username}")
@@ -176,6 +189,28 @@ async def save_nasa_tlx_data(request: Request, survey_data: dict):
         json.dump(saved_data, f, indent=4)
 
     return True
+
+@app.post("/api/disconnect-user")
+async def disconnect_user(request: Request, data: dict):
+    print(f"##### DBG: data: {data}")
+    unique_user_id = data["unique_user_id"]
+    print(f"User associated with: {unique_user_id} closed window.")
+    if unique_user_id in uniq_client_sids.keys():
+        del uniq_client_sids[unique_user_id]
+
+    print("")
+    print("##### DBG AFTR: all users data at register #####")
+    print(f"Connected users info: {get_connect_users_list()}")
+    print(f"uniq_client_sids: {uniq_client_sids}")
+    print(f"Modes: {modes}")
+    print(f"sid2userid: {sid2userid}")
+    print(f"sid2username: {sid2username}")
+    print(f"mode2expids: {mode2expids}")
+    print("##### DEBUG END: all users data at register #####")
+    print("")
+
+    # Broadcast the updated list of connected user IDs to all clients
+    await sio.emit("userListUpdate", get_connect_users_list())
 
 
 @app.get("/api/getuser")
@@ -339,8 +374,7 @@ async def connect(sid, environ):
     await sio.emit("status", "Ready.", to=sid)
 
     # Broadcast the updated list of connected user IDs to all clients
-    # await sio.emit("user_list_update", list(sid2userid.values()))
-    await sio.emit("user_list_update", connectedUsers)
+    await sio.emit("userListUpdate", get_connect_users_list())
 
 
 @sio.event
@@ -373,8 +407,7 @@ async def disconnect(sid):
         del interaction_recorders[mode]
         del task_completion_timers[mode]
 
-    # TODO: make this sio event camelCase, consistent with others
-    await sio.emit("user_list_update", connectedUsers) 
+    await sio.emit("userListUpdate", get_connect_users_list())
 
 
 async def on_completed(mode: str):
