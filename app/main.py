@@ -12,7 +12,7 @@ import socketio
 import uvicorn
 from aiortc import RTCPeerConnection
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -49,12 +49,13 @@ modes: Dict[str, str] = {}  # mode for each client
 envs: Dict[str, EnvRunner] = {}  # EnvRunners for each client
 peer_connections: Dict[str, RTCPeerConnection] = {}  # RTCPeerConnections for each client
 
-sid2userid: Dict[str, str] = {} # user_i d for each sid
-sid2username: Dict[str, str] = {} # user_name for each sid
-connectedUsers: List = [] # list of users that registered in their browsers
+sid2userid: Dict[str, str] = {}  # user_i d for each sid
+sid2username: Dict[str, str] = {}  # user_name for each sid
+connectedUsers: List = []  # list of users that registered in their browsers
 mode2expids: Dict[str, str] = {}  # exp_id for each mode
 task_completion_timers: Dict[str, taskCompletionTimer] = {}  # taskCompletionTimer for each mode
-interaction_recorders: Dict[str, InteractionRecorder] = {} 
+interaction_recorders: Dict[str, InteractionRecorder] = {}
+uniq_client_sids: Dict[str, Dict] = {}  # Uniquely id a browser session (tab ?), track user info if applicable.
 
 env_info = {
     "data-collection": {
@@ -76,9 +77,41 @@ env_info = {
 }
 countdown_sec = 3
 
+# Helpers for tracking a specific user across browser sessions
+## Tracking a user based on the browser cookie
+def get_uniq_client_sid(request: Request):
+    """
+        This was just from observation, not necessarily a convention.
+        On each browser that has a request, cookies["session"] looks like:
+        "eyJ1c2....QifX0=.Zourmg.3A_sTgiS5bLKd_i8AuloEAHCHzs"
+        For a given browser, the string before the first "." stays the same
+
+        NOTE: This will also globally track all the browsers that issued a request
+        TODO: there is no session when logging in with InPrivate for example,
+        so how to recover it once it is properly created ? Although as soon as the user registers
+        and redirected to index, will have this available ?
+    """
+    uniq_cli_sid = None
+    if "session" in request.cookies.keys():
+        uniq_cli_sid = request.cookies["session"].split(".")[0]
+        if uniq_cli_sid not in list(uniq_client_sids.keys()):
+            uniq_client_sids[uniq_cli_sid] = {}  # Placeholder for user info, etc...
+    else:
+        print("#### DBG: session witout cookie")
+
+    # DBG
+    print("")
+    print("#### DBG Client Sessions")
+    for idx, client_session in enumerate(uniq_client_sids.keys()):
+        print(f"  {idx} -> {client_session}")
+    print("")
+
+    return uniq_cli_sid
+
 
 @app.get("/register")
 async def register(request: Request):
+    get_uniq_client_sid(request)
     return templates.TemplateResponse(
         "register.html",
         {"request": request},
@@ -87,9 +120,42 @@ async def register(request: Request):
 
 @app.post("/api/setuser")
 async def setuser(request: Request, userinfo: dict):
+    print("")
+    print("##### DBG BFR: all users data at register #####")
+    print(f"New user with info: {userinfo}")
+    print(f"Connected users info: {connectedUsers}")
+    print(f"Modes: {modes}")
+    print(f"sid2userid: {sid2userid}")
+    print(f"sid2username: {sid2username}")
+    print(f"mode2expids: {mode2expids}")
+    print("##### DEBUG END: all users data at register #####")
+    print("")
     # TODO: userinfo is basically validated in the frontend, but do it more strictly?
     request.session["userinfo"] = userinfo
+    username = userinfo["name"]
+
+    if username in connectedUsers:
+        # NOTE: this type of errors handling is quite naive,
+        # but we probably won't go into advanced form checks anyway.
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "errors": ["username-already-registered"]
+            }
+        )
+
     connectedUsers.append(userinfo["name"])
+
+    print("")
+    print("##### DBG AFTR: all users data at register #####")
+    print(f"New user with info: {userinfo}")
+    print(f"Connected users info: {connectedUsers}")
+    print(f"Modes: {modes}")
+    print(f"sid2userid: {sid2userid}")
+    print(f"sid2username: {sid2username}")
+    print(f"mode2expids: {mode2expids}")
+    print("##### DEBUG END: all users data at register #####")
+    print("")
 
     return True
 
@@ -127,6 +193,8 @@ async def getuser(request: Request):
 
 @app.get("/")
 async def index(request: Request):
+    get_uniq_client_sid(request) # Tracking uniq user
+
     if "userinfo" not in request.session:
         return RedirectResponse(url="/register")
 
@@ -138,6 +206,8 @@ async def index(request: Request):
 
 
 async def task_page(request: Request, mode: str):
+    get_uniq_client_sid(request) # Tracking uniq user
+
     if "userinfo" not in request.session:
         return RedirectResponse(url="/register")
 
@@ -159,9 +229,11 @@ async def task_page(request: Request, mode: str):
 
 
 async def survey_page(request: Request, mode: str):
+    get_uniq_client_sid(request) # Tracking uniq user
+
     if "userinfo" not in request.session:
         return RedirectResponse(url="/register")
-    
+
     # TODO: shared same func "task_page" for serving ?
     # TODO: might want to check that (valid) devices
     # are set, otherwise the data saved might be useless
@@ -177,11 +249,9 @@ async def survey_page(request: Request, mode: str):
 async def data_collection(request: Request):
     return await task_page(request, "data-collection")
 
-
 @app.get("/single-robot")
 async def single_robot(request: Request):
     return await task_page(request, "single-robot")
-
 
 @app.get("/multi-robot-4")
 async def multi_robot(request: Request):
@@ -287,6 +357,7 @@ async def disconnect(sid):
         del interaction_recorders[mode]
         del task_completion_timers[mode]
 
+    # TODO: make this sio event camelCase, consistent with others
     await sio.emit("user_list_update", connectedUsers) 
 
 

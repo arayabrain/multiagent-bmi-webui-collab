@@ -20,9 +20,12 @@
                 <form id="userinfoForm">
                     <input type="text" class="form-control mb-2" name="projectName" placeholder="Project name" required
                     autocomplete="projectName" value="hri-benchmark" defaultValue="hri-benchmark">
-                    <input type="text" class="form-control mb-2" name="name" placeholder="Enter your name" required
+                    <input type="text" class="form-control mb-2" name="name" id="name" placeholder="Enter your name" required
                         autocomplete="name" autofocus>
-                    <input type="number" class="form-control mb-2" name="age" min="0" placeholder="Enter your age"
+                    <div id="serverValidationUserAlreadyRegistered" class="invalid-feedback">
+                        A user with the same username is already connected.
+                    </div>
+                    <input type="number" class="form-control mb-2" name="age" min="0" max="200" placeholder="Enter your age"
                         required autocomplete="age">
                     <select class="form-control mb-2" name="gender" required>
                         <option value="">Select Gender</option>

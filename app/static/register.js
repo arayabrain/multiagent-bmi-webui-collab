@@ -24,9 +24,21 @@ const saveUserinfo = async () => {
         },
         body: JSON.stringify(userinfo)
     });
+
+    console.log(response);
+
+    if (response.status == 400) {
+        // NOTE: for now, the only type of error we get
+        // at this point is if the user is already registered
+        // Rigorously, we would iterate over all errors in thel ist
+        // and affect the corresponding field appropriately.
+        let usernameFormFiled = document.getElementById("name");
+        usernameFormFiled.classList.add("is-invalid");
+    };
+
     if (response.ok) {
         window.location.href = '/';  // Redirect to the index page
-    }
+    };
 }
 
 const initUserinfo = async () => {
