@@ -1,21 +1,14 @@
 export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-export const updateConnectionStatusElement = (status, statusElementId) => {
-    var statusElement = document.getElementById(statusElementId);
-    statusElement.classList.remove('connected', 'disconnected', 'connecting');
-    switch (status) {
-        case 'connected':
-            statusElement.classList.add('connected');
-            break;
-        case 'disconnected':
-            statusElement.classList.add('disconnected');
-            break;
-        case 'connecting':
-            statusElement.classList.add('connecting');
-            break;
-        default:
-            console.error("Unknown status: ", status);
+const deviceStatus = {};
+export const updateDeviceStatus = (name, status) => {
+    deviceStatus[name] = status;
+
+    let statusText = '';
+    for (const [name, status] of Object.entries(deviceStatus)) {
+        statusText += `${name}: ${status}<br>`;
     }
+    document.getElementById("device-status-area").innerHTML = statusText;
 }
 
 export const binStr2Rgba = (str, alpha = 0.3) => {

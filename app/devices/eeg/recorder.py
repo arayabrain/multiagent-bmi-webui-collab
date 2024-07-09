@@ -33,8 +33,8 @@ class Recorder:
 
         if self.save_path.exists():
             raise RuntimeError("File already exists.")
-        print(f"Save path: {self.save_path}")
         self.save_path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Save path: {self.save_path}")
 
         nch = self.input_info["channel_count"]
         str_dt = h5py.special_dtype(vlen=str)
@@ -103,4 +103,4 @@ class Recorder:
             self.subscription.dispose()
         self.is_running = False
         print("Recorder stopped.")
-        print(f"Save path: {self.save_path}")
+        print(f"Saved recording to: {self.save_path}")

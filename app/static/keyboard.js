@@ -1,4 +1,6 @@
-export const onToggleKeyboard = (checked, commandHandler, commandLabels) => {
+import { updateDeviceStatus } from './utils.js';
+
+export const init = (commandHandler, commandLabels, userId, expId) => {
     // set key map
     // cancel: 0, others: 1, 2, ...
     const keyMap = {};
@@ -8,9 +10,6 @@ export const onToggleKeyboard = (checked, commandHandler, commandLabels) => {
     });
 
     const onKeydown = (event) => commandHandler(keyMap[event.key]);
-    if (checked) {
-        document.addEventListener('keydown', onKeydown);
-    } else {
-        document.removeEventListener('keydown', onKeydown);
-    }
+    document.addEventListener('keydown', onKeydown);
+    updateDeviceStatus('Keyboard', 'connected');
 }

@@ -1,15 +1,13 @@
 import asyncio
+import multiprocessing as mp
 import os
 import platform
 import subprocess
+import time
 
 import gym
-import numpy as np
-import robohive_multi  # Makes the environments accessible
-import socketio
-from aiortc import VideoStreamTrack
-from av import VideoFrame
-from robohive_multi.motion_planner import MotionPlannerPolicy, gen_robot_names, simulate_action
+import robohive_multi  # Makes the environments accessible # noqa: F401 # type: ignore
+from app.async_vector_env import AsyncVectorEnv
 
 # check if display is available on Linux
 if platform.system() == "Linux":
@@ -23,60 +21,55 @@ if platform.system() == "Linux":
 
 # NOTE: rendering is slow without GPU
 
+dt_step = 0.03
+
 
 class EnvRunner:
     def __init__(
         self,
         env_id: str,
-        sio: socketio.AsyncServer = None,
+        num_agents: int,
+        notify_fn=None,  # function to send message to all clients in the same mode
+        on_completed_fn=None,  # function to call when all subtasks are done
         use_cancel_command: bool = False,
-    ) -> None:
+        ) -> None:
         self.is_running = False
-        self._sio = sio
 
-        self.env = gym.make(env_id)
-        self.num_agents = self.env.nrobots
-        self.a_dim_per_agent = self.env.action_space.shape[0] // self.num_agents
+        # callbacks
+        self.notify_fn = notify_fn
+        self.on_completed_fn = on_completed_fn
+
+        self.env = MultiRobotSubEnvWrapper(num_agents=num_agents, max_agents_per_env=min(num_agents, 1))
+
+        self.num_agents = num_agents
+        self.a_dim_per_agent = self.env.sub_envs.single_action_space.shape[0] // self.env.max_agents_per_env
 
         # self.env.color_dict: {"100": 0, "010": 1, ...}
         # key digits correspond to "rgb", values correspond to the rgb index in Mujoco?
         self.command_colors = list(self.env.color_dict.keys())
         self.num_subtasks = len(self.command_colors)
-        self.num_commands = self.num_subtasks
-        self.command_keys = list(map(str, range(1, self.num_commands + 1)))  # keyboard input: ["1", "2", ...]
-        self.command_labels = [f"color{i + 1}" for i in range(self.num_commands)]  # ["color1", "color2", ...]
+        self.command_labels = [f"color{i + 1}" for i in range(len(self.command_colors))]  # TODO: more meaningful names?
         if use_cancel_command:
             # add cancel command
             self.command_colors.append("000")
-            self.command_keys.append("0")
             self.command_labels.append("cancel")
-            self.num_commands += 1
 
         # states
         self.command: list[str] = [""] * self.num_agents  # command from user
-        self.prev_executed_command: list[str] = [""] * self.num_agents  # command at the previous action
+        # TODO: this is handled within the async env, so unneded, remove once confirmed to work
+        # self.prev_executed_command: list[str] = [""] * self.num_agents  # command at the previous action
         self.next_acceptable_commands: list[list[str]] = list(
             map(self._get_next_acceptable_commands, self.command)
         )  # next acceptable commands for each agent
-        self.focus_id: int | None = None  # user focus
-
-        # placeholders for frames to stream
-        self.frames: list[np.ndarray | None] = [None] * self.num_agents
-        self.frame_update_cond = asyncio.Condition()
-
-        # env-side flag for reset request
-        self.reset_request = False
-        self.reset_cond = asyncio.Condition()
 
         # init policies
-        # horizon = 10
         horizon = 2  # TODO
-        self.policies = [MotionPlannerPolicy(self.env, *gen_robot_names(i), horizon) for i in range(self.num_agents)]
+        # Motion Planner Policies are setup within the env itself, parallelization
+        self.env.setup_motion_planner_policies(horizon=horizon)
+        self.policies_done_subtasks = [[] for i in range(self.num_agents)] # Tracking progression of each robot
 
-    async def _notify(self, event, data=None):
-        if self._sio is None:
-            return
-        await self._sio.emit(event, data)
+        # reset env for rendering
+        self._reset_env()
 
     def _get_next_acceptable_commands(self, current_command):
         """Return next acceptable commands for the given command."""
@@ -91,65 +84,60 @@ class EnvRunner:
             # If manipulation command is set, only cancel command is acceptable
             return ["cancel"]
 
-    async def _reset(self):
-        # TODO: separate env/policy-side reset and interface-side reset
+    async def reset(self):
+        # reset interface (EnvRunner) states
+        await self._clear_commands()
 
+        # reset env
+        obs = self._reset_env()
+        return obs
+
+    def _reset_env(self):
         obs = self.env.reset()
-
-        # reset policies
-        # TODO: move this to MotionPlannerPolicy to reset internally?
-        for policy in self.policies:
-            policy.reset(self.env)
-            policy.subtask_target_obj_idxs = []
-            policy.done_obj_idxs = []
-            policy.done_subtasks = []
-
-        # reset interface states
-        await self.clear_commands()
-        self.prev_executed_command = [""] * self.num_agents
-        # we don't reset focus_id
+        # Makes the policies within each parallel env reset the robot they in charge of
+        self.env.policy_reset_env()
 
         return obs
 
-    async def clear_commands(self):
+    async def _clear_commands(self):
         for idx_agent in range(self.num_agents):
-            self.next_acceptable_commands[idx_agent].append("")  # TODO: force=True?
+            # TODO: use something like force=True or the "cancel" command
+            self.next_acceptable_commands[idx_agent].append("")
             await self.update_and_notify_command("", idx_agent)
-
-    async def reset(self):
-        """Request env to reset, and wait for the reset to be done."""
-        self.reset_request = True  # env-side flag
-        async with self.reset_cond:
-            await self.reset_cond.wait()
-        print("env reset")
 
     def start(self):
         self.is_running = True
-        self.task = asyncio.create_task(self._run())
+        obs = self._reset_env()
+        self.task = asyncio.create_task(self._run(obs))
+        print("env loop started")
 
     async def stop(self):
         self.is_running = False
+        # cancel the task
         self.task.cancel()
         try:
             await self.task
         except asyncio.CancelledError:
-            print("env_process cancelled")
+            print("env loop stopped")
+        # reset
+        await self.reset()
 
-    async def _run(self):
-        print("env_process started")
+    async def _run(self, init_obs):
         env = self.env
-        obs = await self._reset()
+        obs = init_obs
 
         while self.is_running:
-            # check reset request
-            if self.reset_request:
-                # TODO: don't reset if already reset
-                obs = await self._reset()
-                async with self.reset_cond:
-                    self.reset_cond.notify_all()
-                self.reset_request = False
+            # Inefficient: query all sub env's motion planner, pool the actions and subtask_dones
+            # then send the action down to each sub-envs again to perform an env.step()
+            # action, subtask_dones = self.env.sub_envs.get_policy_action(obs, self.command, norm=False)
+            # # For AsyncVectorEnv, action is expected as (num_robot, |A|)
+            # action = action.reshape(self.env.n_sub_envs, -1) # TODO: move this to AsyncVectorEnv ?
+            # obs, _, done, _ = await env.step(action)
 
-            action, subtask_dones = self._get_policy_action(obs, self.command, norm=False)
+            # Slightly more efficient: dispatch command to the sub envs, where
+            # motion planner action is computed and used to step directly.
+            # Assumes X envs * 1 robot per env config. of the sub-envs.
+            subtask_dones = env.sub_envs.get_policy_action_then_step(obs, self.command, norm=False)
 
             # check if subtask is done
             if any(subtask_dones):
@@ -157,116 +145,35 @@ class EnvRunner:
                     if not done:
                         continue
 
-                    policy = self.policies[idx_agent]
-                    policy.reset(self.env)  # TODO: is this correct?
-                    await self._notify("subtaskDone", {"agentId": idx_agent, "subtask": self.command[idx_agent]})
+                    # NOTE: tracking of which subtask each agent has completed is done here,
+                    # in the main process
+                    self.policies_done_subtasks[idx_agent].append(self.command[idx_agent])
+                    # NOTE: originally the policies were reset at this point, but in async envs
+                    # this does not seem needed anymore
+
+                    await self.notify_fn("subtaskDone", {"agentId": idx_agent, "subtask": self.command[idx_agent]})
                     # reset command
                     self.next_acceptable_commands[idx_agent].append("")  # TODO
                     await self.update_and_notify_command("", idx_agent)
 
             # check if all tasks are done
             # TODO: sync with policy.done?
-            if all([len(policy.done_subtasks) == self.num_subtasks for policy in self.policies]):
-                await self._notify("taskDone")
-                for policy in self.policies:
-                    policy.done_subtasks = []  # TODO: not intuitive
+            # NOTE: line below assumes we get the info about which sub task each robot has finished
+            # FROM the sub_envs, but we track it manually with self.policies_done_subtasks (a few lines above)
+            # self.policies_done_subtasks = env.sub_envs.get_policy_done_subtasks()
+            if all([len(pol_done_subtasks) == self.num_subtasks for pol_done_subtasks in self.policies_done_subtasks]):
+                if self.on_completed_fn is not None:
+                    self.on_completed_fn()
 
-            obs, _, done, _ = env.step(action)
+            await asyncio.sleep(dt_step)
 
-            # action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
-            # simulate_action(env.sim, action[np.newaxis, :], action_indices, render=False)
-            # done = False
-
-            await self._update_frame()
-
-            # if done or all([policy.done for policy in self.policies]):
-            #     obs = self._reset()
-
-            await asyncio.sleep(0.03)
-
-    def _get_policy_action(self, obs, command, norm=True):
-        actions = []
-        subtask_dones = []
-        for idx_policy, policy in enumerate(self.policies):
-            c = command[idx_policy]
-            if c == "":
-                # command not set
-                # TODO: is zero the initial state?
-                a = np.zeros(self.a_dim_per_agent)
-                subtask_done = False
-            elif c == "cancel":
-                # cancel command
-                policy.reset(self.env)  # TODO: is this correct?
-                a = np.zeros(self.a_dim_per_agent)
-                # TODO: check if robot posture has been reset
-                subtask_done = True
-            else:
-                # subtask command
-                if self.prev_executed_command[idx_policy] != c:
-                    # command changed since the previous action
-                    self.prev_executed_command[idx_policy] = c
-
-                    # from command label to rgb index in Mujoco
-                    # TODO: make a dict for this?
-                    target_color_idx = self.env.color_dict[self.command_colors[self.command_labels.index(c)]]
-
-                    # find target object indices
-                    policy.subtask_target_obj_idxs = [
-                        idx_obj
-                        for idx_obj, (_, target_name) in enumerate(policy.obj_target_pairs)
-                        if target_name[-1] == str(target_color_idx + 1)
-                        # target_name is in the form "drop_target{robot_idx}_{color_idx + 1}"
-                    ]
-
-                if len(policy.subtask_target_obj_idxs) == 0:
-                    # invalid command
-                    policy.reset(self.env)  # TODO: is this correct?
-                    a = np.zeros(self.a_dim_per_agent)
-                    subtask_done = True
-                else:
-                    policy.current_target_indx = policy.subtask_target_obj_idxs[0]
-                    # TODO: initial current_target_indx is 0, but -1 or None is better?
-                    # TODO: use policy.get_action, after modifying it not to reset internally
-                    box_name, target_name = policy.obj_target_pairs[policy.current_target_indx]
-                    policy.planner.box_name = box_name
-                    policy.planner.target_name = target_name
-
-                    a = policy.planner.get_action()
-                    if policy.planner.done:
-                        # manipulation of the target object is done
-                        done_obj_idx = policy.subtask_target_obj_idxs.pop(0)
-                        policy.done_obj_idxs.append(done_obj_idx)
-                        subtask_done = len(policy.subtask_target_obj_idxs) == 0
-                    else:
-                        subtask_done = False
-
-            if subtask_done and c not in ["", "cancel"]:
-                # command and subtask are 1:1 relation for now
-                policy.done_subtasks.append(c)
-
-            actions.append(a)
-            subtask_dones.append(subtask_done)
-
-        action = np.concatenate(actions)
-        if norm:
-            action_indices = np.concatenate([policy.planner.dof_indices for policy in self.policies])
-            action = self.policies[0].norm_act(action[action_indices])
-
-        return action, subtask_dones
-
-    async def _update_frame(self):
-        visuals = self.env.get_visuals()
-        async with self.frame_update_cond:
-            for i in range(self.num_agents):
-                self.frames[i] = visuals[f"rgb:franka{i}_front_cam:256x256:2d"]
-            self.frame_update_cond.notify_all()
-
-    async def update_and_notify_command(self, command, agent_id, likelihoods=None):
+    async def update_and_notify_command(self, command, agent_id, username=None, likelihoods=None, interaction_time=None):
         # self.command should be updated only by this method
+        # likelihoods and interaction_time would be None when called internally
 
         # check if the command is valid
         is_now_acceptable = command in self.next_acceptable_commands[agent_id]
-        has_subtask_not_done = command not in self.policies[agent_id].done_subtasks
+        has_subtask_not_done = command not in self.policies_done_subtasks[agent_id]
         is_valid = is_now_acceptable and has_subtask_not_done
 
         next_acceptable_commands = self._get_next_acceptable_commands(command)
@@ -276,43 +183,112 @@ class EnvRunner:
             self.command[agent_id] = command
             self.next_acceptable_commands[agent_id] = next_acceptable_commands
 
-        # notify the given command regardless of validity
-        await self._notify(
-            "command",
-            {
-                "agentId": agent_id,
-                "command": command,
-                "nextAcceptableCommands": next_acceptable_commands,
-                "isNowAcceptable": is_now_acceptable,
-                "hasSubtaskNotDone": has_subtask_not_done,
-                "likelihoods": likelihoods,
-            },
-        )
+        # remove interaction time if the command is not acceptable
+        if not is_now_acceptable:
+            interaction_time = None
+
+        data = {
+            "agentId": agent_id,
+            "command": command,
+            "nextAcceptableCommands": next_acceptable_commands,
+            "isNowAcceptable": is_now_acceptable,
+            "hasSubtaskNotDone": has_subtask_not_done,
+            "likelihoods": likelihoods,
+            "interactionTime": interaction_time,
+            "username": username
+        }
+
+        # send the command info to update the charts and debug log in the frontend
+        await self.notify_fn("command", data)
+
+        return data
 
 
-class ImageStreamTrack(VideoStreamTrack):
-    def __init__(self, env: EnvRunner, camera_idx: int):
-        super().__init__()
-        self.camera_idx = camera_idx
+# Wrapper class to breakdown envs with 4+ agents
+# into multiple sub_envs to mitigate slow simulator speed
+class MultiRobotSubEnvWrapper():
+    def __init__(self, num_agents, max_agents_per_env=4):
+        # This class all the sub_envs have the same number of robots !
+        assert num_agents % max_agents_per_env == 0, \
+            f"Cannot break down env with {num_agents} into exact sub envs with {max_agents_per_env}."
+        self.max_agents_per_env = max_agents_per_env
+        self.n_sub_envs = num_agents // max_agents_per_env
 
-        # references to variables in EnvProcess
-        self.cond = env.frame_update_cond
-        self.frames = env.frames
+        # TODO: Needs to be adjusted to support other pattern of envs later on.
+        sub_env_name = f"FrankaProcedural{max_agents_per_env}Robots4Col-v0"
 
-    async def recv(self):
-        async with self.cond:
-            await self.cond.wait()
-            frame = self.frames[self.camera_idx]
+        # AsyncVectorEnv wrapper where each env is run is a sub process, relieving the main one
+        self.sub_envs = AsyncVectorEnv([lambda: gym.make(sub_env_name)
+            for _ in range(self.n_sub_envs)], shared_memory=True)
+        # Additional metadata necessary for proper command distribution to the sub_envs
+        self.sub_envs.max_agents_per_env = max_agents_per_env
+        self.sub_envs.n_sub_envs = self.n_sub_envs
 
-        frame = VideoFrame.from_ndarray(frame, format="rgb24")
-        pts, time_base = await self.next_timestamp()
-        frame.pts = pts
-        frame.time_base = time_base
+        # Attribute for compatibility with EnvRunner
+        self.action_space = self.sub_envs.single_action_space
+        # TODO: make color_dict query flexible, based on underlying envs.
+        # self.color_dict = self.sub_envs[0].color_dict
+        self.color_dict = {
+            "100": 0,
+            "010": 1,
+            "001": 2,
+            "110": 3
+        }
 
-        return frame
+    async def get_visuals(self):
+        return self.sub_envs.get_visuals()
+    
+    async def step(self, action):
+        # step over all envs in the AsyncVectorEnv wrapper
+        # TODO: action shape must be adjusted based on the underlying sub-env config
+        # - for 4 envs * 4 robots actions
+        return self.sub_envs.step(action)
+
+    def reset(self):
+        return self.sub_envs.reset()
+
+    # AsyncVectorEnv does not use this helper fn, but
+    # leaving for ref. as it will be useful for
+    # sub envs with multiple robots within later.
+    def status_led_setter(self, idx_policy, fn_name):
+        sub_env_idx = idx_policy // self.max_agents_per_env
+        sub_env_agent_idx = idx_policy % self.max_agents_per_env
+        getattr(self.sub_envs[sub_env_idx], fn_name)(sub_env_agent_idx)
+
+    def status_led_off(self, sub_env_idx):
+        # AsyncVectorEnv variant
+        self.sub_envs.set_status_led_off(sub_env_idx)
+    
+    def status_led_on(self, sub_env_idx):
+        # AsyncVectorEnv variant
+        self.sub_envs.set_status_led_on(sub_env_idx)
 
 
+    # Setup Motion Planner Policies within each parallel env
+    def setup_motion_planner_policies(self, horizon):
+        return self.sub_envs.setup_motion_planner_policies(horizon)
+    
+
+    # Make the policies within parallel envs reset the position
+    # of the robot hey are in charge of
+    def policy_reset_env(self):
+        return self.sub_envs.policy_reset_env()
+
+
+# If run as main, tests basic AsyncVectorEnv wrapper around robohive-multi envs.
 if __name__ == "__main__":
-    runner = EnvRunner("FrankaPickPlaceMulti4Robots4Col-v0")
-    runner.is_running = True
-    asyncio.run(runner._run())
+    # Require within __main__ for visual obs rendering with multiprocessing
+    mp.set_start_method("spawn")
+    N_ROBOTS = 16
+
+    envs = AsyncVectorEnv([lambda: gym.make("FrankaProcedural1Robots4Col-v0")
+                            for _ in range(N_ROBOTS)])
+
+    # Testing LED on / off pure async toggle fns
+    for i in range(N_ROBOTS):
+        envs.set_status_led_off(i)
+        envs.set_status_led_on(i)
+    
+    while True:
+        visuals = envs.get_visuals()
+        time.sleep(1 / 60)

@@ -6,8 +6,6 @@ html {
     justify-content: center;
     align-items: center;
     font-size: 18px;
-    cursor: none;
-    /* Hide the mouse cursor */
 }
 
 #cursor {
@@ -15,7 +13,7 @@ html {
     z-index: 10000;
     pointer-events: none;
     display: none;
-    /* Hide the cursor by default */
+    /* Hide the custom cursor by default */
 
     width: 30px;
     height: 30px;
@@ -37,15 +35,34 @@ html {
 }
 
 /* video */
-.video-grid {
+.video-grid-base {
     height: 100%;
     display: grid;
-    grid-template-columns: repeat(2, auto);
-    grid-template-rows: repeat(2, auto);
     gap: 5px;
     /* Grid gap */
     justify-content: center;
     align-items: center;
+}
+
+.video-grid-1 {
+    /* Left empty on purpose */
+    grid-template-columns: repeat(0, auto);
+    grid-template-rows: repeat(0, auto);
+}
+
+.video-grid-4 {
+    grid-template-columns: repeat(2, auto);
+    grid-template-rows: repeat(2, auto);
+}
+
+.video-grid-8 {
+    grid-template-columns: repeat(2, auto);
+    grid-template-rows: repeat(4, auto);
+}
+
+.video-grid-16 {
+    grid-template-columns: repeat(4, auto);
+    grid-template-rows: repeat(4, auto);
 }
 
 .video-container {
@@ -75,12 +92,30 @@ video {
     background-color: white;
     opacity: 0.8;
     overflow: hidden;
+    height: 25%;
+    max-height: 25%;
 }
 
 .likelihood-chart {
     width: 100%;
-    height: auto;
+    height: 75%;
+    max-height: 75%;
     overflow: hidden;
+}
+
+.chart-username-area {
+    text-align: center;
+    width: 100%;
+}
+
+.chart-username-area-1,
+.chart-username-area-4,
+.chart-username-area-8 {
+    font-size: large;
+}
+
+.chart-username-area-16 {
+    font-size: small;
 }
 
 /* controls */
@@ -93,7 +128,8 @@ video {
     /* Space between each switch */
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    position: absolute;
+    right: -40vh;
     /* aligns the switches to the left */
     justify-content: center;
     /* align vertically */
@@ -143,4 +179,33 @@ video {
     /* margin-top: 10px; */
     line-height: 1em;
     min-height: 1em;
+}
+
+/* NASA TLX Survey Form Styling */
+.low-label {
+    order: 1;
+    margin-right: 20px;
+}
+
+.high-label {
+    order: 3;
+    margin-left: 20px;
+}
+
+.form-check-inline {
+    margin-right: 12px;
+    margin-left:  12px;
+}
+
+fieldset {
+    margin-bottom: 20px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+}
+
+legend {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin-bottom: 10px;
 }

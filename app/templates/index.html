@@ -2,109 +2,105 @@
 <html>
 
 <head>
-    <meta charset="utf-8">
-    <meta name="description" content="FastAPI with WebSockets">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multi-Agent BMI</title>
-
     <link rel="icon" type="image/png" href="/static/img/favicon.png">
-
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css">
-    <link rel="stylesheet" href="/static/log.css">
-    <link rel="stylesheet" href="/static/apriltag.css">
+    <link rel="stylesheet" href="/static/index.css">
 </head>
 
 <body>
-    <div id="cursor"></div>
-    <div class="container">
-        <div class="video-grid">
-            <!-- camera images -->
-            {% for i in range(numAgents) %}
-            <div class="video-container">
-                <video id="camera_{{i}}" autoplay playsinline muted></video>
-                <div class="chart-container">
-                    <canvas id="chart_{{i}}" class="likelihood-chart"></canvas>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        <div class="controls-container">
-            <!-- toggle switches -->
-            <div class="toggle-container">
-                <div class="row">
-                    <div class="col-6">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input togglable" type="checkbox" id="toggle-mouse" checked>
-                            <label class="form-check-label" for="toggle-gaze">Mouse</label>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input togglable" type="checkbox" id="toggle-keyboard" checked>
-                            <label class="form-check-label" for="toggle-eeg">Keyboard</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-6">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="toggle-gamepad" disabled>
-                            <label class="form-check-label" for="toggle-gaze">Gamepad</label>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input togglable" type="checkbox" id="toggle-eeg">
-                            <label class="form-check-label" for="toggle-eeg">EEG/EMG</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-6">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input togglable" type="checkbox" id="toggle-gaze">
-                            <label class="form-check-label" for="toggle-gaze">Eye Tracker</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="button-container">
-                <input type="text" class="form-control" id="username" name="username" autofocus autocomplete="username"
-                    placeholder="Your Name">
-                <button type="button" class="btn btn-primary" id="start-button" disabled>Start</button>
-                <button type="button" class="btn btn-danger" id="reset-button" disabled>Stop & Reset</button>
-            </div>
-
-            <div id="task-status-message"></div>
-
-            <!-- debug log -->
-            <button id="log-toggle-button" class="btn btn-light btn-extra-sm" data-bs-toggle="collapse"
-                data-bs-target="#log-collapse" aria-expanded="false" aria-controls="log-collapse">Debug Log</button>
-            <div class="collapse" id="log-collapse">
-                <div class="card card-body">
-                    <pre id="log"></pre>
+    <div class="container mt-5 bg-white rounded fs-5">
+        <!-- Userinfo display -->
+        <div class="row">
+            <div class="col-12 d-flex justify-content-end align-items-center">
+                <div class="user-info">
+                    <span id="displayUserInfo"></span>
+                    <button id="resetUserInfo" class="btn btn-secondary ms-2">Reset User</button>
                 </div>
             </div>
         </div>
 
-        <!-- apriltag images -->
-        <img src="/static/img/tag36_11_00000.svg" class="apriltag top-left" alt="AprilTag Top Left">
-        <img src="/static/img/tag36_11_00001.svg" class="apriltag top-right" alt="AprilTag Top Right">
-        <img src="/static/img/tag36_11_00002.svg" class="apriltag bottom-left" alt="AprilTag Bottom Left">
-        <img src="/static/img/tag36_11_00003.svg" class="apriltag bottom-right" alt="AprilTag Bottom Right">
+        <div class="row">
+            <div class="col-12 text-center">
+                <h2>Select Devices</h2>
+            </div>
+        </div>
+        <div class="row justify-content-center">
+            <div class="col-md-4"></div>
+            <!-- Robot Selection Devices -->
+            <div class="col-md-2 text-start">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="toggle-mouse">
+                    <label class="form-check-label" for="toggle-mouse">Mouse</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="toggle-gamepad">
+                    <label class="form-check-label" for="toggle-gamepad">Gamepad</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="toggle-gaze">
+                    <label class="form-check-label" for="toggle-gaze">Eye Tracker</label>
+                </div>
+            </div>
+            <!-- Subtask Selection Devices -->
+            <div class="col-md-2 text-start">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="toggle-keyboard">
+                    <label class="form-check-label" for="toggle-keyboard">Keyboard</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="toggle-eeg">
+                    <label class="form-check-label" for="toggle-eeg">EEG/EMG</label>
+                </div>
+            </div>
+            <div class="col-md-4"></div>
+        </div>
+
+        {% if flash %}
+        <div class="row mt-3 justify-content-center">
+            <div class="col-4">
+                <div class="alert alert-{{ flash.category }}" role="alert" style="white-space: pre-line;">{{
+                    flash.message }}</div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row mt-3">
+            <div class="col-12 text-center">
+                <h2>Select a Mode</h2>
+            </div>
+        </div>
+        <div class="row justify-content-center">
+            <div class="col-md-3 text-center">
+                <a href="/data-collection" class="mode-link hover-effect text-decoration-none">
+                    <div class="fs-4 link-text">Data Collection</div>
+                    <img src="/static/img/data-collection.png" alt="Data Collection" class="img-fluid">
+                </a>
+            </div>
+            <div class="col-md-3 text-center">
+                <a href="/single-robot" class="mode-link hover-effect text-decoration-none">
+                    <div class="fs-4 link-text">Single Robot</div>
+                    <img src="/static/img/single-robot.png" alt="Single Robot" class="img-fluid">
+                </a>
+            </div>
+            <div class="col-md-3 text-center">
+                <a href="/multi-robot-4" class="mode-link hover-effect text-decoration-none">
+                    <div class="fs-4 link-text">Multi Robot 4 Arms</div>
+                    <img src="/static/img/multi-robot-4.png" alt="Multi Robot 4" class="img-fluid">
+                </a>
+            </div>
+            <div class="col-md-3 text-center">
+                <a href="/multi-robot-16" class="mode-link hover-effect text-decoration-none">
+                    <div class="fs-4 link-text">Multi Robot 16 Arms</div>
+                    <!-- TODO: Update to multiple robots ? -->
+                    <img src="/static/img/multi-robot-16.png" alt="Multi Robot 16" class="img-fluid">
+                </a>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script
-        src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/easytimer.js@4.6.0/dist/easytimer.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mathjs@12.4.1/lib/browser/math.min.js"></script>
-    <script type="module" src="/static/app.js"></script>
+    <script type="module" src="/static/index.js"></script>
 </body>
 
 </html>

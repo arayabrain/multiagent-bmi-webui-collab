@@ -3,7 +3,6 @@ let sockEnv;
 let cursor, videos;
 let focusId = null;
 const interactionTimer = new easytimer.Timer();
-const interactionTimeHistory = [];
 
 // initialize the timer config
 interactionTimer.start({ precision: 'secondTenths' });
@@ -63,35 +62,20 @@ const _updateAndNotifyFocus = (newId) => {
     focusId = newId;
 
     // notify focusId to the server
-    if (sockEnv === undefined) {
-        console.error("sockEnv is not set. Call setSockEnv first.")
-        return;
-    }
-    if (sockEnv.connected) sockEnv.emit('focus', focusId);
+    // if (sockEnv === undefined) {
+    //     console.error("sockEnv is not set. Call setSockEnv first.")
+    //     return;
+    // }
+    // if (sockEnv.connected) sockEnv.emit('focus', focusId);
 
     // start the timer
     resetInteractionTimer();
 }
 
-export const recordInteractionTime = () => {
+export const getInteractionTime = () => {
     interactionTimer.pause();
     const sec = interactionTimer.getTotalTimeValues().secondTenths / 10;
-    interactionTimeHistory.push(sec);
     return sec;
 }
 
 export const resetInteractionTimer = () => interactionTimer.reset();
-
-export const getInteractionTimeStats = () => {
-    let mean = null, std = null;
-    const len = interactionTimeHistory.length;
-    if (len !== 0) {
-        mean = math.mean(interactionTimeHistory);
-        std = math.std(interactionTimeHistory);
-    }
-    return { len, mean, std };
-}
-
-export const resetInteractionTimeHistory = () => {
-    interactionTimeHistory.length = 0;
-}

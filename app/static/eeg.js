@@ -1,31 +1,36 @@
-import { updateConnectionStatusElement } from './utils.js';
+import { updateDeviceStatus } from './utils.js';
 
-let sockEEG;
+const deviceName = 'EEG/EMG';
+const eventName = 'eeg';
+const port = 8002;
+let sock;
 
-export const onToggleEEG = (checked, commandHandler, commandLabels) => {
-    if (checked) {
-        updateConnectionStatusElement('connecting', 'toggle-eeg');
-        sockEEG = io.connect(`http://localhost:8002`, { transports: ['websocket'] });
-        sockEEG.on('connect', () => {
-            sockEEG.emit('init', { commandLabels: commandLabels });
-            updateConnectionStatusElement('connected', 'toggle-eeg');
-            console.log("EEG server connected");
+export const init = (commandHandler, commandLabels, userId, expId) => {
+    updateDeviceStatus(deviceName, 'connecting...');
+    sock = io.connect(`http://localhost:${port}`, { transports: ['websocket'] });
+
+    sock.on('connect', () => {
+        sock.emit('init', {
+            commandLabels: commandLabels,
+            userId: userId,
+            expId: expId,
         });
-        sockEEG.on('disconnect', () => {
-            updateConnectionStatusElement('disconnected', 'toggle-eeg');
-            console.log("EEG server disconnected");
-        });
-        sockEEG.on('reconnect_attempt', () => {  // TODO: not working
-            console.log("EEG server reconnecting...");
-        });
-        sockEEG.on('ping', (ack) => ack());
-        sockEEG.on('getTime', (ack) => ack(Date.now()));
-        sockEEG.on('eeg', ({ cls, likelihoods }) => commandHandler(cls, likelihoods));
-    } else {
-        if (sockEEG) sockEEG.disconnect();
-    }
+        updateDeviceStatus(deviceName, 'connected');
+        console.log("EEG server connected");
+    });
+    sock.on('disconnect', () => {
+        updateDeviceStatus(deviceName, 'disconnected');
+        console.log("EEG server disconnected");
+    });
+    sock.on('reconnect_attempt', () => {  // TODO: not working
+        updateDeviceStatus(deviceName, 'reconnecting...');
+        console.log("EEG server reconnecting...");
+    });
+    sock.on(eventName, ({ classId, likelihoods }) => commandHandler(classId, likelihoods));
+    sock.on('ping', (ack) => ack());
+    sock.on('getTime', (ack) => ack(Date.now()));
 }
 
 export const sendDataCollectionOnset = (event) => {
-    if (sockEEG) sockEEG.emit('dataCollectionOnset', event.detail);
+    if (sock) sock.emit('dataCollectionOnset', event.detail);
 }

@@ -1,45 +1,41 @@
 import { createCharts, resetChartData, updateChartColor, updateChartData, updateChartLock } from './chart.js';
-import { getFocusId, getInteractionTimeStats, recordInteractionTime, resetInteractionTimeHistory, resetInteractionTimer, setSockEnv } from './cursor.js';
+import { getFocusId, getInteractionTime, resetInteractionTimer, setSockEnv } from './cursor.js';
 import { startDataCollection, stopDataCollection } from './dataCollection.js';
-import { onToggleEEG, sendDataCollectionOnset } from './eeg.js';
-import { setGamepadHandler } from './gamepad.js';
-import { onToggleGaze } from './gaze.js';
-import { onToggleKeyboard } from './keyboard.js';
-import { onToggleMouse } from './mouse.js';
+import { init as initEEG, sendDataCollectionOnset } from './eeg.js';
+import { init as initGamepad } from './gamepad.js';
+import { init as initGaze } from './gaze.js';
+import { init as initKeyboard } from './keyboard.js';
+import { init as initMouse } from './mouse.js';
 import { binStr2Rgba } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
-const countdownSec = 3;
+const robotSelectionDeviceInitFuncs = {
+    mouse: initMouse,
+    gaze: initGaze,
+};
+const subtaskSelectionDeviceInitFuncs = {
+    keyboard: initKeyboard,
+    gamepad: initGamepad,
+    eeg: initEEG,
+};
 
-let sockEnv;
-let commandLabels, commandColors;  // info from the env server
+let sockEnv, userinfo, commandLabels, commandColors;
 let isStarted = false;  // if true, task is started and accepting subtask selection
 let isDataCollection = false;
-const countdownTimer = new easytimer.Timer();
-const taskCompletionTimer = new easytimer.Timer();
-let numSubtaskSelections, numInvalidSubtaskSelections;  // error rate
 
-
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     connectEnv();
 
+    // get userinfo
+    const response = await fetch('/api/getuser');
+    userinfo = await response.json();
+
     // buttons
-    document.getElementById('start-button').addEventListener('click', startTask);
-    document.getElementById('reset-button').addEventListener('click', () => {
-        stopTask();
-        resetTask();
-    });
+    document.getElementById('start-button').addEventListener('click', () => requestServerStart());
+    document.getElementById('reset-button').addEventListener('click', () => requestServerStop());
 
-    document.getElementById('username').addEventListener('input', () => {
-        document.getElementById('start-button').disabled = !isNameValid();
-    });
-
-    resetTask();
+    clientReset();
 });
-
-const isNameValid = () => {
-    return document.getElementById('username').value.trim() !== '';
-}
 
 const updateTaskStatusMsg = (msg) => {
     document.getElementById('task-status-message').innerText = msg;
@@ -51,130 +47,95 @@ const updateLog = (msg, numSpace = 0) => {
     log.scrollTop = log.scrollHeight;
 }
 
-const countdown = async (sec) => {
-    const _updateCountdownMsg = () => updateTaskStatusMsg(`Start in ${countdownTimer.getTimeValues().seconds} sec...`);
+const requestServerStart = () => {
+    document.getElementById('start-button').disabled = true;
+    document.getElementById('reset-button').disabled = true;
+    document.getElementById('hp-button').disabled = true; // disable during the countdown
 
-    countdownTimer.start({ countdown: true, startValues: { seconds: sec } });
-    _updateCountdownMsg();
-    countdownTimer.addEventListener('secondsUpdated', _updateCountdownMsg);
-
-    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve('timeout'), (sec + 1) * 1000));
-    const countdownPromise = new Promise((resolve) => countdownTimer.addEventListener('targetAchieved', () => resolve('targetAchieved')));
-    const result = await Promise.race([timeoutPromise, countdownPromise]);
-
-    countdownTimer.stop();
-    countdownTimer.removeEventListener('secondsUpdated', _updateCountdownMsg);
-    return result === 'targetAchieved';
+    // request the server to start the environment
+    sockEnv.emit('requestServerStart');
+    // "isStart" will be set to true by "serverStartDone" event from the server
 }
 
-const startTask = async () => {
-    document.getElementById('username').disabled = true;
-    document.getElementById('start-button').disabled = true;
-    document.getElementById('reset-button').disabled = false;
-    document.querySelectorAll('.toggle-container .togglable').forEach(input => input.disabled = true);
+const onServerStartDone = () => {
+    document.getElementById('reset-button').disabled = false;  // allow stop&reset
+}
 
-    // countdown
-    if (!await countdown(countdownSec)) return;
-    updateTaskStatusMsg('Running...');
-    updateLog('\nStarted.');
+const clientStart = () => {
+    document.getElementById('start-button').disabled = true;  // disable start button for clients who have not pressed it
+    document.getElementById('hp-button').disabled = true;  // disable back to menu
+
+    sockEnv.emit('addUser', {
+        userinfo: userinfo,
+        deviceSelection: JSON.parse(sessionStorage.getItem('deviceSelection')),
+    }, () => {
+        updateLog('User added to the environment');
+    });
 
     if (isDataCollection) {
-        document.addEventListener('dataCollectionOnset', async (event) => {
-            sendDataCollectionOnset(event);  // eeg server; TODO: also for other devices?
-            updateLog(`Cue: ${event.detail.cue}`);
-        });
-        document.addEventListener('dataCollectionCompleted', async () => {
-            stopTask(true);
-        });
+        document.addEventListener('dataCollectionOnset', onDataCollectionOnset);
+        document.addEventListener('dataCollectionCompleted', onDataCollectionCompleted);
+        // TODO: hide NASA TLX survey button in data coll mode ?
         startDataCollection(commandColors, commandLabels);
-    } else {
-        // start the metrics measurement
-        taskCompletionTimer.start({ precision: 'secondTenths' });
     }
 
-    isStarted = true;
+    isStarted = true;  // allow subtask selection
 }
 
-const stopTask = (isComplete = false) => {
+// Data collection event handlers
+const onDataCollectionOnset = async (event) => {
+    sendDataCollectionOnset(event);  // eeg server; TODO: also for other devices?
+    updateLog(`Cue: ${event.detail.cue}`);
+};
+
+const onDataCollectionCompleted = async () => {
+    requestServerStop(true);
+};
+
+
+const requestServerStop = (isCompleted = false) => {
+    document.getElementById('start-button').disabled = true;
+    document.getElementById('reset-button').disabled = true;
+    document.getElementById('hp-button').disabled = true;  // disable back to menu
+    sockEnv.emit('requestServerStop', isCompleted);
+}
+
+const clientStop = (isCompleted = false) => {
+    document.getElementById('reset-button').disabled = true;  // disable stop&reset button for clients who have not pressed it
+    document.getElementById('hp-button').disabled = true;  // disable back to menu
+
     if (!isStarted) {
         // called by
         // - the stop&reset button during the countdown
         // - the stop&reset button after taskDone
-        if (countdownTimer.isRunning()) countdownTimer.stop();
+        // - the taskStopDone event from the server after pressing the stop&reset button
         return;
     }
     isStarted = false;
 
-    // stop the metrics measurement and get the results
-    const taskCompletionSec = taskCompletionTimer.getTotalTimeValues().secondTenths / 10;
-    const errorRate = numSubtaskSelections === 0 ? null : numInvalidSubtaskSelections / numSubtaskSelections;
-    const { len, mean, std } = getInteractionTimeStats();
-    taskCompletionTimer.stop();
-
-    // stop the agents
-    const status = isComplete ? 'Completed!' : 'Stopped.';
-    updateLog(`\n${status}`);
-    sockEnv.emit('taskStop', () => {
-        updateTaskStatusMsg(status);
-        updateLog('Agent stopped.');
-    });
-
     if (isDataCollection) {
         stopDataCollection();
-    } else {
-        // show logs
-        if (taskCompletionSec > 0) {
-            updateLog(`Time:`);
-            updateLog(`${taskCompletionSec.toFixed(1)} sec`, 2);
-        }
-        if (len !== 0) {
-            updateLog(`Average time for ${len} interactions:`);
-            updateLog(`${mean.toFixed(2)} ± ${std.toFixed(2)} sec`, 2);
-        }
-        if (errorRate !== null) {
-            updateLog(`Error rate:`);
-            updateLog(`${numInvalidSubtaskSelections}/${numSubtaskSelections} = ${errorRate.toFixed(2)}`, 2);
-        }
+        document.removeEventListener('dataCollectionOnset', onDataCollectionOnset);
+        document.removeEventListener('dataCollectionCompleted', onDataCollectionCompleted);
+    }
 
-        // send the metrics to the server if the task is completed
-        if (isComplete) {
-            sockEnv.emit('saveMetrics', {
-                username: document.getElementById('username').value,
-                taskCompletionTime: taskCompletionSec,
-                errorRate: { numInvalidSubtaskSelections, numSubtaskSelections, rate: errorRate },
-                interactionTime: { len, mean, std },
-                devices: {
-                    mouse: document.getElementById('toggle-mouse').checked,
-                    gamepad: document.getElementById('toggle-gamepad').checked,
-                    gaze: document.getElementById('toggle-gaze').checked,
-                    keyboard: document.getElementById('toggle-keyboard').checked,
-                    eeg: document.getElementById('toggle-eeg').checked,
-                }
-            }, (res) => {
-                if (res) {
-                    updateLog('Metrics saved.');
-                } else {
-                    updateLog('Failed to save metrics.');
-                }
-            });
-        }
+    if (isCompleted) {
+        // Popup for repeat or back to menu
+        // This ensures the expId is not reused
+        const modal = document.getElementById('task-complete-modal');
+        const modalInstance = new bootstrap.Modal(modal);
+        modalInstance.show();
+    } else {
+        if (isDataCollection) location.reload();  // Force data collection recorder to restart
+        else clientReset();
     }
 }
 
-const resetTask = () => {
-    console.assert(!isStarted, 'Task is not stopped');
-    sockEnv.emit('taskReset', () => {
-        updateTaskStatusMsg('Environment reset. Ready.');
-        document.getElementById('username').disabled = false;
-        document.getElementById('start-button').disabled = !isNameValid();
-        document.getElementById('reset-button').disabled = true;
-        document.querySelectorAll('.toggle-container .togglable').forEach(input => input.disabled = false);
-    });
+const clientReset = () => {
+    document.getElementById('start-button').disabled = false;
+    document.getElementById('reset-button').disabled = true;
+    document.getElementById('hp-button').disabled = false;
     resetChartData();
-    // reset metrics
-    resetInteractionTimeHistory();
-    numSubtaskSelections = 0;
-    numInvalidSubtaskSelections = 0;
 }
 
 const connectEnv = () => {
@@ -191,75 +152,68 @@ const connectEnv = () => {
     sockEnv.on('connect', () => {
         updateLog("Env server connected");
         // request WebRTC offer to the server
-        sockEnv.emit('webrtc-offer-request');
+
+        sockEnv.emit('webrtc-offer-request', userinfo);
     });
-    sockEnv.on('init', ({ isDataCollection: idc, commandLabels: labels, commandColors: colors }) => {
+    
+    sockEnv.on('status', (message) => {
+        updateTaskStatusMsg(message);
+        updateLog(`Server: ${message}`);
+    });
+    sockEnv.on('init', ({ expId, isDataCollection: idc, commandLabels: labels, commandColors: colors }) => {
         isDataCollection = idc;
         // commandColors: ["001", "010", ...]
         commandColors = colors.map(c => binStr2Rgba(c, 0.3));
         commandLabels = labels;
         updateLog(`Environment initialized`);
 
-        // setup toggle switches
-        // robot selection devices
-        document.getElementById('toggle-gaze').addEventListener('change', (e) => onToggleGaze(e.target.checked));
-        document.getElementById('toggle-mouse').addEventListener('change', (e) => onToggleMouse(e.target.checked));
-        // subtask selection devices
-        document.getElementById('toggle-eeg').addEventListener('change', (e) => onToggleEEG(e.target.checked, onSubtaskSelectionEvent, commandLabels));
-        document.getElementById('toggle-keyboard').addEventListener('change', (e) => onToggleKeyboard(e.target.checked, onSubtaskSelectionEvent, commandLabels));
-        // both
-        setGamepadHandler(onSubtaskSelectionEvent, commandLabels);
-        // dispatch events for initial state
-        document.querySelectorAll('.toggle-container .togglable').forEach(input => input.dispatchEvent(new Event('change')));
-
-
         // if a video is ready, create charts
         document.querySelector('video').addEventListener('canplay', () => createCharts(commandColors, commandLabels));
-    });
-    sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods }) => {
-        // interaction time
-        if (command !== '') {
-            // record the interaction if the command is now acceptable
-            // regardless of whether the command is "valid" (hasSubtaskNotDone) subtask selection
-            if (isNowAcceptable) {
-                const sec = recordInteractionTime();
-                updateLog(`Agent ${agentId}: Interaction recorded, ${sec.toFixed(1)}s`);
-            }
-            // reset interaction timer regardless of hasSubtaskNotDone and isNowAcceptable
-            resetInteractionTimer();
-        }
 
-        // error rate and chart update
+        // initialize the selected devices
+        const deviceSelection = JSON.parse(sessionStorage.getItem('deviceSelection'));
+        Object.keys(robotSelectionDeviceInitFuncs).forEach(device => {
+            if (deviceSelection[device]) robotSelectionDeviceInitFuncs[device]();
+        });
+        Object.keys(subtaskSelectionDeviceInitFuncs).forEach(device => {
+            if (deviceSelection[device]) subtaskSelectionDeviceInitFuncs[device](onSubtaskSelectionEvent, commandLabels, userinfo.name, expId);
+        });
+
+        // Share userinfo across the session, for other modules to use
+        sessionStorage.setItem("userinfo", JSON.stringify(userinfo));
+    });
+    sockEnv.on('command', ({ agentId, command, nextAcceptableCommands, isNowAcceptable, hasSubtaskNotDone, likelihoods, interactionTime, username}) => {
+        if (interactionTime) {
+            updateLog(`Agent ${agentId}: Interaction time ${interactionTime.toFixed(1)}s`);
+        }
         if (!isNowAcceptable) {
             // Command was not updated because agent was already executing an action
             // Currently we do not count this as a subtask selection
-            updateLog(`Agent ${agentId}: Command update failed`);
+            updateLog(`Agent ${agentId}: Command update failed (by "${username}")`);
             updateLog(`Agent is executing an action`, 2);
         } else if (!hasSubtaskNotDone) {
             // Command was not updated because the selected subtask has already been done
             // We consider this as an "invalid" subtask selection and count as an error
-            updateLog(`Agent ${agentId}: Command update failed`);
+            updateLog(`Agent ${agentId}: Command update failed (by "${username}")`);
             updateLog(`Task "${command}" is already done`, 2);
-
             console.assert(command !== '', 'empty command');
-            numInvalidSubtaskSelections++;
-            numSubtaskSelections++;
         } else {
             // Command was valid and updated
             if (command !== '') {
-                numSubtaskSelections++;
-                updateLog(`Agent ${agentId}: Command updated to "${command}"`);
+                updateLog(`Agent ${agentId}: Command updated to "${command}" by "${username}"`);
                 if (likelihoods !== null) updateChartData(agentId, likelihoods);  // sync the chart data before updating the lock status
             }
             updateChartLock(agentId, nextAcceptableCommands);
-            updateChartColor(agentId, command);
+            updateChartColor(agentId, command, username);
         }
     });
-    sockEnv.on('subtaskDone', ({ agentId, subtask }) => {
+    sockEnv.on('requestClientStart', clientStart);
+    sockEnv.on('serverStartDone', onServerStartDone);
+    sockEnv.on('requestClientStop', clientStop);
+    sockEnv.on('subtaskDone', ({ agentId, subtask }) => {  // TODO: subtaskCompleted
         updateLog(`Agent ${agentId}: Subtask "${subtask}" done`);
         if (getFocusId() === agentId) resetInteractionTimer();  // reset the timer if the agent is selected so that the time during the subtask is not counted
     });
-    sockEnv.on('taskDone', () => stopTask(true));
     sockEnv.on('webrtc-offer', async (data) => {
         console.log("WebRTC offer received");
         pc = setupPeerConnection(sockEnv, document.querySelectorAll('video'));
@@ -270,6 +224,25 @@ const connectEnv = () => {
     });
     sockEnv.on('disconnect', async () => {
         console.log('Env Server disconnected');
+    });
+
+    // Update the connected user names when the Python side sends and update
+    sockEnv.on('user_list_update', async (user_list) => {
+        userinfo.user_list = user_list; // TODO: is this actually needed ?
+        const usernameAreaDiv = document.getElementById('username-area');
+        if (userinfo.user_list && userinfo.user_list.length > 0) {
+            var userListContent = "";
+            user_list.forEach(connectUserName => {
+                if (connectUserName == userinfo.name) {
+                    userListContent += `<b><i>${connectUserName}</i></b><br/>`;
+                } else {
+                    userListContent += `${connectUserName}<br/>`;
+                };
+            });
+            usernameAreaDiv.innerHTML = userListContent;
+        } else {
+            usernameAreaDiv.innerHTML = 'No users available';
+        }
     });
 
     setSockEnv(sockEnv);
@@ -302,10 +275,16 @@ const onSubtaskSelectionEvent = (command, likelihoods = undefined) => {
     }
     // send the command and likelihoods to the server
     if (commandLabel !== '') {
+        // get the interaction time
+        const interactionTime = getInteractionTime();
+        resetInteractionTimer();
+
         sockEnv.emit('command', {
             agentId: agentId,
             command: commandLabel,
             likelihoods: likelihoods,
+            interactionTime: interactionTime,
+            userinfo: userinfo,
         });
     }
     // update the chart

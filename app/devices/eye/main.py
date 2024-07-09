@@ -15,14 +15,12 @@ samp_rate = 10
 # samp_rate = 5
 confidence_threshold = 0.7
 
-
 def connect_to_pupil(address: str, port: int):
     print("Connecting to Pupil Core...")
     pupil = pcnc.Device(address, port)
     pupil.send_notification({"subject": "frame_publishing.set_format", "format": "bgr"})
     print("Pupil Core Connected.")
     return pupil
-
 
 async def gaze_worker(pupil, sio: socketio.AsyncServer):
     with pupil.subscribe_in_background("surface", buffer_size=1) as sub:
@@ -54,7 +52,6 @@ async def gaze_worker(pupil, sio: socketio.AsyncServer):
 
             await sio.emit("gaze", {"x": x, "y": 1 - y})  # convert origin to top-left
             await asyncio.sleep(1 / samp_rate)
-
 
 @click.command()
 @click.option("--env-ip", "-e", default="localhost", type=str, help="IP address of the environment server")
@@ -113,7 +110,6 @@ def main(env_ip):
     socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
     uvicorn.run(socket_app, host=host, port=port)
-
 
 if __name__ == "__main__":
     main()

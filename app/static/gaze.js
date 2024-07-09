@@ -1,32 +1,32 @@
 import { updateCursorAndFocus } from './cursor.js';
-import { updateConnectionStatusElement } from './utils.js';
-let sockGaze;
+import { updateDeviceStatus } from './utils.js';
+
+const deviceName = 'Gaze';
+const eventName = 'gaze';
+const port = 8001;
+let sock;
 let surfaceOrigin, surfaceSize;
 
-export const onToggleGaze = (checked) => {
-    if (checked) {
-        updateConnectionStatusElement('connecting', 'toggle-gaze');
-        sockGaze = io.connect(`http://localhost:8001`, { transports: ['websocket'] });  // TODO: https?
-        sockGaze.on('connect', () => {
-            updateConnectionStatusElement('connected', 'toggle-gaze');
-            console.log("Gaze server connected");
-        });
-        sockGaze.on('disconnect', () => {
-            updateConnectionStatusElement('disconnected', 'toggle-gaze');
-            console.log("Gaze server disconnected");
-        });
-        sockGaze.on('reconnect_attempt', () => {  // TODO: not working
-            console.log("Gaze server reconnecting...");
-        });
-        sockGaze.on('gaze', (gaze) => {
-            const mappedGaze = mapGazeToSurface(gaze.x, gaze.y);
-            updateCursorAndFocus(...mappedGaze);
-        });
-        showAprilTags();
-    } else {
-        if (sockGaze) sockGaze.disconnect();
-        hideAprilTags();
-    }
+export const init = () => {
+    updateDeviceStatus(deviceName, 'connecting...');
+    sock = io.connect(`http://localhost:${port}`, { transports: ['websocket'] });  // TODO: https?
+    sock.on('connect', () => {
+        updateDeviceStatus(deviceName, 'connected');
+        console.log(`${deviceName} server connected`);
+    });
+    sock.on('disconnect', () => {
+        updateDeviceStatus(deviceName, 'disconnected');
+        console.log(`${deviceName} server disconnected`);
+    });
+    sock.on('reconnect_attempt', () => {  // TODO: not working
+        updateDeviceStatus(deviceName, 'reconnecting...');
+        console.log(`${deviceName} server reconnecting...`);
+    });
+    sock.on(eventName, ({ x, y }) => {
+        const mappedGaze = mapGazeToSurface(x, y);
+        updateCursorAndFocus(...mappedGaze);
+    });
+    showAprilTags();
 }
 
 const showAprilTags = () => {
@@ -46,17 +46,10 @@ const showAprilTags = () => {
     surfaceSize = [right_ - left_, bottom_ - top_];
 }
 
-const hideAprilTags = () => {
-    [...document.getElementsByClassName('apriltag')].forEach((tag) => {
-        tag.style.display = 'none';
-    });
-}
-
 const mapGazeToSurface = (x, y) => {
     // [x, y] in the range of [0, 1]^2
-    const gaze = [
+    return [
         surfaceOrigin[0] + surfaceSize[0] * x,
         surfaceOrigin[1] + surfaceSize[1] * y,
     ];
-    return gaze;
 }

@@ -6,17 +6,11 @@ import mne
 import numpy as np
 
 from app.devices.eeg.models.threshold_model import ThresholdModel as Model
+from app.devices.utils.database import DatabaseManager
 
 
-@click.command()
-@click.option("--username", "-u", default="testuser", help="Username for the session.")
-@click.option("--date", "-d", default="20240412_044751", help="Date for the session.")
-@click.option("--window_duration", "-wdur", default=2.0, help="Duration of window per cue in seconds.")
-@click.option("--baseline_duration", "-bdur", default=5.0, help="Duration of the baseline in seconds.")
-def main(username, date, window_duration, baseline_duration):
-    log_dir = Path(__file__).parent / "logs" / username / date
-    save_path = log_dir / "recording.hdf5"
-    with h5py.File(save_path, "r") as hf:
+def load_data(hdf_path, window_duration, baseline_duration):
+    with h5py.File(hdf_path, "r") as hf:
         data = hf["data"][:]  # (time, channel) float
         # data_ts = hf["data_ts"][:]  # (time,) float
         cue = hf["cue"][:]  # (time,) bytes
@@ -25,7 +19,7 @@ def main(username, date, window_duration, baseline_duration):
         sfreq = hf["nominal_srate"][()]
         nch = hf["channel_count"][()]
     cue = np.array([cue.decode("utf-8") for cue in cue])
-    command_labels = np.array([command_label.decode("utf-8") for command_label in command_labels])
+    command_labels = np.array([label.decode("utf-8") for label in command_labels])
 
     # create MNE Raw object
     ch_names = [f"ch{i}" for i in range(nch)]  # TODO: can get this from stream info?
@@ -34,11 +28,7 @@ def main(username, date, window_duration, baseline_duration):
 
     # annotation
     durations = [baseline_duration if cue == "baseline" else 0 for cue in cue]
-    annot = mne.Annotations(
-        onset=cue_ts,
-        duration=durations,
-        description=cue,
-    )
+    annot = mne.Annotations(onset=cue_ts, duration=durations, description=cue)
     raw.set_annotations(annot)
 
     # crop raw into 5s before and after cue
@@ -46,9 +36,8 @@ def main(username, date, window_duration, baseline_duration):
 
     # plot for debugging
     fig = raw.plot(start=0, duration=100, scalings={"eeg": 1e3})
-    fig.savefig(log_dir / "raw.png")
+    fig.savefig(hdf_path.parent / "raw.png")
 
-    # create training data
     event_id = {label: i for i, label in enumerate(command_labels)}
     events, event_id = mne.events_from_annotations(raw, event_id=event_id)
     epochs = mne.Epochs(
@@ -64,10 +53,44 @@ def main(username, date, window_duration, baseline_duration):
         raw, events=events, event_id=event_id, tmin=0, tmax=baseline_duration, baseline=None, preload=True
     ).get_data(copy=False)[0]
 
-    model = Model(len(command_labels), 1, baseline.T)
+    return X, y, baseline, command_labels
+
+
+def train(X, y, labels, baseline, save_path):
+    model = Model(len(labels), None, baseline.T)
     model.fit(X, y)
-    model_path = log_dir / "params.npz"
-    model.save(model_path)
+    model.save(save_path)
+
+
+@click.command()
+@click.option("--user-id", "-u", help="User ID for the data collection recording to train on.")
+@click.option("--exp-id", "-d", help="Experiment ID for the data collection recording to train on.")
+@click.option(
+    "--load-latest-recording",
+    is_flag=True,
+    help="Use the latest recording data for training instead of manually specifying user_id and exp_id",
+)
+@click.option("--window-duration", "-wdur", default=2.0, help="Duration of window per cue in seconds.")
+@click.option("--baseline-duration", "-bdur", default=5.0, help="Duration of the baseline in seconds.")
+def main(user_id, exp_id, load_latest_recording, window_duration, baseline_duration):
+    save_root = Path(__file__).parent / "logs"
+    db_manager = DatabaseManager(save_root / "data.json")
+
+    if load_latest_recording:
+        user_id, exp_id = db_manager.get_latest_recording_info()
+    elif user_id is None or exp_id is None:
+        raise ValueError("Specify user_id and exp_id or use --load-latest-recording")
+    print(f"Training for user {user_id} and experiment {exp_id}")
+    log_dir = Path(__file__).parent / "logs" / user_id / exp_id
+
+    hdf_path = log_dir / "recording.hdf5"
+    X, y, baseline, labels = load_data(hdf_path, window_duration, baseline_duration)
+
+    model_save_path = log_dir / "params.npz"
+    train(X, y, labels, baseline, model_save_path)
+
+    # update the latest model info
+    db_manager.update_model_path(user_id, model_save_path)
 
 
 if __name__ == "__main__":

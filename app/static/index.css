@@ -1,0 +1,8 @@
+.hover-effect:hover img {
+    opacity: 0.8;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.hover-effect:hover .link-text {
+    text-decoration: underline;
+}

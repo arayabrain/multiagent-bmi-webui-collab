@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +13,7 @@ from app.devices.eeg.baseline import measure_baseline
 from app.devices.eeg.decoder import Decoder
 from app.devices.eeg.models.threshold_model import ThresholdModel as Model
 from app.devices.eeg.recorder import Recorder
+from app.devices.utils.database import DatabaseManager
 from app.devices.utils.networking import create_observable_from_stream_inlet, get_ref_time, get_stream_inlet
 from app.devices.utils.utils import parse_float_list
 
@@ -24,10 +24,10 @@ use_diff = False
 @click.command()
 @click.option("--env-ip", "-e", default="localhost", type=str, help="IP address of the environment server")
 @click.option("--input", "-i", default="EEG", type=click.Choice(["EEG", "Audio"]), help="Input type")
-@click.option("--no-decode", flag_value=True, type=bool, help="Disable decoding")
-@click.option("--no-record", flag_value=True, type=bool, help="Disable recording")
+@click.option("--no-decode", is_flag=True, help="Disable decoding")
+@click.option("--no-record", is_flag=True, help="Disable recording")
 # options for decoder
-@click.option("--auto-baseline", flag_value=True, help="Automatically start baseline measurement")
+@click.option("--auto-baseline", is_flag=True, help="Automatically start baseline measurement")
 @click.option(
     "--baseline-duration",
     "-bdur",
@@ -49,16 +49,15 @@ use_diff = False
     type=click.FloatRange(min=0),
     help="Window duration in seconds",
 )
-@click.option(
+@click.option(  # TODO: this option is specific to the threshold model
     "--thres",
     "-t",
     default="12.0,12.0,12.0,12.0",
     type=str,
     help="Thresholds for channel activation (comma-separated list)",
 )
-@click.option("--model-datetime", "-d", default="", type=str, help="Date of the model to load")
+@click.option("--load-latest-model", is_flag=True, help="Load the latest decoder model")
 # options for recorder
-@click.option("--username", "-u", default="noname", type=str, help="Username")
 @click.option("--record-interval", default=5.0, type=click.FloatRange(min=0), help="Recording interval in seconds")
 def main(
     env_ip,
@@ -70,8 +69,7 @@ def main(
     baseline_ready_duration,
     window_duration,
     thres,
-    model_datetime,
-    username,
+    load_latest_model,
     record_interval,
 ) -> None:
     host = "localhost"
@@ -83,6 +81,11 @@ def main(
     sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=origins)
     num_clients = 0
     ref_time_browser = None
+    user_id = None
+    exp_id = None
+
+    save_root = Path(__file__).parent / "logs"
+    db_manager = DatabaseManager(save_root / "data.json")
 
     runners: list[Any] = []
 
@@ -123,6 +126,9 @@ def main(
         print(f"Received initialization info: {data}")
         command_labels = data["commandLabels"]
         num_classes = len(command_labels)
+        nonlocal user_id, exp_id
+        user_id = data["userId"]
+        exp_id = data["expId"]
 
         if len(runners) > 0:
             # if the runners are already set up, do nothing
@@ -160,20 +166,18 @@ def main(
             nonlocal ref_time_browser
             ref_time_lsl, ref_time_browser = await get_ref_time(sio, sid)
 
-            save_path = (
-                Path(__file__).parent / "logs" / username / datetime.now().strftime("%Y%m%d_%H%M%S") / "recording.hdf5"
-            )
-            save_path.parent.mkdir(parents=True, exist_ok=True)  # make devices/eeg/logs/username/
-
             recorder = Recorder(
                 input_observable,
                 input_info,
-                save_path=save_path,
+                save_path=save_root / user_id / exp_id / "recording.hdf5",
                 record_interval=record_interval,
                 ref_time=ref_time_lsl,
             )
             recorder.start()
             runners.append(recorder)
+
+            # update the latest recording info (that will be loaded by train.py)
+            db_manager.update_recording_info(user_id, exp_id)
 
         # measure baseline
         input_freq = input_info["nominal_srate"]
@@ -185,14 +189,14 @@ def main(
 
         # setup decoder
         if not no_decode:
-            if not model_datetime:
+            if load_latest_model:
+                print("Ignoring '--thres' and loading the latest model.")
+                model = Model(num_classes, None, baseline, use_diff=use_diff)
+                path = db_manager.get_model_path(user_id)
+                model.load(path)
+            else:
                 thres_ = parse_float_list(thres)
                 model = Model(num_classes, thres_, baseline, use_diff=use_diff)
-            else:
-                print("Ignoring '--thres' because '--model-datetime' is given.")
-                model = Model(num_classes, None, baseline, use_diff=use_diff)
-                model_path = Path(__file__).parent / "logs" / username / model_datetime / "params.npz"
-                model.load(model_path)
 
             window_size = int(input_freq * window_duration)
             # window_step = window_size // 2

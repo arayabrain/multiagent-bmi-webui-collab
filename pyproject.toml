@@ -4,7 +4,17 @@ version = "0.1.0"
 readme = "README.md"
 
 [project.optional-dependencies]
-server = ["aiortc", "fastapi", "uvicorn", "python-socketio"]
+server = [
+    "aiortc",
+    "fastapi",
+    "uvicorn",
+    "python-socketio",
+    "python-multipart",
+    "itsdangerous",
+    "python-dotenv",
+    "jsonlines",
+    "pandas",
+]
 user = [
     "click",
     "h5py",
@@ -16,6 +26,7 @@ user = [
     "mne",
     "pandas",
     "pyxdf",
+    "tinydb",
 ]
 
 [build-system]
