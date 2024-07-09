@@ -242,7 +242,7 @@ const connectEnv = () => {
             usernameAreaDiv.innerHTML = userListContent;
         } else {
             usernameAreaDiv.innerHTML = 'No users available';
-        }
+        };
     });
 
     setSockEnv(sockEnv);

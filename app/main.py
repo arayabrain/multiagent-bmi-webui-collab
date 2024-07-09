@@ -5,6 +5,7 @@ import os
 import secrets
 import string
 import urllib.parse
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -13,7 +14,7 @@ import uvicorn
 from aiortc import RTCPeerConnection
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -81,41 +82,31 @@ countdown_sec = 3
 ## Tracking a user based on the browser cookie
 def get_uniq_client_sid(request: Request):
     """
-        This was just from observation, not necessarily a convention.
-        On each browser that has a request, cookies["session"] looks like:
-        "eyJ1c2....QifX0=.Zourmg.3A_sTgiS5bLKd_i8AuloEAHCHzs"
-        For a given browser, the string before the first "." stays the same
+        Check if a unique_user_id is in the request's cookies
+        If it is, we consider that the user accessed the webapp before
+        Otherwise, generate a new id for them, then send a response back
+        to store the cookie on the client side.
 
-        NOTE: This will also globally track all the browsers that issued a request
-        TODO: there is no session when logging in with InPrivate for example,
-        so how to recover it once it is properly created ? Although as soon as the user registers
-        and redirected to index, will have this available ?
+        NOTE: this is likely circumvent by using Incognito window to connect
+        close it, then open a fresh one again.
     """
-    uniq_cli_sid = None
-    if "session" in request.cookies.keys():
-        uniq_cli_sid = request.cookies["session"].split(".")[0]
-        if uniq_cli_sid not in list(uniq_client_sids.keys()):
-            uniq_client_sids[uniq_cli_sid] = {}  # Placeholder for user info, etc...
-    else:
-        print("#### DBG: session witout cookie")
+    unique_user_id = request.cookies.get("unique_user_id")
+
+    if not unique_user_id:
+        unique_user_id = str(uuid.uuid4())
+
+    # Tracking unique_users
+    if unique_user_id not in list(uniq_client_sids.keys()):
+        uniq_client_sids[unique_user_id] = {}
 
     # DBG
     print("")
     print("#### DBG Client Sessions")
-    for idx, client_session in enumerate(uniq_client_sids.keys()):
-        print(f"  {idx} -> {client_session}")
+    for idx, uniquid in enumerate(uniq_client_sids.keys()):
+        print(f"  {idx} -> {uniquid}")
     print("")
 
-    return uniq_cli_sid
-
-
-@app.get("/register")
-async def register(request: Request):
-    get_uniq_client_sid(request)
-    return templates.TemplateResponse(
-        "register.html",
-        {"request": request},
-    )
+    return unique_user_id
 
 
 @app.post("/api/setuser")
@@ -186,27 +177,46 @@ async def save_nasa_tlx_data(request: Request, survey_data: dict):
 
     return True
 
+
 @app.get("/api/getuser")
 async def getuser(request: Request):
-    return request.session.get("userinfo")
+    unique_user_id = get_uniq_client_sid(request)
+    response = JSONResponse(content=request.session.get("userinfo"))
+    response.set_cookie(key="unique_user_id", value=unique_user_id)
+
+    return response
+
+@app.get("/register")
+async def register(request: Request):
+    unique_user_id = get_uniq_client_sid(request)
+    response = templates.TemplateResponse(
+        "register.html",
+        {"request": request},
+    )
+    response.set_cookie(key="unique_user_id", value=unique_user_id)
+
+    return response
 
 
 @app.get("/")
 async def index(request: Request):
-    get_uniq_client_sid(request) # Tracking uniq user
+    unique_user_id = get_uniq_client_sid(request) # Tracking uniq user
 
     if "userinfo" not in request.session:
         return RedirectResponse(url="/register")
 
     flash = request.session.pop("flash", None)
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         "index.html",
-        {"request": request, "flash": flash},
+        {"request": request, "flash": flash}
     )
+    response.set_cookie(key="unique_user_id", value=unique_user_id)
+
+    return response
 
 
 async def task_page(request: Request, mode: str):
-    get_uniq_client_sid(request) # Tracking uniq user
+    unique_user_id = get_uniq_client_sid(request) # Tracking uniq user
 
     if "userinfo" not in request.session:
         return RedirectResponse(url="/register")
@@ -219,17 +229,20 @@ async def task_page(request: Request, mode: str):
         }
         return RedirectResponse(url="/")
 
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         "app.html",
         {
             "request": request,
             "numAgents": env_info[mode]["num_agents"],
         },
     )
+    response.set_cookie(key="unique_user_id", value=unique_user_id)
+
+    return response
 
 
 async def survey_page(request: Request, mode: str):
-    get_uniq_client_sid(request) # Tracking uniq user
+    unique_user_id = get_uniq_client_sid(request) # Tracking uniq user
 
     if "userinfo" not in request.session:
         return RedirectResponse(url="/register")
@@ -237,12 +250,15 @@ async def survey_page(request: Request, mode: str):
     # TODO: shared same func "task_page" for serving ?
     # TODO: might want to check that (valid) devices
     # are set, otherwise the data saved might be useless
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         "nasa-tlx-survey.html",
         {
             "request": request
         }
     )
+    response.set_cookie(key="unique_user_id", value=unique_user_id)
+
+    return response
 
 
 @app.get("/data-collection")
