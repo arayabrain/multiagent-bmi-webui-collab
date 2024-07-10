@@ -85,6 +85,18 @@
         </div>
     </div>
 
+    <!-- Modal to force tab close when a session is already running  -->
+    <div class="modal fade" id="active-tab-modal" tabindex="-1" aria-labelledby="activeTabModal"
+        aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="activeTabModalLabel">Running session detected in another tab or window ! Please close this one.</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>

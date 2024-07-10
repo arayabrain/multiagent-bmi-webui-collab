@@ -114,6 +114,19 @@ def get_uniq_client_sid(request: Request):
 def get_connect_users_list(ignore_names: Optional[Union[str, List[str]]] = None):
     return [client_data.get("username", None) for client_data in uniq_client_sids.values() if client_data.get("username", None) is not None]
 
+def track_client_session(request: Request, unique_user_id: str):
+    # NOTE: Leaving this for reference, because the request.cookies["session"]
+    # was not stable enough for our purpose, but could be useful for something else
+    # General format is eyJ1c2VyaW5...mlnaHQifX0=.Zo3zYQ.6fYG6IudrvJ814N4fpfrDwFAGlM
+    # If using split(".") for e.g., [0] is mostly consistent for the same browser/user
+    full_session_id = request.cookies['session']
+    # uniq_client_sids[unique_user_id]["all_sessions"].append(full_session_id)
+    # DBG code
+    # for sidx, seshid in enumerate(uniq_client_sids[unique_user_id]["all_sessions"]):
+    #     print(f"  {sidx} -> {seshid}")
+    return full_session_id
+
+
 @app.post("/api/setuser")
 async def setuser(request: Request, userinfo: dict):
     print("")
@@ -195,6 +208,8 @@ async def disconnect_user(request: Request, data: dict):
     print(f"##### DBG: data: {data}")
     unique_user_id = data["unique_user_id"]
     print(f"User associated with: {unique_user_id} closed window.")
+    # TODO: Maybe don't do this on "unload" ? Just
+    # beforeunload when the tab is actually closed ?
     if unique_user_id in uniq_client_sids.keys():
         del uniq_client_sids[unique_user_id]
 
@@ -224,6 +239,7 @@ async def getuser(request: Request):
 @app.get("/register")
 async def register(request: Request):
     unique_user_id = get_uniq_client_sid(request)
+
     response = templates.TemplateResponse(
         "register.html",
         {"request": request},
@@ -322,6 +338,8 @@ async def connect(sid, environ):
     print("Client connected:", sid)
 
     # generate user id
+    # TODO: consider swaping this with `unique_user_id` ?
+    # How bad would it be ?
     alphabet = string.ascii_uppercase + string.digits
     user_id = "".join(secrets.choice(alphabet) for _ in range(8))
     sid2userid[sid] = user_id

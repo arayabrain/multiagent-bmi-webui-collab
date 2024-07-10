@@ -23,6 +23,39 @@ let sockEnv, userinfo, commandLabels, commandColors;
 let isStarted = false;  // if true, task is started and accepting subtask selection
 let isDataCollection = false;
 
+// Tracking active tabs / window
+let active_tab_detected = false;
+
+if (localStorage.getItem("active-tab")) {
+    active_tab_detected = true; // Closing this tab will not remove main tab(windows)'s "active-tab" flag
+    const modal = document.getElementById('active-tab-modal');
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+} else {
+    localStorage.setItem("active-tab", true);
+};
+
+// Notify backend when the browser window is closed
+// for server-side tracking of connected users
+window.addEventListener("beforeunload", (event) => {
+    // TODO: what if there is no uniquer_user_id set yet ?
+    let unique_user_id = getCookie("unique_user_id");
+    disconnectUser(unique_user_id);
+    // Negate active tab flag only if the current one is a valid one
+    if (! active_tab_detected) {
+        localStorage.removeItem("active-tab");
+    };
+});
+
+window.addEventListener("unload", (event) => {
+    let unique_user_id = getCookie("unique_user_id");
+    disconnectUser(unique_user_id);
+    // Negate active tab flag only if the current one is a valid one
+    if (! active_tab_detected) {
+        localStorage.removeItem("active-tab");
+    };
+});
+
 document.addEventListener("DOMContentLoaded", async () => {
     connectEnv();
 
@@ -35,21 +68,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById('reset-button').addEventListener('click', () => requestServerStop());
 
     clientReset();
-});
-
-// Notify backend when the browser window is closed
-// for server-side tracking of connected users
-window.addEventListener("beforeunload", (event) => {
-    // TODO: what if there is no uniquer_user_id set yet ?
-    let unique_user_id = getCookie("unique_user_id");
-    console.log(unique_user_id);
-    disconnectUser(unique_user_id);
-});
-
-window.addEventListener("unload", (event) => {
-    let unique_user_id = getCookie("unique_user_id");
-    console.log(unique_user_id);
-    disconnectUser(unique_user_id);
 });
 
 const updateTaskStatusMsg = (msg) => {
