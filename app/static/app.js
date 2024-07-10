@@ -40,21 +40,24 @@ if (localStorage.getItem("active-tab")) {
 window.addEventListener("beforeunload", (event) => {
     // TODO: what if there is no unique_user_id set yet ?
     let unique_user_id = getCookie("unique_user_id");
-    disconnectUser(unique_user_id);
-    // Negate active tab flag only if the current one is a valid one
     if (! active_tab_detected) {
+        // Don't disconnect if another tab is opened, since main tab is still live
+        disconnectUser(unique_user_id);
+        // Negate active tab flag only if the current one is a valid one
         localStorage.removeItem("active-tab");
     };
 });
 
 window.addEventListener("unload", (event) => {
     let unique_user_id = getCookie("unique_user_id");
-    disconnectUser(unique_user_id);
-    // Negate active tab flag only if the current one is a valid one
     if (! active_tab_detected) {
+        // Don't disconnect if another tab is opened, since main tab is still live
+        disconnectUser(unique_user_id);
+        // Negate active tab flag only if the current one is a valid one
         localStorage.removeItem("active-tab");
     };
 });
+
 
 document.addEventListener("DOMContentLoaded", async () => {
     connectEnv();

@@ -115,24 +115,23 @@ def get_uniq_client_sid(request: Request, mode: str = None):
         uniq_client_sids[unique_user_id]["current-mode"] = mode
 
     # DBG
-    print("")
-    print("#### DBG: Tracking Client Sessions")
-    for idx, (uniquid, uniqdata) in enumerate(uniq_client_sids.items()):
-        print(f"  {idx} -> {uniquid}: {uniqdata.get('username', None)}")
-        print(f"    uniqdata: {uniqdata}")
-        # print(f"    sid: {uniqdata.get('sid', None)}")
-    print("")
+    # print("")
+    # print("#### DBG: Tracking Client Sessions")
+    # for idx, (uniquid, uniqdata) in enumerate(uniq_client_sids.items()):
+    #     print(f"  {idx} -> {uniquid}: {uniqdata.get('username', None)}")
+    #     print(f"    uniqdata: {uniqdata}")
+    # print("")
 
     return unique_user_id
 
-def get_connected_users_list(ignore_names: Optional[Union[str, List[str]]] = None):
+def get_connected_users_list(ignore_names: Optional[Union[str, List[str]]] = []):
     return [client_data.get("username", None) for client_data in uniq_client_sids.values()
-        if (client_data.get("username", None) is not None
-            and client_data.get("connected", False))]
+        if (client_data.get("connected", False)
+            and client_data.get("username", "") not in ignore_names)]
 
 def get_connected_users_list_by_mode(mode: str):
     return [client_data.get("username", None) for client_data in uniq_client_sids.values()
-                if (client_data.get("username", None) is not None
+                if (client_data.get("username", "") != ""
                     and client_data.get("connected", False)
                     and client_data.get("current-mode", None) == mode)]
 
@@ -151,16 +150,6 @@ def track_client_session(request: Request, unique_user_id: str):
 
 @app.post("/api/setuser")
 async def setuser(request: Request, userinfo: dict):
-    print("")
-    print("##### DBG BFR: all users data at register #####")
-    print(f"New user with info: {userinfo}")
-    print(f"Connected users info: {get_connected_users_list()}")
-    print(f"Modes: {modes}")
-    print(f"sid2userid: {sid2userid}")
-    print(f"sid2username: {sid2username}")
-    print(f"mode2expids: {mode2expids}")
-    print("##### DEBUG END: all users data at register #####")
-    print("")
     # TODO: userinfo is basically validated in the frontend, but do it more strictly?
     request.session["userinfo"] = userinfo
     username = userinfo["name"]
@@ -171,8 +160,8 @@ async def setuser(request: Request, userinfo: dict):
 
     # If another user with a different browser is detected,
     # reject this name choice
-    # TODO: same browser wants to re-register the same username ?
-    connected_user_list = get_connected_users_list()
+    current_name = uniq_client_sids[unique_user_id].get("username", "")
+    connected_user_list = get_connected_users_list(ignore_names=current_name)
     if username in connected_user_list:
         # NOTE: naive error handling, but more complex not needed for now
         raise HTTPException(
@@ -184,17 +173,6 @@ async def setuser(request: Request, userinfo: dict):
 
     # Associate unique client id to the username
     uniq_client_sids[unique_user_id]["username"] = username
-
-    print("")
-    print("##### DBG AFTR: all users data at register #####")
-    print(f"New user with info: {userinfo}")
-    print(f"Connected users info: {get_connected_users_list()}")
-    print(f"Modes: {modes}")
-    print(f"sid2userid: {sid2userid}")
-    print(f"sid2username: {sid2username}")
-    print(f"mode2expids: {mode2expids}")
-    print("##### DEBUG END: all users data at register #####")
-    print("")
 
     return True
 
