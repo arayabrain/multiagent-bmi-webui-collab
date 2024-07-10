@@ -7,6 +7,7 @@ import string
 import urllib.parse
 import uuid
 from datetime import datetime
+from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -79,10 +80,12 @@ countdown_sec = 3
 
 # Helpers for tracking a specific user across browser sessions
 ## Tracking a user based on the browser cookie
-def get_uniq_client_sid(request: Request):
+def get_uniq_client_sid(request: Request, mode: str = None):
     """
         Check if a unique_user_id is in the request's cookies
-        If it is, we consider that the user accessed the webapp before
+        If it is, we consider that the user accessed the webapp before, so
+        load the userinfo from the client side too. Can optional set the
+        current-mode for further tracking of users' activity.
         Otherwise, generate a new id for them, then send a response back
         to store the cookie on the client side.
 
@@ -96,23 +99,42 @@ def get_uniq_client_sid(request: Request):
 
     # Global tracking of browsers that attempted connection
     if unique_user_id not in list(uniq_client_sids.keys()):
+        # User connection status is handled either here, or
+        # in disconnect_user call.
         uniq_client_sids[unique_user_id] = {}
-        # If request / cookies also carry userinfo, refresh
-        userinfo = request.session.get("userinfo", None)
-        if userinfo is not None:
-            uniq_client_sids[unique_user_id]["username"] = userinfo["name"]
+
+    # If request / cookies also carry userinfo, refresh
+    userinfo = request.session.get("userinfo", None)
+    if userinfo is not None:
+        uniq_client_sids[unique_user_id]["username"] = userinfo["name"]
+
+    # If this is called, user is connected
+    uniq_client_sids[unique_user_id]["connected"] = True
+    # Set mode that prompted this user id query
+    if mode is not None: # workaround /api/getuser resetting the mode.
+        uniq_client_sids[unique_user_id]["current-mode"] = mode
 
     # DBG
     print("")
-    print("#### DBG Client Sessions")
+    print("#### DBG: Tracking Client Sessions")
     for idx, (uniquid, uniqdata) in enumerate(uniq_client_sids.items()):
         print(f"  {idx} -> {uniquid}: {uniqdata.get('username', None)}")
+        print(f"    uniqdata: {uniqdata}")
+        # print(f"    sid: {uniqdata.get('sid', None)}")
     print("")
 
     return unique_user_id
 
-def get_connect_users_list(ignore_names: Optional[Union[str, List[str]]] = None):
-    return [client_data.get("username", None) for client_data in uniq_client_sids.values() if client_data.get("username", None) is not None]
+def get_connected_users_list(ignore_names: Optional[Union[str, List[str]]] = None):
+    return [client_data.get("username", None) for client_data in uniq_client_sids.values()
+        if (client_data.get("username", None) is not None
+            and client_data.get("connected", False))]
+
+def get_connected_users_list_by_mode(mode: str):
+    return [client_data.get("username", None) for client_data in uniq_client_sids.values()
+                if (client_data.get("username", None) is not None
+                    and client_data.get("connected", False)
+                    and client_data.get("current-mode", None) == mode)]
 
 def track_client_session(request: Request, unique_user_id: str):
     # NOTE: Leaving this for reference, because the request.cookies["session"]
@@ -132,7 +154,7 @@ async def setuser(request: Request, userinfo: dict):
     print("")
     print("##### DBG BFR: all users data at register #####")
     print(f"New user with info: {userinfo}")
-    print(f"Connected users info: {get_connect_users_list()}")
+    print(f"Connected users info: {get_connected_users_list()}")
     print(f"Modes: {modes}")
     print(f"sid2userid: {sid2userid}")
     print(f"sid2username: {sid2username}")
@@ -150,7 +172,7 @@ async def setuser(request: Request, userinfo: dict):
     # If another user with a different browser is detected,
     # reject this name choice
     # TODO: same browser wants to re-register the same username ?
-    connected_user_list = get_connect_users_list()
+    connected_user_list = get_connected_users_list()
     if username in connected_user_list:
         # NOTE: naive error handling, but more complex not needed for now
         raise HTTPException(
@@ -166,7 +188,7 @@ async def setuser(request: Request, userinfo: dict):
     print("")
     print("##### DBG AFTR: all users data at register #####")
     print(f"New user with info: {userinfo}")
-    print(f"Connected users info: {get_connect_users_list()}")
+    print(f"Connected users info: {get_connected_users_list()}")
     print(f"Modes: {modes}")
     print(f"sid2userid: {sid2userid}")
     print(f"sid2username: {sid2username}")
@@ -205,27 +227,29 @@ async def save_nasa_tlx_data(request: Request, survey_data: dict):
 
 @app.post("/api/disconnect-user")
 async def disconnect_user(request: Request, data: dict):
-    print(f"##### DBG: data: {data}")
     unique_user_id = data["unique_user_id"]
-    print(f"User associated with: {unique_user_id} closed window.")
+    print(f"User associated with: {unique_user_id} navigated away or left.")
     # TODO: Maybe don't do this on "unload" ? Just
     # beforeunload when the tab is actually closed ?
     if unique_user_id in uniq_client_sids.keys():
-        del uniq_client_sids[unique_user_id]
+        uniq_client_sids[unique_user_id]["connected"] = False
+        uniq_client_sids[unique_user_id]["current-sid"] = None
+        # TODO: reset "current-mode" ? Or keep it as is ?
 
-    print("")
-    print("##### DBG AFTR: all users data at register #####")
-    print(f"Connected users info: {get_connect_users_list()}")
-    print(f"uniq_client_sids: {uniq_client_sids}")
-    print(f"Modes: {modes}")
-    print(f"sid2userid: {sid2userid}")
-    print(f"sid2username: {sid2username}")
-    print(f"mode2expids: {mode2expids}")
-    print("##### DEBUG END: all users data at register #####")
-    print("")
+    # print("")
+    # print("##### DBG AFTR: disconnect_user #####")
+    # print(f"Connected users info: {get_connected_users_list()}")
+    # print(f"uniq_client_sids: {uniq_client_sids}")
+    # print(f"Modes: {modes}")
+    # print(f"sid2userid: {sid2userid}")
+    # print(f"sid2username: {sid2username}")
+    # print(f"mode2expids: {mode2expids}")
+    # print("##### DBG AFTR END: disconnect_user #####")
+    # print("")
 
     # Broadcast the updated list of connected user IDs to all clients
-    await sio.emit("userListUpdate", get_connect_users_list())
+    for mode in list(env_info.keys()):
+        await sio.emit(f"userListUpdate-{mode}", get_connected_users_list_by_mode(mode))
 
 
 @app.get("/api/getuser")
@@ -238,7 +262,7 @@ async def getuser(request: Request):
 
 @app.get("/register")
 async def register(request: Request):
-    unique_user_id = get_uniq_client_sid(request)
+    unique_user_id = get_uniq_client_sid(request, mode="register")
 
     response = templates.TemplateResponse(
         "register.html",
@@ -251,7 +275,9 @@ async def register(request: Request):
 
 @app.get("/")
 async def index(request: Request):
-    unique_user_id = get_uniq_client_sid(request) # Tracking uniq user
+    # NOTE: since mode is also computed from the URL,
+    # index's mode corresponds to ""
+    unique_user_id = get_uniq_client_sid(request, mode="") # Tracking uniq user
 
     if "userinfo" not in request.session:
         return RedirectResponse(url="/register")
@@ -267,7 +293,8 @@ async def index(request: Request):
 
 
 async def task_page(request: Request, mode: str):
-    unique_user_id = get_uniq_client_sid(request) # Tracking uniq user
+    print(f"### DBG: mode at index page: {mode}")
+    unique_user_id = get_uniq_client_sid(request, mode=mode) # Tracking uniq user
 
     if "userinfo" not in request.session:
         return RedirectResponse(url="/register")
@@ -293,7 +320,7 @@ async def task_page(request: Request, mode: str):
 
 
 async def survey_page(request: Request, mode: str):
-    unique_user_id = get_uniq_client_sid(request) # Tracking uniq user
+    unique_user_id = get_uniq_client_sid(request, mode=mode) # Tracking uniq user
 
     if "userinfo" not in request.session:
         return RedirectResponse(url="/register")
@@ -337,6 +364,11 @@ async def nasa_tlx_survey(request: Request):
 async def connect(sid, environ):
     print("Client connected:", sid)
 
+    # Recover global unique_user_id from the client side
+    # TODO: checks that unique_user_id is in there at least ?
+    cookies = SimpleCookie(environ.get('HTTP_COOKIE'))
+    unique_user_id = cookies["unique_user_id"].value
+
     # generate user id
     # TODO: consider swaping this with `unique_user_id` ?
     # How bad would it be ?
@@ -348,6 +380,11 @@ async def connect(sid, environ):
     endpoint = query.get("endpoint", [None])[0]
     print(f"endpoint: {endpoint}")  # like "/multi-robot"
     mode = endpoint[1:] #get mode here for connect
+
+    # Update current sid for the connected user
+    # NOTE: this will break if reloading the page between
+    # server restarts. Maybe add a try-catch for clean handling ?
+    uniq_client_sids[unique_user_id]["current-sid"] = sid
 
     if mode not in env_info:
         return False
@@ -391,8 +428,9 @@ async def connect(sid, environ):
     # send initial server status
     await sio.emit("status", "Ready.", to=sid)
 
-    # Broadcast the updated list of connected user IDs to all clients
-    await sio.emit("userListUpdate", get_connect_users_list())
+    # Broadcast the updated list of connected user IDs to all clients in the same mode
+    # await sio.emit("userListUpdate", get_connected_users_list())
+    await sio.emit(f"userListUpdate-{mode}", get_connected_users_list_by_mode(mode))
 
 
 @sio.event
@@ -425,7 +463,9 @@ async def disconnect(sid):
         del interaction_recorders[mode]
         del task_completion_timers[mode]
 
-    await sio.emit("userListUpdate", get_connect_users_list())
+    # Broadcast the updated list of connected user IDs to all clients
+    for mode in list(env_info.keys()):
+        await sio.emit(f"userListUpdate-{mode}", get_connected_users_list_by_mode(mode))
 
 
 async def on_completed(mode: str):
@@ -514,11 +554,11 @@ async def command(sid, data: dict):
         data["likelihoods"],
         data["interactionTime"],
     )
-    
+
     if res["interactionTime"] is not None:  # TODO: recording only acceptable interactions
         res.pop("nextAcceptableCommands")  # delete unnecessary item
         interaction_recorders[mode].record(sid2userid[sid], res)
-    
+
     print(f"Command {command_label} by {username} is sent to {agent_id}")
 
 @sio.on("webrtc-offer-request")

@@ -43,7 +43,6 @@ export const getCookie = (name) => {
 };
 
 export const disconnectUser = async (unique_user_id) => {
-    console.log(JSON.stringify({"unique_user_id": unique_user_id}));
     // Helper to disconnect a user at the backend side
     const response = await fetch('/api/disconnect-user', {
         method: 'POST',
