@@ -96,6 +96,9 @@ async def setuser(request: Request, userinfo: dict):
 @app.post("/api/save-nasa-tlx-data")
 async def save_nasa_tlx_data(request: Request, survey_data: dict):
     mode = survey_data['mode']
+    # Disallow survey if data-collecton mode.
+    if mode.startswith("data-collection"):
+        return False
 
     username = survey_data['userinfo']['name']
     sub_log_dir = log_dir / f"{username}"
@@ -228,10 +231,15 @@ async def connect(sid, environ):
         envs[mode] = env
         stream_manager.setup(mode, env.env.get_visuals, env.num_agents)
 
+    # NOTE: Init expId earlier than request_server_start
+    # for EMG / EEG pipeline compatibility
+    # @keggily: does it influence data storage logic ?
+    mode2expids[mode] = datetime.now().strftime("%Y%m%d%H%M%S")
+
     await sio.emit(
         "init",
         {
-            #"expId": mode2expids[mode],
+            "expId": mode2expids[mode],
             "isDataCollection": mode.startswith("data-collection"),
             "commandLabels": env.command_labels,
             "commandColors": env.command_colors,
@@ -328,8 +336,6 @@ async def server_start(sid):
     mode = modes[sid]
     env = envs[mode]
     assert not env.is_running
-    
-    mode2expids[mode] = datetime.now().strftime("%Y%m%d%H%M%S")
 
     # Initialize metrics and start env
     interaction_recorders[mode].reset()
