@@ -1,0 +1,3 @@
+[submodule "robohive-multi"]
+	path = robohive-multi
+	url = git@github.com:arayabrain/robohive-multi.git
