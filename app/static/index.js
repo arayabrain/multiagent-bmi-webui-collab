@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // validate the device selection
             const deviceSelection = JSON.parse(sessionStorage.getItem('deviceSelection'));
             const isRobotDeviceSelected = document.getElementById(`toggle-mouse`).checked || document.getElementById(`toggle-gamepad`).checked || document.getElementById(`toggle-gaze`).checked;
-            const isSubtaskDeviceSelected = document.getElementById(`toggle-keyboard`).checked || document.getElementById(`toggle-eeg`).checked;
+            const isSubtaskDeviceSelected = document.getElementById(`toggle-keyboard`).checked ||  document.getElementById(`toggle-gamepadSubtask`).checked || document.getElementById(`toggle-eeg`).checked;
             const isDeviceSelected = deviceSelection && isRobotDeviceSelected && isSubtaskDeviceSelected
             // TODO: validate robot selection and subtask selection respectively            
             if (!isDeviceSelected) {
