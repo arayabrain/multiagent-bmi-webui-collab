@@ -57,8 +57,12 @@ const saveDeviceSelection = () => {
     // save the device state
     const state = {};
     document.querySelectorAll('.form-check-input').forEach(input => {
-        const device = input.id.split('-')[1];
-        state[device] = input.checked;
+        // NOTE: need to skip "toggle-gamepad-1" otherwise device selection
+        // saving does not work
+        if (input.id !== "toggle-gamepad-1") {
+            const device = input.id.split('-')[1];
+            state[device] = input.checked;
+        };
     });
     sessionStorage.setItem('deviceSelection', JSON.stringify(state));
 }
