@@ -9,19 +9,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     );
     initDeviceSelection();
 
+    // Sync gamepad toggles for robot and subtask selection
+    const gamepadCheckbox0 = document.getElementById('toggle-gamepad-0');
+    const gamepadCheckbox1 = document.getElementById('toggle-gamepad-1');
+    function syncCheckboxes(sourceCheckbox, targetCheckbox) {
+        targetCheckbox.checked = sourceCheckbox.checked;
+    };
+    gamepadCheckbox0.addEventListener('change', () => {
+        syncCheckboxes(gamepadCheckbox0, gamepadCheckbox1);
+    });
+    gamepadCheckbox1.addEventListener('change', () => {
+        syncCheckboxes(gamepadCheckbox1, gamepadCheckbox0);
+    });
+
     const modeLinks = document.querySelectorAll('.mode-link');
     modeLinks.forEach(link => {
         link.addEventListener('click', (event) => {
             // validate the device selection
             const deviceSelection = JSON.parse(sessionStorage.getItem('deviceSelection'));
-            const isRobotDeviceSelected = document.getElementById(`toggle-mouse`).checked || document.getElementById(`toggle-gamepad`).checked || document.getElementById(`toggle-gaze`).checked;
-            const isSubtaskDeviceSelected = document.getElementById(`toggle-keyboard`).checked || document.getElementById(`toggle-eeg`).checked;
+            const isRobotDeviceSelected = document.getElementById(`toggle-mouse`).checked || document.getElementById(`toggle-gamepad-0`).checked || document.getElementById(`toggle-gaze`).checked;
+            const isSubtaskDeviceSelected = document.getElementById(`toggle-keyboard`).checked || document.getElementById(`toggle-gamepad-1`).checked || document.getElementById(`toggle-eeg`).checked;
             const isDeviceSelected = deviceSelection && isRobotDeviceSelected && isSubtaskDeviceSelected
-            // TODO: validate robot selection and subtask selection respectively            
+            console.log(`deviceSelection: ${deviceSelection}`);
+            console.log(`isRobotDeviceSelected: ${isRobotDeviceSelected}`);
+            console.log(`isSubtaskDeviceSelected: ${isSubtaskDeviceSelected}`);
+            console.log(`IsDeviceSelected: ${isDeviceSelected}`);
+            // TODO: validate robot selection and subtask selection respectively
             if (!isDeviceSelected) {
                 event.preventDefault();
                 alert('Please choose one device each from left & right column.');
-            }
+            };
         });
     });
 });
@@ -53,6 +70,12 @@ const initDeviceSelection = () => {
 
     // set the state
     Object.keys(state).forEach(device => {
-        document.getElementById(`toggle-${device}`).checked = state[device];
+        if (device == "gamepad") {
+            // Special case
+            document.getElementById(`toggle-${device}-0`).checked = state[device];
+            document.getElementById(`toggle-${device}-1`).checked = state[device];
+        } else {
+            document.getElementById(`toggle-${device}`).checked = state[device];
+        }
     });
 }
