@@ -12,18 +12,21 @@ Web UI for the multi-agent robot arm environment
     micromamba create -n multiagent python=3.8 -y
     micromamba activate multiagent
     ```
-2. Install the [robohive-multi](https://github.com/arayabrain/robohive-multi) companion repository.
+2. Clone this repository and setup the various sub-modules and dependencies:
     ```bash
-    git clone --recurse-submodules -j8 git@github.com:arayabrain/robohive-multi.git
-    pip install -e robohive-multi/robohive/.
-    pip install -e robohive-multi/vtils/.
-    pip install -e robohive-multi/.
+    git clone --recurse-submodules -j8 git@github.com:arayabrain/multiagent-bmi-webui.git
+    pip install -e multiagent-bmi-webui/robohive-multi/robohive/.
+    pip install -e multiagent-bmi-webui/robohive-multi/vtils/.
+    pip install -e multiagent-bmi-webui/robohive-multi/.
+
+    # Vtils hotfix
+    rm -rf multiagent-bmi-webui/robohive-multi/vtils/__init__.py # Prevents a bug down the GELLO line of work
+    touch  multiagent-bmi-webui/robohive-multi/vtils/sockets/__init__.py
+
+    # Access freshly installed repository
+    cd multiagent-bmi-webui
     ```
-3. Clone this repository.
-    ```bash
-    git clone git@github.com:arayabrain/multiagent-bmi-webui.git
-    ```
-4. Install this repository.
+3. Install this repository.
     ```bash
     # Server only
     pip install -e '.[server]'
@@ -32,7 +35,7 @@ Web UI for the multi-agent robot arm environment
     # Both
     pip install -e '.[server,user]'
     ```
-5. (If you are launching a server) Generate a self-signed certificate for the server. If you are using other machines as clients, please add the accessible IP address of the server to `.keys/san.cnf`.
+4. (If you are launching a server) Generate a self-signed certificate for the server. If you are using other machines as clients, please add the accessible IP address of the server to `.keys/san.cnf`.
     ```cnf
     [ alt_names ]
     IP.1 = 127.0.0.1  # localhost
@@ -53,10 +56,8 @@ Web UI for the multi-agent robot arm environment
     ```
 - On Windows, you need to open ports for the WebRTC UDP communication. Open Windows Firewall settings (`wf.msc`) and create a new inbound rule to allow UDP ports `49152-65535`.
 - Some antivirus software also implement additional firewall rules (ESET, Avast, etc...), so make sure to disable them or add exceptions if the robots are not being rendered into the UI.
-    - `FrankaPickPlaceSingle4Col-v1` in `robohive_multi/envs/single_arms/__init__.py`
-    - `FrankaPickPlaceMulti4Robots4Col-v1` in `robohive_multi/envs/multi_arms/__init__.py`
 
-6. For machines with lower CPU clock, `gamemode` increase the priority of the main and sub-processes, making the UI smoother, especially for the 16 robot mode.
+5. For machines with lower CPU clock, `gamemode` increase the priority of the main and sub-processes, making the UI smoother, especially for the 16 robot mode.
 - Install `gamemode` (Ubuntu). [More info](https://github.com/FeralInteractive/gamemode)
 ```bash
 sudo apt-get install gamemode
@@ -68,6 +69,13 @@ Best performance / UI responsiveness with the 16 robot mode was achieved on an `
 
 ## Run
 See [user_guide.md](user_guide.md) for usage instructions.
+
+## Updating robohive-multi and other submodules
+In case the underlying `robohive-multi` has been updated, execute the following command to update your local `robohive-multi` submodule:
+```bash
+git pull --all
+git submodule update --remote --merge # for robohive-multi update only. For full depth, add --recursive
+```
 
 ## Development
 See [development.md](development.md) for instructions on development (adding a new device, etc.).
