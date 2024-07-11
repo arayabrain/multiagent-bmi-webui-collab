@@ -74,7 +74,7 @@ See [user_guide.md](user_guide.md) for usage instructions.
 In case the underlying `robohive-multi` has been updated, execute the following command to update your local `robohive-multi` submodule:
 ```bash
 git pull --all
-git submodule update --recursive --remote --merge
+git submodule update --remote --merge # for robohive-multi update only. For full depth, add --recursive
 ```
 
 ## Development
