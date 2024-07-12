@@ -64,6 +64,7 @@
         <img src="/static/img/tag36_11_00003.svg" class="apriltag bottom-right" alt="AprilTag Bottom Right">
     </div>
 
+
     <!-- Task Complete Modal -->
     <div class="modal fade" id="task-complete-modal" tabindex="-1" aria-labelledby="taskCompleteModalLabel"
         aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
@@ -92,6 +93,25 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="activeTabModalLabel">Running session detected in another tab or window ! Please close this one.</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data collection complete Modal -->
+    <div class="modal fade" id="datacol-complete-modal" tabindex="-1" aria-labelledby="dataColCompleteModalLabel"
+        aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="dataColCompleteModalLabel">Task Completed</h5>
+                </div>
+                <!-- <div class="modal-body"></div> -->
+                <div class="modal-footer d-flex justify-content-between">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal"
+                        onclick="window.location.reload()">Repeat</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        onclick="window.location.href='/'">Menu</button>
                 </div>
             </div>
         </div>
