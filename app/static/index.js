@@ -1,9 +1,27 @@
+import { applyLocalization, initUILanguage } from './localization.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
+    // Load language, listen to changes to update the UI, save to session
+    var UILanguage = initUILanguage();
+
+    document.getElementById('ui-language').addEventListener('change', () => {
+        // TODO: check if it matches the previous one ?
+        UILanguage = document.getElementById('ui-language').value;
+        // console.log(`Language changed to ${uiLanguage}`);
+        // Set UI language session wide
+        sessionStorage.setItem('UILanguage', UILanguage);
+
+        // Update UI localization
+        applyLocalization("index");
+    });
+
+    // Setup user info
     displayUserInfo();
     document.getElementById('resetUserInfo').addEventListener('click', () => {
         window.location.href = '/register';
     });
 
+    // Tracking device selection changes
     document.querySelectorAll('.form-check-input').forEach(
         input => input.addEventListener('change', saveDeviceSelection)
     );
@@ -43,6 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
+// Userinfo helpers
 const displayUserInfo = async () => {
     const response = await fetch('/api/getuser');
     const userinfo = await response.json();
@@ -53,6 +72,7 @@ const displayUserInfo = async () => {
     document.getElementById('displayUserInfo').textContent = `${userinfo.name}`;
 };
 
+// Device selection helpers
 const saveDeviceSelection = () => {
     // save the device state
     const state = {};
