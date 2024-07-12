@@ -23,6 +23,7 @@ from app.env import EnvRunner
 from app.stream import StreamManager
 from app.utils.metrics import InteractionRecorder, compute_sessionmetrics, compute_usermetrics, taskCompletionTimer
 from app.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
+from app.utils.anonymize import hash_string
 
 load_dotenv()
 
@@ -305,10 +306,15 @@ async def on_completed(mode: str):
     usernames = interaction_recorders[mode].save_session(session_log_dir) 
 
     for username in usernames: 
-        user_log_dir = log_dir / username / session_name
+        if os.exists(log_dir / hash_string(username)): #if user data has previously been anonymized
+            anon_username = hash_string(username)
+            user_log_dir = log_dir / anon_username / session_name
+        else:
+            user_log_dir = log_dir / username / session_name
+            
         sid = [sid for sid, name in sid2username.items() if name == username][0]
         userid = sid2userid[sid]
-        compute_usermetrics(user_log_dir, userid, save = True) 
+        compute_usermetrics(user_log_dir, username, save = True) 
         interaction_recorders[mode].save_userinfo(user_log_dir, userid)
 
     compute_sessionmetrics(session_log_dir,info = comp_time,  save=True) 

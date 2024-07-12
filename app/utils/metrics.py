@@ -59,8 +59,6 @@ class InteractionRecorder:
         """Save the user info and device selection to a json file."""
 
         _data = self.userinfo.copy()
-
-        username = user_log_dir.parts[-2]
         expid = user_log_dir.parts[-1]
 
         log_dir = user_log_dir.parents[1]
@@ -75,11 +73,11 @@ class InteractionRecorder:
             json.dump(deviceinfo, f, indent=4)
 
     
-def compute_usermetrics(user_log_dir: Path, userid, save=False): #change to directly take in history and info?
+def compute_usermetrics(user_log_dir: Path, username, save=False): #change to directly take in history and info?
     #remove userid as input
     """Computes metrics specific to user and saves the summary to a json file."""
 
-    username = user_log_dir.parts[-2]
+    #username = user_log_dir.parts[-2]
     expid = user_log_dir.parts[-1]
 
     log_dir = user_log_dir.parents[1]
