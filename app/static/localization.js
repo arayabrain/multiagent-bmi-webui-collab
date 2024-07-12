@@ -116,6 +116,7 @@ const NASA_TLX_LOCALIZATION = {
     "performance-legend-text": "Performance",
     "effort-legend-text": "Effort",
     "frustration-legend-text": "Mental",
+
     // Field descriptions
     "mentalDemand-description-text": "How mentally demanding was the task ?",
     "physicalDemand-description-text": "How physically demanding was the task ?",
@@ -175,7 +176,7 @@ const NASA_TLX_LOCALIZATION = {
     "temporalDemand-high-label": "最高",
     "performance-high-label": "失敗",
     "effort-high-label": "最高",
-    "frustration-high-label": "",
+    "frustration-high-label": "最高",
 
     // Buttons
     "clear-button": "クリアー",
