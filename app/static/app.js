@@ -164,7 +164,12 @@ const clientStop = (isCompleted = false) => {
     if (isCompleted) {
         // Popup for repeat or back to menu
         // This ensures the expId is not reused
-        const modal = document.getElementById('task-complete-modal');
+        var modalId = 'task-complete-modal';
+        if (isDataCollection) {
+            // Not pretty, but avoid merge conflicts with incoming changes button layouts for forms.
+            modalId = "datacol-complete-modal";
+        };
+        const modal = document.getElementById(modalId);
         const modalInstance = new bootstrap.Modal(modal);
         modalInstance.show();
     } else {

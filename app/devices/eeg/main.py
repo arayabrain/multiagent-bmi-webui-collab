@@ -85,6 +85,8 @@ def main(
     exp_id = None
 
     save_root = Path(__file__).parent / "logs"
+    # Create the directory if it does not exist
+    save_root.mkdir(parents=True, exist_ok=True)
     db_manager = DatabaseManager(save_root / "data.json")
 
     runners: list[Any] = []
