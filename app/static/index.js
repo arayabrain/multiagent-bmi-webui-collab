@@ -38,17 +38,18 @@ window.addEventListener("unload", (event) => {
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Load language, listen to changes to update the UI, save to session
-    var UILanguage = initUILanguage();
+    var UILanguage = initUILanguage("index");
+    // Also apply localization rules to components shared across pages
+    applyLocalization("shared");
 
     document.getElementById('ui-language').addEventListener('change', () => {
-        // TODO: check if it matches the previous one ?
         UILanguage = document.getElementById('ui-language').value;
-        // console.log(`Language changed to ${uiLanguage}`);
         // Set UI language session wide
         sessionStorage.setItem('UILanguage', UILanguage);
 
         // Update UI localization
         applyLocalization("index");
+        applyLocalization("shared");
     });
 
     // Setup user info

@@ -8,6 +8,7 @@ import { init as initKeyboard } from './keyboard.js';
 import { init as initMouse } from './mouse.js';
 import { binStr2Rgba, disconnectUser, getCookie } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
+import { applyLocalization, initUILanguage } from './localization.js';
 
 const robotSelectionDeviceInitFuncs = {
     mouse: initMouse,
@@ -60,6 +61,11 @@ window.addEventListener("unload", (event) => {
 
 
 document.addEventListener("DOMContentLoaded", async () => {
+    // Load language and update the UI if needs be
+    initUILanguage("app");
+    // Also apply localization rules to components shared across pages
+    applyLocalization("shared");
+
     connectEnv();
 
     // get userinfo

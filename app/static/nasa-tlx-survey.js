@@ -1,4 +1,5 @@
 import { disconnectUser, getCookie } from './utils.js';
+import { initUILanguage, applyLocalization } from './localization.js';
 
 // Tracking active tabs / window
 let active_tab_detected = false;
@@ -54,6 +55,11 @@ const deviceIDToPrettyName = {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Load language and update the UI if needs be
+  initUILanguage("nasa-tlx-survey");
+  // Also apply localization rules to components shared across pages
+  applyLocalization("shared");
+
   document.querySelector('#nasa-tlx-survey-form').addEventListener('submit', async event => {
       event.preventDefault();
       await saveNASATLXSurveyData();
@@ -64,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById("username-area").innerHTML = "User: " + JSON.parse(sessionStorage.userinfo).name;
 
   // Display the selected devices
-  let connecteDevices = "Device(s) in use:";
+  let connecteDevices = "Devices used:";
   Object.entries(JSON.parse(sessionStorage.deviceSelection)).forEach(([deviceID, isUsed]) => {
     if (isUsed) {
       connecteDevices += " " + deviceIDToPrettyName[deviceID];
@@ -88,7 +94,7 @@ const saveNASATLXSurveyData = async () => {
     const inputValue = document.querySelector(`input[name="${inputName}"]`);
 
     NASATLXSurveyData[key] = parseInt(inputValue.value, 10);
-  }
+  };
   
   // Recover the mode
   // NOTE !!! The survey must be accessed from the modal, otherwise
@@ -123,5 +129,5 @@ const saveNASATLXSurveyData = async () => {
     // as a fallback mechanism, then manually add that data to the survey folder.
     console.log(`Exception caught: ${e}`);
     console.log(JSON.stringify(NASATLXSurveyData));
-  }
+  };
 }
