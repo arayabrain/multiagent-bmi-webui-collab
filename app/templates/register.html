@@ -20,9 +20,12 @@
                 <form id="userinfoForm">
                     <input type="text" class="form-control mb-2" name="projectName" placeholder="Project name" required
                     autocomplete="projectName" value="hri-benchmark" defaultValue="hri-benchmark">
-                    <input type="text" class="form-control mb-2" name="name" placeholder="Enter your name" required
+                    <input type="text" class="form-control mb-2" name="name" id="name" placeholder="Enter your name" required
                         autocomplete="name" autofocus>
-                    <input type="number" class="form-control mb-2" name="age" min="0" placeholder="Enter your age"
+                    <div id="serverValidationUserAlreadyRegistered" class="invalid-feedback">
+                        A user with the same username is already connected.
+                    </div>
+                    <input type="number" class="form-control mb-2" name="age" min="0" max="200" placeholder="Enter your age"
                         required autocomplete="age">
                     <select class="form-control mb-2" name="gender" required>
                         <option value="">Select Gender</option>
@@ -42,16 +45,29 @@
                     </div>
                     <div class="row justify-content-between">
                         <div class="col-auto">
-                            <button type="submit" class="btn btn-primary">Register</button>
+                            <button type="button" class="btn btn-secondary" id="clearButton">Clear</button>
                         </div>
                         <div class="col-auto">
-                            <button type="button" class="btn btn-secondary" id="clearButton">Clear</button>
+                            <button type="submit" class="btn btn-primary">Register</button>
                         </div>
                     </div>
                 </form>
             </div>
         </div>
     </div>
+
+    <!-- Modal to force tab close when a session is already running  -->
+    <div class="modal fade" id="active-tab-modal" tabindex="-1" aria-labelledby="activeTabModal"
+        aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="activeTabModalLabel">Running session detected in another tab or window ! Please close this one.</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script type="module" src="/static/register.js"></script>
 </body>
