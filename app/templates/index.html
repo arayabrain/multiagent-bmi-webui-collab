@@ -10,9 +10,22 @@
 
 <body>
     <div class="container mt-5 bg-white rounded fs-5">
-        <!-- Userinfo display -->
+        <!-- Language and userinfo display -->
         <div class="row">
-            <div class="col-12 d-flex justify-content-end align-items-center">
+            <div class="col-6 justify-content-start align-items-center">
+                <div class="row">
+                    <div class="col-2">
+                        <label class="form-check-label" for="ui-language">Language</label>
+                    </div>
+                    <div class="col-2">
+                        <select class="form-control" id="ui-language" name="ui-language">
+                            <option value="en">English</option>
+                            <option value="jp">日本語</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 d-flex justify-content-end align-items-center">
                 <div class="user-info">
                     <span id="displayUserInfo"></span>
                     <button id="resetUserInfo" class="btn btn-secondary ms-2">Reset User</button>
