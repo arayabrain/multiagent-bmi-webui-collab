@@ -61,25 +61,29 @@ def anonymize_session(expid):
 
     session_users = username_mapping.keys()
     for username in session_users:
+        #If user path is anonymized, keep same. If user path still username, rename to anonymized username
         anonymized_username = username_mapping[username]
+        user_path = os.path.join(os.pardir, 'logs', anonymized_username)
+        if not os.path.exists(user_path):
+            #rename directory
+            os.rename(os.path.join(os.pardir, 'logs', username), user_path)
 
-        user_path = os.path.join(os.pardir, 'logs', username, expid)
-        #os.rename #rename user directory?
         with open(os.path.join(user_path, 'info.json'), 'r') as f:
             user_info_data = json.load(f)
         #replace instance of username with anonymized username
         if user_info_data['name'] == username:
             user_info_data['name'] = anonymized_username
             user_info_data['user_list'] = [anonymized_username if user == username else user for user in user_info_data['user_list']]
-
-        with open(os.path.join(user_path, 'info.json'), 'w') as f:
+        with open(os.path.join(user_path, expid, 'info.json'), 'w') as f:
             json.dump(user_info_data, f, indent=4)
 
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python anonymize_session.py <expid>")
+    if len(sys.argv) < 2:
+        print("Usage: python anonymize_session.py <expid1> <expid2> ...")
         sys.exit(1)
     
-    expid = sys.argv[1]
-    anonymize_session(expid)
-
+    expids = sys.argv[1:]
+    for expid in expids:
+        anonymize_session(expid)

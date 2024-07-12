@@ -306,12 +306,12 @@ async def on_completed(mode: str):
     usernames = interaction_recorders[mode].save_session(session_log_dir) 
 
     for username in usernames: 
-        if os.exists(log_dir / hash_string(username)): #if user data has previously been anonymized
+        if os.path.exists(log_dir / hash_string(username)): #if user data has previously been anonymized
             anon_username = hash_string(username)
             user_log_dir = log_dir / anon_username / session_name
         else:
             user_log_dir = log_dir / username / session_name
-            
+
         sid = [sid for sid, name in sid2username.items() if name == username][0]
         userid = sid2userid[sid]
         compute_usermetrics(user_log_dir, username, save = True) 
