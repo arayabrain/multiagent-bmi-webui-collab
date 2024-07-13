@@ -38,7 +38,7 @@ def anonymize_session(expid):
         new_lines.append(line)
 
     # Write the new lines back to the history file
-    with open(history_file, 'w') as f:
+    with open(os.path.join(session_path, 'anon-history.jsonl'), 'w') as f:
         f.writelines(new_lines)
 
     # Read and process the info file
@@ -55,7 +55,7 @@ def anonymize_session(expid):
         info_data['usernames'] = anonymized_usernames
 
     # Write the updated info back to the info file
-    with open(info_file, 'w') as f:
+    with open(os.path.join(session_path, 'anon-info.json'), 'w') as f:
         json.dump(info_data, f, indent=4)
 
 
@@ -63,10 +63,10 @@ def anonymize_session(expid):
     for username in session_users:
         #If user path is anonymized, keep same. If user path still username, rename to anonymized username
         anonymized_username = username_mapping[username]
-        user_path = os.path.join(os.pardir, 'logs', anonymized_username)
+        user_path = os.path.join(os.pardir, 'logs', anonymized_username, expid)
         if not os.path.exists(user_path):
             #rename directory
-            os.rename(os.path.join(os.pardir, 'logs', username), user_path)
+            os.rename(os.path.join(os.pardir, 'logs', username, expid), user_path)
 
         with open(os.path.join(user_path, 'info.json'), 'r') as f:
             user_info_data = json.load(f)
@@ -74,7 +74,7 @@ def anonymize_session(expid):
         if user_info_data['name'] == username:
             user_info_data['name'] = anonymized_username
             user_info_data['user_list'] = [anonymized_username if user == username else user for user in user_info_data['user_list']]
-        with open(os.path.join(user_path, expid, 'info.json'), 'w') as f:
+        with open(os.path.join(user_path, 'anon-info.json'), 'w') as f:
             json.dump(user_info_data, f, indent=4)
 
 
