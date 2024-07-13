@@ -53,7 +53,7 @@ const INDEX_LOCALIZATION = {
     "reset-user-btn-text": "再設定",
 
     // Labels
-    "ui-language-text": "言語",
+    "ui-language-text": "Language",
   }
 };
 
@@ -72,6 +72,7 @@ const REGISTER_LOCALIZATION = {
     "gender-female-text": "Female",
     "leftHand-text": "Left-handed",
     "rightHand-text": "Right-handed",
+    "ui-language-text": "Language | 言語",
 
     // Form feedback
     "invalid-username-feedback-text": "A user with the same username is already connected.",
@@ -97,6 +98,7 @@ const REGISTER_LOCALIZATION = {
     "gender-female-text": "女性",
     "leftHand-text": "左利き",
     "rightHand-text": "右利き",
+    "ui-language-text": "Language | 言語",
 
     // Form feedback
     "invalid-username-feedback-text": "入力した名前は他ユーザーに利用されている．",
@@ -213,7 +215,10 @@ export const applyLocalization = (mode) => {
       break;
   };
 
-  const UILanguage = sessionStorage.getItem("UILanguage");
+  var UILanguage = sessionStorage.getItem("UILanguage");
+  if (UILanguage === null) {
+    UILanguage = "en"; // Use English by default, i.e. fresh session
+  };
   Object.entries(LOCALIZATION_DICT[UILanguage]).forEach(([fieldID, localizedFieldText]) => {
     try {
       // console.log(`Attempting local. of ${fieldID}`); // DBG
@@ -228,7 +233,7 @@ export const initUILanguage = (mode) => {
   // Read UI language value from session
   var UILanguage = sessionStorage.getItem("UILanguage");
 
-  if (mode == "index") {
+  if (mode == "index" || mode == "register") {
     // If not in sessionStorage,read the default from the webpage
     if (!UILanguage) {
       UILanguage = document.getElementById('ui-language').value;
