@@ -44,7 +44,7 @@ class InteractionRecorder:
             writer.write_all(self.history)
 
         _data = self.userinfo.copy()
-        #get list of usernames and number of agents from history.jsonl
+
         usernames = list(set([x['username'] for x in self.history]))
         num_agents = len(set([x['agentId'] for x in self.history]))
         with jsonlines.open(save_dir / "info.json", mode="w") as writer:
@@ -74,10 +74,8 @@ class InteractionRecorder:
 
     
 def compute_usermetrics(user_log_dir: Path, username, save=False): #change to directly take in history and info?
-    #remove userid as input
     """Computes metrics specific to user and saves the summary to a json file."""
 
-    #username = user_log_dir.parts[-2]
     expid = user_log_dir.parts[-1]
 
     log_dir = user_log_dir.parents[1]
@@ -88,8 +86,6 @@ def compute_usermetrics(user_log_dir: Path, username, save=False): #change to di
     metrics = {}
 
     metrics[username] = {}
-
-    # grouped = df_hist.groupby("username")
 
     metrics[username]["interactionTime"] = [v if v != "NaN" else None for v in df_hist[df_hist["username"]==username]["interactionTime"].fillna("NaN").to_list()]
 
@@ -110,7 +106,6 @@ def compute_sessionmetrics(exp_log_dir: Path, info, save=False): #remove user me
     """
     Given the interaction history, compute metrics and save the summary to a json file 
     """
-    # expid = exp_log_dir.parts[-1]
     df_hist = pd.read_json(exp_log_dir / "history.jsonl", orient="records", lines=True)
 
     metrics = {}
@@ -126,6 +121,8 @@ def compute_sessionmetrics(exp_log_dir: Path, info, save=False): #remove user me
     if save:
         with open(exp_log_dir / "metrics.json", "w") as f:
             json.dump(metrics['total'], f, indent=4)
+    
+
 
     return metrics
 

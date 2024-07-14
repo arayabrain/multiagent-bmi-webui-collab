@@ -4,19 +4,15 @@ import hashlib
 import json
 import sys
 
-# Function to generate a hashed username
 def hash_string(username):
     return hashlib.sha256(username.encode()).hexdigest()
 
-# Function to anonymize session usernames
 def anonymize_session(expid):
-    # Get session path
     session_path = os.path.join(os.pardir, 'logs', expid)
     print(session_path)
 
-    # Path to the history file
+
     history_file = os.path.join(session_path, 'history.jsonl')
-    # Path to the info file
     info_file = os.path.join(session_path, 'info.json')
 
     # Dictionary to store original to anonymized username mappings
@@ -61,7 +57,7 @@ def anonymize_session(expid):
 
     session_users = username_mapping.keys()
     for username in session_users:
-        #If user path is anonymized, keep same. If user path still username, rename to anonymized username
+        # If user path is anonymized, keep same. If user path still username, rename to anonymized username
         anonymized_username = username_mapping[username]
         user_path = os.path.join(os.pardir, 'logs', anonymized_username, expid)
         if not os.path.exists(user_path):
