@@ -7,8 +7,8 @@ const SHARED_LOCALIZATION = {
   },
   "jp": {
     // Modals
-    "activeTabModalLabel": "他のタブまたウィンドウでログインされている．このタブを閉じてください．",
-    "taskCompleteModalLabel": "完了！"
+    "activeTabModalLabel": "他のタブまたウィンドウでログインされています。このタブを閉じてください。",
+    "taskCompleteModalLabel": "完了です！"
   }
 }
 
@@ -44,7 +44,7 @@ const INDEX_LOCALIZATION = {
     // Devices
     "toggle-mouse-text": "マウス",
     "toggle-gamepad-0-text": "ゲームパッド",
-    "toggle-gaze-text": "Eye Tracker",
+    "toggle-gaze-text": "視線計測",
     "toggle-keyboard-text": "キーボード",
     "toggle-gamepad-1-text": "ゲームパッド",
     "toggle-eeg-text": "EEG/EMG",
@@ -90,7 +90,7 @@ const REGISTER_LOCALIZATION = {
 
     // Buttons
     "registerButton": "登録",
-    "clearButton": "クリアー",
+    "clearButton": "削除",
 
     // Labels
     "gender-select-text": "性別の選択",
@@ -101,7 +101,7 @@ const REGISTER_LOCALIZATION = {
     "ui-language-text": "Language | 言語",
 
     // Form feedback
-    "invalid-username-feedback-text": "入力した名前は他ユーザーに利用されている．",
+    "invalid-username-feedback-text": "入力した名前は既に他ユーザーに利用されています。",
     // Inputs placeholders // TODO: better way to handle this.
     // "name": "名前を入力",
     // "age": "年齢を入力",
@@ -159,7 +159,7 @@ const NASA_TLX_LOCALIZATION = {
     // Field descriptions
     "mentalDemand-description-text": "この課題はどの程度精神的に負担でしたか？",
     "physicalDemand-description-text": "この課題はどの程度身体的に負担でしたか？",
-    "temporalDemand-description-text": "この課題のペースはどの程度急かされましたか？",
+    "temporalDemand-description-text": "この課題のペースにはどの程度急かされましたか？",
     "performance-description-text": "求められたことをどの程度達成できましたか？",
     "effort-description-text": "パフォーマンスを達成するためにどの程度努力しましたか？",
     "frustration-description-text": "どの程度不安、落胆、苛立ち、ストレス、イライラを感じましたか？",
@@ -181,7 +181,7 @@ const NASA_TLX_LOCALIZATION = {
     "frustration-high-label": "最高",
 
     // Buttons
-    "clear-button": "クリアー",
+    "clear-button": "削除",
     "submit-button": "送信",
   }
 };
