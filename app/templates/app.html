@@ -73,14 +73,26 @@
                 <div class="modal-header">
                     <h5 class="modal-title" id="taskCompleteModalLabel">Task Completed</h5>
                 </div>
-                <!-- <div class="modal-body"></div> -->
-                <div class="modal-footer d-flex justify-content-between">
-                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal"
-                        onclick="window.location.reload()">Repeat</button>
+
+                <div class="modal-footer d-flex justify-content-center">
+                    <!-- <button type="button" class="btn btn-primary" data-bs-dismiss="modal"
+                        onclick="window.location.reload()">Repeat</button> -->
+                    <!-- <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                            onclick="window.location.href='/'">Menu</button> -->
                     <button type="button" class="btn btn-warning" id="survey-button"
                         onclick="window.location.href='/nasa-tlx-survey'">NASA TLX</button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
-                        onclick="window.location.href='/'">Menu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal to force tab close when a session is already running  -->
+    <div class="modal fade" id="active-tab-modal" tabindex="-1" aria-labelledby="activeTabModal"
+        aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="activeTabModalLabel">Running session detected in another tab or window ! Please close this one.</h5>
                 </div>
             </div>
         </div>

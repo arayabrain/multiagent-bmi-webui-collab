@@ -6,7 +6,7 @@ import { init as initGamepad } from './gamepad.js';
 import { init as initGaze } from './gaze.js';
 import { init as initKeyboard } from './keyboard.js';
 import { init as initMouse } from './mouse.js';
-import { binStr2Rgba } from './utils.js';
+import { binStr2Rgba, disconnectUser, getCookie } from './utils.js';
 import { handleOffer, handleRemoteIce, setupPeerConnection } from './webrtc.js';
 
 const robotSelectionDeviceInitFuncs = {
@@ -22,6 +22,42 @@ const subtaskSelectionDeviceInitFuncs = {
 let sockEnv, userinfo, commandLabels, commandColors;
 let isStarted = false;  // if true, task is started and accepting subtask selection
 let isDataCollection = false;
+
+// Tracking active tabs / window
+let active_tab_detected = false;
+
+if (localStorage.getItem("active-tab")) {
+    active_tab_detected = true; // Closing this tab will not remove main tab(windows)'s "active-tab" flag
+    const modal = document.getElementById('active-tab-modal');
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+} else {
+    localStorage.setItem("active-tab", true);
+};
+
+// Notify backend when the browser window is closed
+// for server-side tracking of connected users
+window.addEventListener("beforeunload", (event) => {
+    // TODO: what if there is no unique_user_id set yet ?
+    let unique_user_id = getCookie("unique_user_id");
+    if (! active_tab_detected) {
+        // Don't disconnect if another tab is opened, since main tab is still live
+        disconnectUser(unique_user_id);
+        // Negate active tab flag only if the current one is a valid one
+        localStorage.removeItem("active-tab");
+    };
+});
+
+window.addEventListener("unload", (event) => {
+    let unique_user_id = getCookie("unique_user_id");
+    if (! active_tab_detected) {
+        // Don't disconnect if another tab is opened, since main tab is still live
+        disconnectUser(unique_user_id);
+        // Negate active tab flag only if the current one is a valid one
+        localStorage.removeItem("active-tab");
+    };
+});
+
 
 document.addEventListener("DOMContentLoaded", async () => {
     connectEnv();
@@ -157,7 +193,6 @@ const connectEnv = () => {
     sockEnv.on('connect', () => {
         updateLog("Env server connected");
         // request WebRTC offer to the server
-
         sockEnv.emit('webrtc-offer-request', userinfo);
     });
     
@@ -232,23 +267,32 @@ const connectEnv = () => {
     });
 
     // Update the connected user names when the Python side sends and update
-    sockEnv.on('user_list_update', async (user_list) => {
-        userinfo.user_list = user_list; // TODO: is this actually needed ?
-        const usernameAreaDiv = document.getElementById('username-area');
-        if (userinfo.user_list && userinfo.user_list.length > 0) {
-            var userListContent = "";
-            user_list.forEach(connectUserName => {
-                if (connectUserName == userinfo.name) {
-                    userListContent += `<b><i>${connectUserName}</i></b><br/>`;
-                } else {
-                    userListContent += `${connectUserName}<br/>`;
-                };
-            });
-            usernameAreaDiv.innerHTML = userListContent;
-        } else {
-            usernameAreaDiv.innerHTML = 'No users available';
-        }
-    });
+    // TODO: a more elegant way of handling the data-collection vs other modes ?
+    var currentURL = new URL(window.location.href);
+    var mode = currentURL.pathname.split('/').filter(Boolean).pop();
+    if (!mode.startsWith("data-collection")) {
+        sockEnv.on(`userListUpdate-${mode}`, async (user_list) => {
+            userinfo.user_list = user_list; // TODO: is this actually needed ?
+            const usernameAreaDiv = document.getElementById('username-area');
+            if (userinfo.user_list && userinfo.user_list.length > 0) {
+                var userListContent = "";
+                user_list.forEach(connectUserName => {
+                    if (connectUserName == userinfo.name) {
+                        userListContent += `<b><i>${connectUserName}</i></b><br/>`;
+                    } else {
+                        userListContent += `${connectUserName}<br/>`;
+                    };
+                });
+                usernameAreaDiv.innerHTML = userListContent;
+            } else {
+                usernameAreaDiv.innerHTML = 'No users available';
+            };
+        });
+    } else {
+        // For data collection mode, just set the current user as connected, ignore the others
+        var username = JSON.parse(sessionStorage.userinfo).name
+        document.getElementById('username-area').innerHTML = `<b><i>${username}</i></b><br/>`;
+    };
 
     setSockEnv(sockEnv);
 }
