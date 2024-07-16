@@ -149,10 +149,10 @@ const NASA_TLX_LOCALIZATION = {
   },
   "jp": {
     // Field legends
-    "mentalDemand-legend-text": "精神的負担",
-    "physicalDemand-legend-text": "身体的負担",
-    "temporalDemand-legend-text": "時間的負担",
-    "performance-legend-text": "性能",
+    "mentalDemand-legend-text": "精神的負荷",
+    "physicalDemand-legend-text": "身体的負荷",
+    "temporalDemand-legend-text": "タスクスピードによるプレッシャー",
+    "performance-legend-text": "パフォーマンス",
     "effort-legend-text": "努力",
     "frustration-legend-text": "ストレス",
 
