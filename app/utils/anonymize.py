@@ -62,7 +62,7 @@ def anonymize_session(expid):
             json.dump(user_info_data, f, indent=4)
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python anonymize_session.py <expid1> <expid2> ...")
+        print("Usage: python anonymize.py <expid1> <expid2> ...")
         sys.exit(1)
     expids = sys.argv[1:]
     for expid in expids:
