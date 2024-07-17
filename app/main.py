@@ -217,17 +217,6 @@ async def disconnect_user(request: Request, data: dict):
         uniq_client_sids[unique_user_id]["current-sid"] = None
         # TODO: reset "current-mode" ? Or keep it as is ?
 
-    # print("")
-    # print("##### DBG AFTR: disconnect_user #####")
-    # print(f"Connected users info: {get_connected_users_list()}")
-    # print(f"uniq_client_sids: {uniq_client_sids}")
-    # print(f"Modes: {modes}")
-    # print(f"sid2userid: {sid2userid}")
-    # print(f"sid2username: {sid2username}")
-    # print(f"mode2expids: {mode2expids}")
-    # print("##### DBG AFTR END: disconnect_user #####")
-    # print("")
-
     # Broadcast the updated list of connected user IDs to all clients
     for mode in list(env_info.keys()):
         await sio.emit(f"userListUpdate-{mode}", get_connected_users_list_by_mode(mode))
