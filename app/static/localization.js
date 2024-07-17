@@ -76,13 +76,11 @@ const REGISTER_LOCALIZATION = {
 
     // Form feedback
     "invalid-username-feedback-text": "A user with the same username is already connected.",
-    // Inputs placeholders // TODO: better way to handle this.
-    // A naive idea is to set the DOM element name to "register-<name>"
-    // then have applyLocalization make an exception for those felds and set the 
-    // placeholder attribute instead of textContent.
-    // "name": "Enter your name",
-    // "age": "Enter your age",
-    // "projectName": "Project name",
+
+    // Inputs placeholders
+    "name-text-input": "Enter your name",
+    "age-text-input": "Enter your age",
+    "projectName-text-input": "Project name",
   },
   "jp": {
     // Headers
@@ -102,10 +100,11 @@ const REGISTER_LOCALIZATION = {
 
     // Form feedback
     "invalid-username-feedback-text": "入力した名前は既に他ユーザーに利用されています。",
-    // Inputs placeholders // TODO: better way to handle this.
-    // "name": "名前を入力",
-    // "age": "年齢を入力",
-    // "projectName": "プロジェクト名を入力",
+
+    // Inputs placeholders
+    "name-text-input": "名前を入力",
+    "age-text-input": "年齢を入力",
+    "projectName-text-input": "プロジェクト名を入力",
   }
 };
 
@@ -222,7 +221,11 @@ export const applyLocalization = (mode) => {
   Object.entries(LOCALIZATION_DICT[UILanguage]).forEach(([fieldID, localizedFieldText]) => {
     try {
       // console.log(`Attempting local. of ${fieldID}`); // DBG
-      document.getElementById(fieldID).textContent = localizedFieldText;
+      if (fieldID.endsWith("-text-input")) {
+        document.getElementById(fieldID).placeholder = localizedFieldText;
+      } else {
+        document.getElementById(fieldID).textContent = localizedFieldText;
+      };
     } catch {
       console.log(`Issue localizing: ${fieldID}`);
     };
