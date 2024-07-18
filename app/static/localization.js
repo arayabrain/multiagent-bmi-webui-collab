@@ -10,7 +10,7 @@ const SHARED_LOCALIZATION = {
     "activeTabModalLabel": "他のタブまたウィンドウでログインされています。このタブを閉じてください。",
     "taskCompleteModalLabel": "完了です！"
   }
-}
+};
 
 const INDEX_LOCALIZATION = {
   "en": {
@@ -185,7 +185,7 @@ const NASA_TLX_LOCALIZATION = {
   }
 };
 
-// TODO or not TODO, that is the question ...
+// Main app UI is self-explanatory
 const APP_LOCALIZATION = {
   "en": {},
   "jp": {}
@@ -195,10 +195,7 @@ const APP_LOCALIZATION = {
 export const applyLocalization = (mode) => {
   // This fn will iterate over all fields specified for localization
   // and update the text to match the UILanguage that is set
-  // console.log(`Running local. for ${mode}`); // DBG
-  // TODO: don't update if the current localizatin is already correct
   var LOCALIZATION_DICT = INDEX_LOCALIZATION; // Index page by default
-  // TODO: switch case for different modes to change LOCALIZATION_DICT
   switch(mode) {
     case "shared":
       LOCALIZATION_DICT = SHARED_LOCALIZATION;
@@ -220,7 +217,7 @@ export const applyLocalization = (mode) => {
   };
   Object.entries(LOCALIZATION_DICT[UILanguage]).forEach(([fieldID, localizedFieldText]) => {
     try {
-      // console.log(`Attempting local. of ${fieldID}`); // DBG
+      // console.log(`Attempting local. of ${fieldID}`);
       if (fieldID.endsWith("-text-input")) {
         document.getElementById(fieldID).placeholder = localizedFieldText;
       } else {
