@@ -44,7 +44,7 @@ const NASATLXFieldToInputName = {
   "performance": "performanceOptions",
   "effort": "effortOptions",
   "frustration": "frustrationOptions"
-}
+};
 
 const deviceIDToPrettyName = {
   "mouse": "Mouse",
@@ -52,7 +52,7 @@ const deviceIDToPrettyName = {
   "gamepad": "Gamepad",
   "gaze": "Eye Tracker",
   "eeg": "EMG/EEG"
-}
+};
 
 document.addEventListener('DOMContentLoaded', () => {
   // Load language and update the UI if needs be
@@ -82,11 +82,11 @@ document.addEventListener('DOMContentLoaded', () => {
 // Clears the form
 const clearForm = () => {
   document.getElementById("nasa-tlx-survey-form").reset();
-}
+};
 
 const saveNASATLXSurveyData = async () => {
   // Collect the survey data
-  const NASATLXSurveyData = {}
+  const NASATLXSurveyData = {};
   let nullKeyFound = false;
 
   for (const key of Object.keys(NASATLXFieldToInputName)) {
@@ -122,7 +122,7 @@ const saveNASATLXSurveyData = async () => {
 
     if (response.ok) {
       window.location.href = '/';  // Redirect to the index page
-    }
+    };
   }
   catch (e) {
     // In case previousURL query has failed, just print the survey results to console.log
@@ -130,4 +130,4 @@ const saveNASATLXSurveyData = async () => {
     console.log(`Exception caught: ${e}`);
     console.log(JSON.stringify(NASATLXSurveyData));
   };
-}
+};
