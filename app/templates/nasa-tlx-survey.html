@@ -17,6 +17,11 @@
 
 <body>
   <!-- Pre define fields metadata for form generation -->
+  <!--
+    NOTE: with localization script, might as well set the actual text
+    at the UI level, while only setting the fields name and id at this point ?
+    But keep it as a fallback in case there is an issue at the JS level.
+  -->
   {%
     set NASATLXFields = {
       'mentalDemandOptions': {
@@ -83,15 +88,15 @@
       <!-- Systematically generate all the fields -->
       {% for inputName, inputMeta in NASATLXFields.items() %}
       <fieldset>
-          <legend>{{inputMeta["legend"]}}</legend>
-          <span>{{inputMeta["description"]}}</span>
+          <legend id="{{inputMeta['inputID']}}-legend-text">{{inputMeta["legend"]}}</legend>
+          <span id="{{inputMeta['inputID']}}-description-text">{{inputMeta["description"]}}</span>
           <br/>
           <br/>
 
           <div class="nasa-tlx-field-container">
-            <span class="low-label">{{inputMeta["low-label"]}}</span>
-            <input style="width:70%;" type="range" name="{{inputName}}" min="0" max="100" step="5" id="{{inputMeta['inputID']}}" value="50" default="50">
-            <span class="high-label">{{inputMeta["high-label"]}}</span>
+            <span class="low-label" id="{{inputMeta['inputID']}}-low-label">{{inputMeta["low-label"]}}</span>
+            <input style="width: 70%;" type="range" name="{{inputName}}" min="0" max="100" step="5" id="{{inputMeta['inputID']}}" value="50" default="50">
+            <span class="high-label" id="{{inputMeta['inputID']}}-high-label">{{inputMeta["high-label"]}}</span>
           </div>
       </fieldset>
       {% endfor %}

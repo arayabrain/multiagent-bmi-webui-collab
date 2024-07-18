@@ -1,4 +1,5 @@
 import { disconnectUser, getCookie } from './utils.js';
+import { applyLocalization, initUILanguage } from './localization.js';
 
 // Tracking active tabs / window
 let active_tab_detected = false;
@@ -37,6 +38,21 @@ window.addEventListener("unload", (event) => {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Load language and update the UI if needs be
+    var UILanguage = initUILanguage("register");
+    // Also apply localization rules to components shared across pages
+    applyLocalization("shared");
+
+    document.getElementById('ui-language').addEventListener('change', () => {
+        UILanguage = document.getElementById('ui-language').value;
+        // Set UI language session wide
+        sessionStorage.setItem('UILanguage', UILanguage);
+
+        // Update UI localization
+        applyLocalization("register");
+        applyLocalization("shared");
+    });
+
     document.querySelector('#userinfoForm').addEventListener('submit', async event => {
         event.preventDefault();
         await saveUserinfo();

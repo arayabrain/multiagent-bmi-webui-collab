@@ -10,19 +10,34 @@
 
 <body>
     <div class="container mt-5 bg-white rounded fs-5">
-        <!-- Userinfo display -->
+        <!-- Language and userinfo display -->
         <div class="row">
-            <div class="col-12 d-flex justify-content-end align-items-center">
+            <div class="col-6 justify-content-start align-items-center">
+                <div class="row">
+                    <div class="col-2">
+                        <label class="form-check-label" for="ui-language" id="ui-language-text">Language</label>
+                    </div>
+                    <div class="col-2">
+                        <select class="form-control" id="ui-language" name="ui-language">
+                            <option value="en">English</option>
+                            <option value="jp">日本語</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 d-flex justify-content-end align-items-center">
                 <div class="user-info">
                     <span id="displayUserInfo"></span>
-                    <button id="resetUserInfo" class="btn btn-secondary ms-2">Reset User</button>
+                    <button id="resetUserInfo" class="btn btn-secondary ms-2">
+                        <span id="reset-user-btn-text">Reset User</span>
+                    </button>
                 </div>
             </div>
         </div>
 
         <div class="row">
             <div class="col-12 text-center">
-                <h2>Select Devices</h2>
+                <h2 id="select-field-text">Select Devices</h2>
             </div>
         </div>
         <div class="row justify-content-center">
@@ -30,37 +45,37 @@
             <!-- Robot Selection Devices -->
             <div class="col-md-2 text-start">
                 <div class="form-check form-switch">
-                    <b>Robot</b>
+                    <b><span id="robot-selection-text">Robot</span></b>
                 </div>
                 <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="toggle-mouse">
-                    <label class="form-check-label" for="toggle-mouse">Mouse</label>
+                    <label class="form-check-label" for="toggle-mouse" id="toggle-mouse-text">Mouse</label>
                 </div>
                 <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="toggle-gamepad-0">
-                    <label class="form-check-label" for="toggle-gamepad-0">Gamepad</label>
+                    <label class="form-check-label" for="toggle-gamepad-0" id="toggle-gamepad-0-text">Gamepad</label>
                 </div>
                 <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="toggle-gaze">
-                    <label class="form-check-label" for="toggle-gaze">Eye Tracker</label>
+                    <label class="form-check-label" for="toggle-gaze" id="toggle-gaze-text">Eye Tracker</label>
                 </div>
             </div>
             <!-- Subtask Selection Devices -->
             <div class="col-md-2 text-start">
                 <div class="form-check form-switch">
-                    <b>Subtask</b>
+                    <b><span id="subtask-selection-text">Subtask</span></b>
                 </div>
                 <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="toggle-keyboard">
-                    <label class="form-check-label" for="toggle-keyboard">Keyboard</label>
+                    <label class="form-check-label" for="toggle-keyboard" id="toggle-keyboard-text">Keyboard</label>
                 </div>
                 <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="toggle-gamepad-1">
-                    <label class="form-check-label" for="toggle-gamepad-1">Gamepad</label>
+                    <label class="form-check-label" for="toggle-gamepad-1" id="toggle-gamepad-1-text">Gamepad</label>
                 </div>
                 <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="toggle-eeg">
-                    <label class="form-check-label" for="toggle-eeg">EEG/EMG</label>
+                    <label class="form-check-label" for="toggle-eeg" id="toggle-eeg-text">EEG/EMG</label>
                 </div>
             </div>
             <div class="col-md-4"></div>
@@ -77,7 +92,7 @@
 
         <div class="row mt-3">
             <div class="col-12 text-center">
-                <h2>Select a Mode</h2>
+                <h2 id="select-mode-text">Select a Mode</h2>
             </div>
         </div>
         <div class="row justify-content-center">

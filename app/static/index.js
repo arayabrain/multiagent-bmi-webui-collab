@@ -1,4 +1,5 @@
 import { disconnectUser, getCookie } from './utils.js';
+import { applyLocalization, initUILanguage } from './localization.js';
 
 // Tracking active tabs / window
 let active_tab_detected = false;
@@ -35,13 +36,29 @@ window.addEventListener("unload", (event) => {
     };
 });
 
-
 document.addEventListener('DOMContentLoaded', async () => {
+    // Load language, listen to changes to update the UI, save to session
+    var UILanguage = initUILanguage("index");
+    // Also apply localization rules to components shared across pages
+    applyLocalization("shared");
+
+    document.getElementById('ui-language').addEventListener('change', () => {
+        UILanguage = document.getElementById('ui-language').value;
+        // Set UI language session wide
+        sessionStorage.setItem('UILanguage', UILanguage);
+
+        // Update UI localization
+        applyLocalization("index");
+        applyLocalization("shared");
+    });
+
+    // Setup user info
     displayUserInfo();
     document.getElementById('resetUserInfo').addEventListener('click', () => {
         window.location.href = '/register';
     });
 
+    // Tracking device selection changes
     document.querySelectorAll('.form-check-input').forEach(
         input => input.addEventListener('change', saveDeviceSelection)
     );
@@ -81,6 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
+// Userinfo helpers
 const displayUserInfo = async () => {
     const response = await fetch('/api/getuser');
     const userinfo = await response.json();
@@ -91,6 +109,7 @@ const displayUserInfo = async () => {
     document.getElementById('displayUserInfo').textContent = `${userinfo.name}`;
 };
 
+// Device selection helpers
 const saveDeviceSelection = () => {
     // save the device state
     const state = {};
