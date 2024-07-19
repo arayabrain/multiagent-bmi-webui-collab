@@ -11,7 +11,17 @@ def hash_string(username):
 
 
 def anonymize_session(expid, source_folder, anonymized_folder):
+    # Check that source_folder exists
+    if not (os.path.exists(source_folder) and os.path.isdir(source_folder)):
+        print(f"Experiment data source folder not found: {source_folder}")
+        return False
+
     session_path = os.path.join(source_folder, expid)
+
+    # Check that folder of the expId itself exists
+    if not (os.path.exists(session_path) and os.path.isdir(session_path)):
+        print(f"Experiment data folder not found: {session_path}")
+        return False
 
     if not os.path.exists(anonymized_folder):
         os.mkdir(anonymized_folder)
