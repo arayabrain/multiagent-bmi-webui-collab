@@ -10,7 +10,23 @@
 
 <body>
     <div class="container mt-5 bg-white rounded">
-        <br/>
+        <!-- Language -->
+        <div class="row">
+            <div class="col-6 justify-content-start align-items-center">
+                <div class="row">
+                    <div class="col-2">
+                        <label class="form-check-label fs-5" for="ui-language" id="ui-language-text">Language</label>
+                    </div>
+                    <div class="col-3">
+                        <select class="form-control" id="ui-language" name="ui-language">
+                            <option value="en">🇺🇸 English</option>
+                            <option value="jp">🇯🇵 日本語</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="row">
             <div class="col-12 text-center">
                 <h2 id="enter-userinfo-text">Enter User Information</h2>
@@ -19,13 +35,8 @@
         <div class="row justify-content-center">
             <div class="col-md-3">
                 <form id="userinfoForm">
-                    <label id="ui-language-text" for="ui-language">Language</label>
-                    <select class="form-control mb-2" id="ui-language" name="ui-language">
-                        <option value="en">English</option>
-                        <option value="jp">日本語</option>
-                    </select>
                     <input type="text" class="form-control mb-2" id="projectName-text-input" name="projectName" placeholder="Project name" required
-                    autocomplete="projectName" value="hri-benchmark" defaultValue="hri-benchmark">
+                    autocomplete="projectName" value="hri-benchmark" defaultValue="hri-benchmark" disabled>
                     <input type="text" class="form-control mb-2" id="name-text-input" name="name" placeholder="Enter your name" required
                         autocomplete="name" autofocus>
                     <div id="serverValidationUserAlreadyRegistered" class="invalid-feedback">

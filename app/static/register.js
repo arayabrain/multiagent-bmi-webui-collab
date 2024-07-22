@@ -86,6 +86,7 @@ const saveUserinfo = async () => {
         // and affect the corresponding field appropriately.
         let usernameFormFiled = document.getElementById("name-text-input");
         usernameFormFiled.classList.add("is-invalid");
+        document.querySelector('input[name="name"]').value = null;
     };
 
     if (response.ok) {

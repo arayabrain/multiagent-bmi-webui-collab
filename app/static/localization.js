@@ -3,12 +3,10 @@ const SHARED_LOCALIZATION = {
   "en": {
     // Modals
     "activeTabModalLabel": "Running session detected in another tab or window ! Please close this one.",
-    "taskCompleteModalLabel": "Task Complete !"
   },
   "jp": {
     // Modals
     "activeTabModalLabel": "他のタブまたウィンドウでログインされています。このタブを閉じてください。",
-    "taskCompleteModalLabel": "完了です！"
   }
 };
 
@@ -32,7 +30,6 @@ const INDEX_LOCALIZATION = {
     "reset-user-btn-text": "Reset User",
 
     // Labels
-    "ui-language-text": "Language",
   },
   "jp": {
     // Headers
@@ -53,7 +50,6 @@ const INDEX_LOCALIZATION = {
     "reset-user-btn-text": "再設定",
 
     // Labels
-    "ui-language-text": "Language",
   }
 };
 
@@ -72,7 +68,6 @@ const REGISTER_LOCALIZATION = {
     "gender-female-text": "Female",
     "leftHand-text": "Left-handed",
     "rightHand-text": "Right-handed",
-    "ui-language-text": "Language | 言語",
 
     // Form feedback
     "invalid-username-feedback-text": "A user with the same username is already connected.",
@@ -96,7 +91,6 @@ const REGISTER_LOCALIZATION = {
     "gender-female-text": "女性",
     "leftHand-text": "左利き",
     "rightHand-text": "右利き",
-    "ui-language-text": "Language | 言語",
 
     // Form feedback
     "invalid-username-feedback-text": "入力した名前は既に他ユーザーに利用されています。",
@@ -187,8 +181,14 @@ const NASA_TLX_LOCALIZATION = {
 
 // Main app UI is self-explanatory
 const APP_LOCALIZATION = {
-  "en": {},
-  "jp": {}
+  "en": {
+    // Modals
+    "taskCompleteModalLabel": "Task Complete !",
+  },
+  "jp": {
+    // Modals
+    "taskCompleteModalLabel": "完了です！",
+  }
 };
 
 
