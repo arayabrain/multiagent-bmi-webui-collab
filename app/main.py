@@ -89,9 +89,6 @@ def get_uniq_client_sid(request: Request, mode: str = None):
         current-mode for further tracking of users' activity.
         Otherwise, generate a new id for them, then send a response back
         to store the cookie on the client side.
-
-        NOTE: this is likely circumvent by using Incognito window to connect
-        close it, then open a fresh one again.
     """
     unique_user_id = request.cookies.get("unique_user_id")
 
@@ -118,9 +115,10 @@ def get_uniq_client_sid(request: Request, mode: str = None):
     # DBG
     # print("")
     # print("#### DBG: Tracking Client Sessions")
-    # for idx, (uniquid, uniqdata) in enumerate(uniq_client_sids.items()):
-    #     print(f"  {idx} -> {uniquid}: {uniqdata.get('username', None)}")
-    #     print(f"    uniqdata: {uniqdata}")
+    # for userid, uuid_data in uniq_client_sids.items():
+    #     print(f"  {userid} => {uuid_data['username']}")
+    #     print(f"    connected: {uuid_data['connected']}")
+    #     print(f"    curr-mode: {uuid_data['current-mode']}")
     # print("")
 
     return unique_user_id
@@ -161,8 +159,8 @@ async def setuser(request: Request, userinfo: dict):
 
     # If another user with a different browser is detected,
     # reject this name choice
-    current_name = uniq_client_sids[unique_user_id].get("username", "")
-    connected_user_list = get_connected_users_list(ignore_names=current_name)
+    # current_name = uniq_client_sids[unique_user_id].get("username", "")
+    connected_user_list = get_connected_users_list() #(ignore_names=current_name)
     if username in connected_user_list:
         # NOTE: naive error handling, but more complex not needed for now
         raise HTTPException(
@@ -264,7 +262,6 @@ async def index(request: Request):
 
 
 async def task_page(request: Request, mode: str):
-    print(f"### DBG: mode at index page: {mode}")
     unique_user_id = get_uniq_client_sid(request, mode=mode) # Tracking uniq user
 
     if "userinfo" not in request.session:
