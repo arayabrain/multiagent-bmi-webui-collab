@@ -84,7 +84,7 @@ const saveUserinfo = async () => {
         // at this point is if the user is already registered
         // Rigorously, we would iterate over all errors in thel ist
         // and affect the corresponding field appropriately.
-        let usernameFormFiled = document.getElementById("name");
+        let usernameFormFiled = document.getElementById("name-text-input");
         usernameFormFiled.classList.add("is-invalid");
     };
 
