@@ -66,11 +66,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Also apply localization rules to components shared across pages
     applyLocalization("shared");
 
-    connectEnv();
-
     // get userinfo
     const response = await fetch('/api/getuser');
     userinfo = await response.json();
+
+    connectEnv();
 
     // buttons
     document.getElementById('start-button').addEventListener('click', () => requestServerStart());
@@ -296,7 +296,7 @@ const connectEnv = () => {
         });
     } else {
         // For data collection mode, just set the current user as connected, ignore the others
-        var username = JSON.parse(sessionStorage.userinfo).name
+        var username = userinfo["name"];
         document.getElementById('username-area').innerHTML = `<b><i>${username}</i></b><br/>`;
     };
 
