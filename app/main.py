@@ -25,7 +25,7 @@ from app.env import EnvRunner
 from app.stream import StreamManager
 from app.utils.metrics import InteractionRecorder, compute_sessionmetrics, compute_usermetrics, taskCompletionTimer
 from app.utils.webrtc import createPeerConnection, handle_answer, handle_candidate, handle_offer_request
-from app.utils.anonymize import hash_string
+from app.scripts.anonymize import hash_string
 
 load_dotenv()
 
