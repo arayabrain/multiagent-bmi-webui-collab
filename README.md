@@ -57,7 +57,7 @@ Web UI for the multi-agent robot arm environment
 - On Windows, you need to open ports for the WebRTC UDP communication. Open Windows Firewall settings (`wf.msc`) and create a new inbound rule to allow UDP ports `49152-65535`.
 - Some antivirus software also implement additional firewall rules (ESET, Avast, etc...), so make sure to disable them or add exceptions if the robots are not being rendered into the UI.
 
-5. For machines with lower CPU clock, `gamemode` increase the priority of the main and sub-processes, making the UI smoother, especially for the 16 robot mode.
+5. For machines with lower CPU clock, `gamemode` increases the priority of the main and sub-processes, making the UI smoother, especially for the 16 robots mode.
 - Install `gamemode` (Ubuntu). [More info](https://github.com/FeralInteractive/gamemode)
 ```bash
 sudo apt-get install gamemode
@@ -65,7 +65,8 @@ sudo apt-get install gamemode
 - For more aggressive CPU governing, edit `/etc/gamemode.ini`, and setting `renice=15` or higher.
 - Run with `gamemoderun python app/main.py`
 
-Best performance / UI responsiveness with the 16 robot mode was achieved on an `Intel i9-11900K 8C 16T @ 3.5GHz`. `gamemode` allowed a similar responsiveness on an `Intel Xeon Silver 4216 CPU 16C 32T @ 2.10Ghz`.
+Best performance / UI responsiveness with the 16 robots mode was achieved on an `Intel i9-11900K 8C 16T @ 3.5GHz`.
+`gamemode` allowed a similar responsiveness on an `Intel Xeon Silver 4216 CPU 16C 32T @ 2.10Ghz`.
 
 ## Run
 See [user_guide.md](user_guide.md) for usage instructions.
