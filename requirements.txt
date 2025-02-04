@@ -26,7 +26,6 @@ colorlog==6.8.2
 comm==0.2.1
 contourpy==1.2.0
 cryptography==42.0.5
--e git+https://github.com/shivakanthsujit/custom_robohive_design.git@64e738cb88d2a860b3375fd51451339f6d30ad6c#egg=custom_robohive_design
 cycler==0.12.1
 debugpy==1.8.1
 decorator==5.1.1
