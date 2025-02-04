@@ -14,7 +14,7 @@ Web UI for the multi-agent robot arm environment
     ```
 2. Clone this repository and setup the various sub-modules and dependencies:
     ```bash
-    git clone --recurse-submodules -j8 git@github.com:arayabrain/multiagent-bmi-webui.git
+    git clone --recurse-submodules -j8 git@github.com:arayabrain/multiagent-bmi-webui-collab.git
     pip install -e multiagent-bmi-webui/robohive-multi/robohive/.
     pip install -e multiagent-bmi-webui/robohive-multi/vtils/.
     pip install -e multiagent-bmi-webui/robohive-multi/.
