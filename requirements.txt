@@ -99,7 +99,6 @@ mne==1.6.1
 mpmath==1.3.0
 msgpack==1.0.8
 mujoco==2.3.7
--e git+https://github.com/arayabrain/multiagent-bmi-webui@afff580d600b0352c1c8d3c18784906a014e139b#egg=multiagent_bmi_webui
 nbclient==0.10.0
 nbconvert==7.16.2
 nbformat==5.10.3
