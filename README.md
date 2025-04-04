@@ -41,7 +41,7 @@ Then open your browser at: [https://127.0.0.1:8000](https://127.0.0.1:8000)
 
 ---
 
-## ⌨️ Keyboard Controls
+## Keyboard Controls
 
 | Key | Action |
 |-----|--------|
@@ -73,3 +73,7 @@ You can plug this into the control loop to replace keyboard input with live brai
 ## Acknowledgments
 
 This system extends work by **Araya Inc.** and the **Yanagisawa Lab, Osaka University** for real-time control of robotic systems via BMI interfaces.
+
+## License
+
+This project is based on collaborative research and is intended for academic and educational use only.
