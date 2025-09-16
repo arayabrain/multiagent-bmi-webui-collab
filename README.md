@@ -70,6 +70,21 @@ You can plug this into the control loop to replace keyboard input with live brai
 
 ---
 
+## References and Citations
+Initial Robot Arm HRI Benchmarking paper: [A Multi-User Multi-Robot Multi-Goal Multi-Device Human-Robot Interaction Manipulation Benchmark](https://www.frontiersin.org/journals/robotics-and-ai/articles/10.3389/frobt.2025.1528754/abstract)
+Please cite it as:
+```
+@article{yoshida2025m4bench,
+	author={Yoshida, Akito and Dossa, Rousslan Fernand Julien and Di Vincenzo, Marina and Sujit, Shivakanth and Douglas, Hannah and Arulkumaran, Kai},
+	title={A Multi-User Multi-Robot Multi-Goal Multi-Device Human-Robot Interaction Manipulation Benchmark},
+	journal={Frontiers in Robotics and AI},
+	volume={12},
+	year={2025},
+	url={https://www.frontiersin.org/journals/robotics-and-ai/articles/10.3389/frobt.2025.1528754/abstract},
+	doi={10.3389/frobt.2025.1528754}
+}
+```
+
 ## Acknowledgments
 
 This system extends work by **Araya Inc.** and the **Yanagisawa Lab, Osaka University** for real-time control of robotic systems via BMI interfaces.
